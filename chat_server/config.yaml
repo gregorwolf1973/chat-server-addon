@@ -1,0 +1,34 @@
+name: Chat Server
+version: "0.2.0"
+slug: chat_server
+description: Selbstgehosteter Messenger mit Gruppen, Dateiversand und Push-Benachrichtigungen
+url: https://github.com/gregorwolf1973/chat-server-addon
+arch:
+  - aarch64
+  - amd64
+  - armv7
+init: false
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:forum
+panel_title: Chat
+ports:
+  8099/tcp: 8099
+ports_description:
+  8099/tcp: Direktzugriff für externen Zugang (Cloudflare Tunnel)
+options:
+  admin_user: admin
+  admin_password: bitte-aendern
+  external_url: ""
+  api_token: ""
+  max_upload_mb: 25
+  log_level: info
+schema:
+  admin_user: str
+  admin_password: password
+  external_url: str?
+  api_token: str?
+  max_upload_mb: int(1,200)
+  log_level: list(debug|info|warning|error)

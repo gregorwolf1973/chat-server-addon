@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e1416">
+  <title>Chat</title>
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-base="{{ base }}" data-me="{{ me.id }}" data-name="{{ me.display_name }}"
+      data-admin="{{ 1 if me.is_admin else 0 }}" data-vapid="{{ vapid }}">
+
+  <div class="app" id="app">
+    <aside class="sidebar">
+      <header>
+        <span class="brand">Chat</span>
+        <button class="icon-btn" id="btn-new" title="Neue Unterhaltung">+ Neu</button>
+      </header>
+      <div class="room-list" id="rooms"></div>
+      <footer>
+        <span class="dot on"></span>
+        <span id="me-name">{{ me.display_name }}</span>
+        <span style="flex:1"></span>
+        <button class="icon-btn" id="btn-push" title="Benachrichtigungen einschalten">Push</button>
+        <button class="icon-btn" id="btn-settings" title="Einstellungen">…</button>
+      </footer>
+    </aside>
+
+    <main class="chat">
+      <div class="chat-header" id="chat-header" hidden>
+        <button class="icon-btn back" id="btn-back">←</button>
+        <div>
+          <div class="title" id="room-title"></div>
+          <div class="sub" id="room-sub"></div>
+        </div>
+        <span style="flex:1"></span>
+        <button class="icon-btn" id="btn-invite" hidden>Person hinzufügen</button>
+      </div>
+
+      <div class="messages" id="messages">
+        <div class="empty">Wähle links eine Unterhaltung oder starte mit „+ Neu“ eine neue.</div>
+      </div>
+      <div class="typing" id="typing"></div>
+
+      <div class="reply-bar" id="reply-bar" hidden>
+        <div class="reply-body">
+          <span class="reply-label">Antwort an</span>
+          <span id="reply-author"></span>
+          <span id="reply-text"></span>
+        </div>
+        <button class="icon-btn" id="reply-cancel" title="Antwort verwerfen">✕</button>
+      </div>
+
+      <div class="composer" id="composer" hidden>
+        <button class="icon-btn" id="btn-file" title="Datei anhängen">📎</button>
+        <input type="file" id="file-input" hidden>
+        <textarea id="input" rows="1" placeholder="Nachricht schreiben…"></textarea>
+        <button class="send" id="btn-send">Senden</button>
+      </div>
+    </main>
+  </div>
+
+  <div id="modal-root"></div>
+
+  <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

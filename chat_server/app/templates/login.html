@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Anmelden</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Chat</h1>
+      <p class="sub">Melde dich mit deinem Konto an.</p>
+      {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      <form method="post">
+        <div class="field">
+          <label for="username">Benutzername</label>
+          <input id="username" name="username" autocomplete="username" autofocus required>
+        </div>
+        <div class="field">
+          <label for="password">Passwort</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn" type="submit">Anmelden</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

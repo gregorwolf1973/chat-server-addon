@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+data/
+*.db
+*.db-wal
+*.db-shm
+uploads/
+secret.key
+vapid*.json
+vapid*.pem
+api_token.txt
+.DS_Store
+.idea/
+.vscode/

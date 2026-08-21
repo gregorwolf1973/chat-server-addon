@@ -1,0 +1,34 @@
+name: Add-on bauen
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.arch }} bauen
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, amd64, armv7]
+    steps:
+      - name: Quellcode holen
+        uses: actions/checkout@v4
+
+      - name: Add-on-Informationen lesen
+        id: info
+        uses: home-assistant/actions/helpers/info@master
+        with:
+          path: "./chat_server"
+
+      - name: Image bauen
+        uses: home-assistant/builder@master
+        with:
+          args: |
+            --test \
+            --${{ matrix.arch }} \
+            --target /data/chat_server \
+            --docker-hub ghcr.io/${{ github.repository_owner }}
