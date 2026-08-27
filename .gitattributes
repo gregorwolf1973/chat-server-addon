@@ -1,0 +1,2 @@
+# Fremdcode unveraendert lassen - keine Zeilenende-Umwandlung
+chat_server/app/static/socket.io.min.js -text

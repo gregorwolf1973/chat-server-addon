@@ -1,5 +1,11 @@
 # Änderungsverlauf
 
+## 0.2.2
+
+- Der Socket.IO-Client liegt jetzt im Repository statt beim Bauen vom CDN
+  geladen zu werden: die Installation auf dem Pi braucht dafür kein Internet
+  mehr und liefert bei jedem Bau dieselbe Fassung aus
+
 ## 0.2.1
 
 - PWA-Manifest korrigiert: Symbole und Startadresse zeigten wegen der relativen

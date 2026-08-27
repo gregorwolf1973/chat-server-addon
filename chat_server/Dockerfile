@@ -11,15 +11,14 @@ RUN apk add --no-cache \
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt
 
+# Der Socket.IO-Client liegt unter app/static im Repo - kein Download beim
+# Bauen, damit die Installation auf dem Pi nicht am CDN haengt.
 COPY app /opt/chat
 
 # Syntaxfehler sollen den Build brechen, nicht erst den Start auf dem Pi
 RUN python3 -m compileall -q /opt/chat \
- && python3 -c "import json; json.load(open('/opt/chat/static/manifest.json'))"
-
-# Socket.IO-Client lokal ausliefern (kein CDN zur Laufzeit noetig)
-RUN wget -q -O /opt/chat/static/socket.io.min.js \
-      https://cdn.socket.io/4.7.5/socket.io.min.js
+ && python3 -c "import json; json.load(open('/opt/chat/static/manifest.json'))" \
+ && test -s /opt/chat/static/socket.io.min.js
 
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
