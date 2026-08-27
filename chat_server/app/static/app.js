@@ -274,6 +274,15 @@
 
   socket.on("room_added", () => loadState());
 
+  // Konten geaendert oder entfernt - Namen und Auswahllisten nachziehen.
+  socket.on("user_changed", () => loadState());
+  socket.on("user_removed", () => loadState());
+
+  // Wer gesperrt oder geloescht wird, fliegt serverseitig aus der Verbindung.
+  socket.on("disconnect", (reason) => {
+    if (reason === "io server disconnect") location.reload();
+  });
+
   socket.on("typing", (t) => {
     if (t.room_id !== currentRoom || t.user_id === ME) return;
     typingUsers.set(t.user_id, t.name);
@@ -402,12 +411,10 @@
       <div class="field"><label>Aktuelles Passwort</label><input id="p-old" type="password"></div>
       <div class="field"><label>Neues Passwort</label><input id="p-new" type="password"></div>
       <button class="btn" id="p-ok">Passwort ändern</button>
-      ${IS_ADMIN ? `<hr style="border:none;border-top:1px solid var(--line);margin:22px 0">
-        <h2>Neues Konto anlegen</h2>
-        <div class="field"><label>Benutzername</label><input id="u-name"></div>
-        <div class="field"><label>Anzeigename</label><input id="u-disp"></div>
-        <div class="field"><label>Passwort</label><input id="u-pw" type="password"></div>
-        <button class="btn" id="u-ok">Konto anlegen</button>` : ""}
+      ${IS_ADMIN ? `<hr class="sep">
+        <h2>Benutzer verwalten</h2>
+        <div id="u-list" class="user-list"><p class="hint">Wird geladen …</p></div>
+        <button class="btn ghost" id="u-new">+ Neues Konto</button>` : ""}
       <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button>
       <a class="btn ghost" style="text-align:center;text-decoration:none;line-height:2.2" href="${BASE}/logout">Abmelden</a></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
@@ -422,21 +429,125 @@
       if (res.ok) closeModal();
     });
     if (IS_ADMIN) {
-      root.querySelector("#u-ok").addEventListener("click", async () => {
-        const res = await api("/api/users", {
-          method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({
-            username: root.querySelector("#u-name").value,
-            display_name: root.querySelector("#u-disp").value,
-            password: root.querySelector("#u-pw").value,
-          }),
-        });
-        const data = await res.json();
-        toast(res.ok ? "Konto angelegt." : data.error);
-        if (res.ok) { closeModal(); loadState(); }
-      });
+      renderUserAdmin(root);
+      root.querySelector("#u-new").addEventListener("click", () => newUserDialog());
     }
   });
+
+  // ---------- Benutzerverwaltung (nur Administratoren) ----------
+  async function adminCall(path, opt, okText) {
+    const res = await api(path, opt);
+    let data = {};
+    try { data = await res.json(); } catch (err) { /* 204 o. ae. */ }
+    toast(res.ok ? okText : (data.error || "Das hat nicht geklappt."));
+    return res.ok;
+  }
+
+  async function renderUserAdmin(root) {
+    const box = root.querySelector("#u-list");
+    if (!box) return;
+    const res = await api("/api/users");
+    if (!res.ok) { box.innerHTML = '<p class="hint">Liste nicht verfügbar.</p>'; return; }
+    const users = await res.json();
+    // Der letzte verbliebene Administrator darf sich nicht selbst entmachten -
+    // dann gaebe es niemanden mehr, der Konten verwaltet.
+    const letzterAdmin = users.filter((u) => u.is_admin && u.active).length <= 1;
+    box.innerHTML = users.map((u) => {
+      const selbst = u.id === ME;
+      const schuetzen = selbst || (u.is_admin && letzterAdmin);
+      return `
+      <div class="urow ${u.active ? "" : "off"}" data-id="${u.id}">
+        <div class="uinfo">
+          <span class="uname">${esc(u.display_name)}</span>
+          <span class="utag">@${esc(u.username)}</span>
+          ${u.is_admin ? '<span class="chip admin">Admin</span>' : ""}
+          ${u.active ? "" : '<span class="chip off">gesperrt</span>'}
+          ${selbst ? '<span class="chip me">du</span>' : ""}
+        </div>
+        <div class="uacts">
+          <button class="act" data-act="pw" title="Passwort zurücksetzen">Passwort</button>
+          ${schuetzen ? "" : `
+          <button class="act" data-act="admin" title="${u.is_admin ? "Administratorrecht entziehen" : "Zum Administrator machen"}">${u.is_admin ? "Kein Admin" : "Admin"}</button>
+          <button class="act" data-act="active" title="${u.active ? "Konto sperren" : "Konto entsperren"}">${u.active ? "Sperren" : "Entsperren"}</button>
+          <button class="act del" data-act="del" title="Konto endgültig löschen">Löschen</button>`}
+          ${!selbst && u.is_admin && letzterAdmin
+            ? '<span class="hint inline">letzter Administrator</span>' : ""}
+        </div>
+      </div>`;
+    }).join("") || '<p class="hint">Es gibt noch keine weiteren Konten.</p>';
+
+    box.querySelectorAll(".act").forEach((btn) => btn.addEventListener("click", async () => {
+      const row = btn.closest(".urow");
+      const id = parseInt(row.dataset.id, 10);
+      const user = users.find((u) => u.id === id);
+      const json = (body) => ({method: "PATCH",
+                               headers: {"Content-Type": "application/json"},
+                               body: JSON.stringify(body)});
+      let ok = false;
+      if (btn.dataset.act === "pw") {
+        return passwordDialog(user, root);
+      } else if (btn.dataset.act === "admin") {
+        ok = await adminCall(`/api/users/${id}`, json({is_admin: !user.is_admin}),
+                             user.is_admin ? "Administratorrecht entzogen."
+                                           : "Konto ist jetzt Administrator.");
+      } else if (btn.dataset.act === "active") {
+        ok = await adminCall(`/api/users/${id}`, json({active: !user.active}),
+                             user.active ? "Konto gesperrt." : "Konto entsperrt.");
+      } else if (btn.dataset.act === "del") {
+        if (!confirm(`Konto „${user.display_name}“ endgültig löschen?\n\n`
+                     + "Die Nachrichten bleiben im Verlauf stehen, erscheinen aber "
+                     + "unter „Gelöschtes Konto“. Das lässt sich nicht rückgängig machen."))
+          return;
+        ok = await adminCall(`/api/users/${id}`, {method: "DELETE"}, "Konto gelöscht.");
+      }
+      if (ok) { renderUserAdmin(root); loadState(); }
+    }));
+  }
+
+  function passwordDialog(user, settingsRoot) {
+    const root = modal(`<h2>Passwort zurücksetzen</h2>
+      <p class="hint">für <strong>${esc(user.display_name)}</strong> (@${esc(user.username)})</p>
+      <div class="field"><label>Neues Passwort (min. 6 Zeichen)</label>
+        <input id="r-pw" type="text" autocomplete="off"></div>
+      <p class="hint">Das Konto wird auf allen Geräten abgemeldet. Gib das Passwort
+        persönlich weiter und lass es danach selbst ändern.</p>
+      <div class="row"><button class="btn ghost" id="r-cancel">Abbrechen</button>
+      <button class="btn" id="r-ok">Zurücksetzen</button></div>`);
+    root.querySelector("#r-cancel").addEventListener("click", closeModal);
+    root.querySelector("#r-ok").addEventListener("click", async () => {
+      const ok = await adminCall(`/api/users/${user.id}/password`, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({password: root.querySelector("#r-pw").value}),
+      }, "Passwort zurückgesetzt.");
+      if (ok) { closeModal(); $("btn-settings").click(); }
+    });
+    void settingsRoot;
+  }
+
+  function newUserDialog() {
+    const root = modal(`<h2>Neues Konto anlegen</h2>
+      <div class="field"><label>Benutzername (zum Anmelden, klein geschrieben)</label>
+        <input id="u-name" autocomplete="off"></div>
+      <div class="field"><label>Anzeigename</label><input id="u-disp" autocomplete="off"></div>
+      <div class="field"><label>Passwort (min. 6 Zeichen)</label>
+        <input id="u-pw" type="text" autocomplete="off"></div>
+      <label class="check"><input type="checkbox" id="u-admin"> Administrator</label>
+      <div class="row"><button class="btn ghost" id="n-cancel">Abbrechen</button>
+      <button class="btn" id="n-ok">Anlegen</button></div>`);
+    root.querySelector("#n-cancel").addEventListener("click", closeModal);
+    root.querySelector("#n-ok").addEventListener("click", async () => {
+      const ok = await adminCall("/api/users", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          username: root.querySelector("#u-name").value,
+          display_name: root.querySelector("#u-disp").value,
+          password: root.querySelector("#u-pw").value,
+          is_admin: root.querySelector("#u-admin").checked,
+        }),
+      }, "Konto angelegt.");
+      if (ok) { closeModal(); loadState(); $("btn-settings").click(); }
+    });
+  }
 
   // ---------- Push ----------
   const b64 = (s) => {

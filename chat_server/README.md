@@ -6,13 +6,12 @@ auf dem Handy. Läuft als Add-on auf dem Pi, Daten bleiben in `/data`.
 
 ## Installation
 
-1. Ordner `chat_server` in dein lokales Add-on-Repository legen
-   (z. B. `/addons/chat_server` per Samba oder Studio Code Server).
-2. In Home Assistant: **Einstellungen → Add-ons → Add-on Store → ⋮ → Nach Updates suchen**.
-3. „Chat Server" installieren, unter **Konfiguration** `admin_user` und
+1. In Home Assistant: **Einstellungen → Add-ons → Add-on Store → ⋮ → Repositories**
+   und `https://github.com/gregorwolf1973/chat-server-addon` hinzufügen.
+2. „Chat Server“ installieren, unter **Konfiguration** `admin_user` und
    `admin_password` setzen, starten.
-4. Über **Öffnen** (Ingress) anmelden. Weitere Konten legst du als Administrator
-   unter **… → Neues Konto anlegen** an.
+3. Über **Öffnen** (Ingress) anmelden. Weitere Konten legst du als Administrator
+   unter **… → Benutzer verwalten** an.
 
 ## Konfiguration
 
@@ -75,6 +74,26 @@ action:
 Ist `room` ein Benutzername, entsteht beim ersten Mal automatisch ein Direktchat
 mit „Home Assistant". Ist niemand online, geht die Nachricht zusätzlich als Push
 aufs Handy.
+
+## Benutzer verwalten
+
+Administratoren finden unter **… → Benutzer verwalten** alle Konten mit ihren
+Aktionen:
+
+* **Passwort** – setzt ein neues Passwort. Das Konto wird dabei auf allen
+  Geräten abgemeldet, damit ein vergessenes Passwort niemanden aussperrt.
+  Gib das neue Passwort persönlich weiter und lass es danach selbst ändern.
+* **Admin / Kein Admin** – vergibt oder entzieht Administratorrechte.
+* **Sperren / Entsperren** – verwehrt den Zugang, ohne etwas zu löschen.
+  Laufende Sitzungen enden sofort. Gesperrte Konten erscheinen nicht mehr in
+  der Auswahl für neue Unterhaltungen, ihre Nachrichten bleiben stehen.
+* **Löschen** – entfernt das Konto endgültig. Die Nachrichten bleiben im
+  Verlauf, erscheinen aber unter „Gelöschtes Konto“, damit fremde
+  Unterhaltungen keine Lücken bekommen.
+
+Am eigenen Konto steht nur **Passwort** zur Verfügung, und der letzte
+verbliebene Administrator lässt sich weder entmachten noch sperren – sonst
+könnte niemand mehr Konten verwalten.
 
 ## Antworten und Löschen
 

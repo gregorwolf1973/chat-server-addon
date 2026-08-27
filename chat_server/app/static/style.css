@@ -378,3 +378,66 @@ button { cursor: pointer; }
   .msg { animation: rise 0.16s ease-out; }
   @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
 }
+
+/* ---------- Benutzerverwaltung ---------- */
+.sep { border: none; border-top: 1px solid var(--line); margin: 22px 0; }
+
+.user-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  margin: 4px 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.user-list .hint { padding: 14px; margin: 0; }
+
+.urow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line);
+}
+.urow:last-child { border-bottom: none; }
+.urow.off { opacity: 0.55; }
+
+.uinfo { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; min-width: 0; }
+.uname { font-weight: 600; }
+.utag { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+.chip {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.chip.admin { color: var(--accent); border-color: var(--accent); }
+.chip.off { color: var(--danger); border-color: var(--danger); }
+.chip.me { color: var(--text); }
+
+.uacts { display: flex; gap: 6px; flex-wrap: wrap; }
+.uacts .act {
+  position: static;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.check input { width: auto; }
+
+@media (max-width: 520px) {
+  .urow { flex-direction: column; align-items: flex-start; }
+}
+.hint.inline { margin: 0; align-self: center; font-size: 11px; }

@@ -1,5 +1,22 @@
 # Änderungsverlauf
 
+## 0.3.0
+
+- **Benutzerverwaltung für Administratoren** unter **… → Benutzer verwalten**:
+  Passwort zurücksetzen, Administratorrechte vergeben und entziehen, Konten
+  sperren und entsperren, Konten endgültig löschen
+- Ein zurückgesetztes Passwort meldet das Konto auf allen Geräten ab; wer
+  gesperrt oder gelöscht wird, verliert laufende Sitzungen sofort
+- Beim Löschen bleiben die Nachrichten im Verlauf stehen und erscheinen unter
+  „Gelöschtes Konto“, damit fremde Unterhaltungen keine Lücken bekommen
+- Schutz gegen Aussperren: das eigene Konto lässt sich weder sperren, löschen
+  noch entmachten, und der letzte verbliebene Administrator bleibt bestehen
+- Die Anmeldung beachtet Groß- und Kleinschreibung des Benutzernamens nicht
+  mehr — bisher kam nicht hinein, wer den Namen groß schrieb, obwohl neue
+  Konten immer klein gespeichert werden
+- Gesperrte Konten erhalten keine Nachrichten mehr über `POST /api/notify`
+  und erscheinen nicht in der Auswahl für neue Unterhaltungen
+
 ## 0.2.2
 
 - Der Socket.IO-Client liegt jetzt im Repository statt beim Bauen vom CDN

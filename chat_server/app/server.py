@@ -96,6 +96,8 @@ CREATE TABLE IF NOT EXISTS users (
     display_name TEXT NOT NULL,
     pw_hash TEXT NOT NULL,
     is_admin INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    pw_version INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS rooms (
@@ -166,6 +168,11 @@ def raw_db():
 
 
 BOT_USERNAME = "homeassistant"
+# Konten, die die Verwaltung nicht anfassen darf. Das Bot-Konto schreibt die
+# Nachrichten aus Home Assistant, das Archiv-Konto haelt die Nachrichten
+# geloeschter Nutzer.
+GONE_USERNAME = "geloeschtes-konto"
+SYSTEM_USERS = (BOT_USERNAME, GONE_USERNAME)
 
 
 def migrate(conn):
@@ -175,6 +182,11 @@ def migrate(conn):
         conn.execute("ALTER TABLE messages ADD COLUMN reply_to INTEGER")
     if "deleted" not in cols:
         conn.execute("ALTER TABLE messages ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
+    if "active" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
+    if "pw_version" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN pw_version INTEGER NOT NULL DEFAULT 0")
     conn.commit()
 
 
@@ -330,20 +342,52 @@ def security_headers(resp):
     return resp
 
 
-def current_user():
+def session_user(conn=None):
+    """Der angemeldete Nutzer - oder None, wenn die Sitzung nicht mehr gilt.
+
+    Eine Sitzung verfaellt sofort, wenn das Konto gesperrt wurde oder das
+    Passwort sich geaendert hat (pw_version). Damit wirkt ein Zuruecksetzen
+    durch den Administrator auf allen Geraeten, nicht erst beim Abmelden.
+    """
     uid = session.get("uid")
     if not uid:
         return None
-    return db().execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    conn = conn or db()
+    row = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    if row is None or not row["active"]:
+        return None
+    # Sitzungen von vor diesem Update haben kein "pwv" - die zaehlen als 0 und
+    # bleiben damit gueltig, solange das Passwort unveraendert ist.
+    if session.get("pwv", 0) != row["pw_version"]:
+        return None
+    return row
+
+
+def current_user():
+    return session_user()
 
 
 def login_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        if not session.get("uid"):
+        if session_user() is None:
+            session.clear()
             if request.path.startswith("/api/"):
                 return jsonify({"error": "nicht angemeldet"}), 401
             return redirect(url_for("login_page"))
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def admin_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        me = session_user()
+        if me is None:
+            session.clear()
+            return jsonify({"error": "nicht angemeldet"}), 401
+        if not me["is_admin"]:
+            return jsonify({"error": "Das darf nur ein Administrator."}), 403
         return fn(*args, **kwargs)
     return wrapper
 
@@ -405,6 +449,21 @@ def join_user_sockets(user_id, room_id):
         socketio.server.enter_room(sid, f"room:{room_id}", namespace="/")
 
 
+def disconnect_user(user_id):
+    """Offene Verbindungen eines Kontos trennen - nach Sperre, Loeschung oder
+    zurueckgesetztem Passwort soll niemand weiter mitlesen."""
+    try:
+        sids = list(socketio.server.manager.get_participants("/", f"user:{user_id}"))
+    except Exception:  # noqa: BLE001
+        return
+    for entry in sids:
+        sid = entry[0] if isinstance(entry, tuple) else entry
+        try:
+            socketio.server.disconnect(sid, namespace="/")
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def msg_payload(row):
     deleted = bool(row["deleted"])
     out = {
@@ -453,13 +512,20 @@ MSG_QUERY = (
 @app.route("/login", methods=["GET", "POST"])
 def login_page():
     if request.method == "POST":
-        username = (request.form.get("username") or "").strip()
+        username = (request.form.get("username") or "").strip().lower()
         password = request.form.get("password") or ""
-        row = db().execute("SELECT * FROM users WHERE username=?",
+        # Neue Konten werden klein gespeichert, das Konto aus admin_user aber
+        # so, wie es in der Option steht - deshalb hier unabhaengig von der
+        # Schreibweise suchen.
+        row = db().execute("SELECT * FROM users WHERE lower(username)=?",
                            (username,)).fetchone()
+        if row is not None and not row["active"]:
+            return render_template(
+                "login.html", error="Dieses Konto ist gesperrt. Wende dich an einen Administrator.")
         if row and check_password_hash(row["pw_hash"], password):
             session.permanent = True
             session["uid"] = row["id"]
+            session["pwv"] = row["pw_version"]
             return redirect(url_for("index"))
         return render_template("login.html", error="Benutzername oder Passwort stimmt nicht.")
     if session.get("uid"):
@@ -500,9 +566,11 @@ def api_state():
     rooms = conn.execute(
         "SELECT r.* FROM rooms r JOIN room_members m ON m.room_id=r.id"
         " WHERE m.user_id=?", (uid,)).fetchall()
+    marks = ",".join("?" * len(SYSTEM_USERS))
     users = conn.execute(
-        "SELECT id, username, display_name, is_admin FROM users ORDER BY display_name"
-    ).fetchall()
+        "SELECT id, username, display_name, is_admin, active FROM users"
+        f" WHERE username NOT IN ({marks}) ORDER BY display_name",
+        SYSTEM_USERS).fetchall()
     with ONLINE_LOCK:
         online = list(ONLINE.keys())
     payload = [room_payload(r, uid, conn) for r in rooms]
@@ -612,20 +680,68 @@ def api_add_member(room_id):
     return jsonify({"ok": True})
 
 
+MIN_PASSWORD = 6
+
+
+def target_user(user_id):
+    """Zielkonto einer Verwaltungsaktion pruefen.
+
+    Gibt (row, fehlerantwort) zurueck - genau eines davon ist gesetzt.
+    """
+    row = db().execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if row is None:
+        return None, (jsonify({"error": "Dieses Konto gibt es nicht."}), 404)
+    if row["username"] in SYSTEM_USERS:
+        return None, (jsonify({"error": "Systemkonten lassen sich nicht "
+                                        "verwalten."}), 400)
+    return row, None
+
+
+def other_admins(exclude_id):
+    """Wie viele aktive Administratoren gibt es ausser diesem einen?"""
+    return db().execute(
+        "SELECT COUNT(*) c FROM users WHERE is_admin=1 AND active=1 AND id<>?",
+        (exclude_id,)).fetchone()["c"]
+
+
+def user_payload(row):
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "display_name": row["display_name"],
+        "is_admin": bool(row["is_admin"]),
+        "active": bool(row["active"]),
+        "created_at": row["created_at"],
+    }
+
+
+@app.get("/api/users")
+@admin_required
+def api_list_users():
+    marks = ",".join("?" * len(SYSTEM_USERS))
+    rows = db().execute(
+        "SELECT * FROM users"
+        f" WHERE username NOT IN ({marks})"
+        " ORDER BY active DESC, display_name", SYSTEM_USERS).fetchall()
+    return jsonify([user_payload(r) for r in rows])
+
+
 @app.post("/api/users")
-@login_required
+@admin_required
 def api_create_user():
-    me = current_user()
-    if not me["is_admin"]:
-        return jsonify({"error": "Nur Administratoren legen Konten an."}), 403
     data = request.get_json(force=True)
     username = (data.get("username") or "").strip().lower()
     display = (data.get("display_name") or username).strip()
     password = data.get("password") or ""
-    if not username or len(password) < 6:
-        return jsonify({"error": "Benutzername fehlt oder Passwort ist zu kurz (min. 6 Zeichen)."}), 400
+    if not username:
+        return jsonify({"error": "Der Benutzername fehlt."}), 400
+    if username in SYSTEM_USERS:
+        return jsonify({"error": "Dieser Benutzername ist vergeben."}), 400
+    if len(password) < MIN_PASSWORD:
+        return jsonify({"error": f"Das Passwort braucht mindestens "
+                                 f"{MIN_PASSWORD} Zeichen."}), 400
     try:
-        db().execute(
+        cur = db().execute(
             "INSERT INTO users (username, display_name, pw_hash, is_admin, created_at)"
             " VALUES (?,?,?,?,?)",
             (username, display, generate_password_hash(password),
@@ -633,6 +749,124 @@ def api_create_user():
         db().commit()
     except sqlite3.IntegrityError:
         return jsonify({"error": "Diesen Benutzernamen gibt es schon."}), 400
+    row = db().execute("SELECT * FROM users WHERE id=?", (cur.lastrowid,)).fetchone()
+    return jsonify(user_payload(row))
+
+
+@app.post("/api/users/<int:user_id>/password")
+@admin_required
+def api_reset_password(user_id):
+    """Passwort zuruecksetzen - meldet das Konto auf allen Geraeten ab."""
+    row, err = target_user(user_id)
+    if err:
+        return err
+    new = (request.get_json(force=True).get("password") or "")
+    if len(new) < MIN_PASSWORD:
+        return jsonify({"error": f"Das Passwort braucht mindestens "
+                                 f"{MIN_PASSWORD} Zeichen."}), 400
+    db().execute("UPDATE users SET pw_hash=?, pw_version=pw_version+1 WHERE id=?",
+                 (generate_password_hash(new), user_id))
+    db().commit()
+    if row["id"] == session.get("uid"):
+        session["pwv"] = row["pw_version"] + 1  # eigene Sitzung weiterlaufen lassen
+    else:
+        disconnect_user(user_id)
+    log.info("Passwort von '%s' wurde zurueckgesetzt", row["username"])
+    return jsonify({"ok": True})
+
+
+@app.patch("/api/users/<int:user_id>")
+@admin_required
+def api_update_user(user_id):
+    """Anzeigename, Administratorrecht und Sperre aendern."""
+    row, err = target_user(user_id)
+    if err:
+        return err
+    me = current_user()
+    data = request.get_json(force=True)
+    sets, args = [], []
+
+    if "display_name" in data:
+        display = (data.get("display_name") or "").strip()
+        if not display:
+            return jsonify({"error": "Der Anzeigename darf nicht leer sein."}), 400
+        sets.append("display_name=?")
+        args.append(display)
+
+    if "is_admin" in data:
+        want = 1 if data.get("is_admin") else 0
+        if not want and row["is_admin"] and not other_admins(user_id):
+            return jsonify({"error": "Das ist der letzte Administrator - "
+                                     "erst einen zweiten ernennen."}), 400
+        if not want and row["id"] == me["id"]:
+            return jsonify({"error": "Die eigenen Administratorrechte kannst du "
+                                     "nicht abgeben."}), 400
+        sets.append("is_admin=?")
+        args.append(want)
+
+    if "active" in data:
+        want = 1 if data.get("active") else 0
+        if not want and row["id"] == me["id"]:
+            return jsonify({"error": "Du kannst dich nicht selbst sperren."}), 400
+        if not want and row["is_admin"] and not other_admins(user_id):
+            return jsonify({"error": "Das ist der letzte Administrator - "
+                                     "erst einen zweiten ernennen."}), 400
+        sets.append("active=?")
+        args.append(want)
+
+    if not sets:
+        return jsonify({"error": "Es wurde nichts zum Aendern angegeben."}), 400
+    args.append(user_id)
+    db().execute(f"UPDATE users SET {','.join(sets)} WHERE id=?", args)
+    db().commit()
+
+    row = db().execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if not row["active"]:
+        disconnect_user(user_id)
+    socketio.emit("user_changed", user_payload(row))
+    return jsonify(user_payload(row))
+
+
+@app.delete("/api/users/<int:user_id>")
+@admin_required
+def api_delete_user(user_id):
+    """Konto endgueltig entfernen.
+
+    Die Nachrichten bleiben im Verlauf stehen - sie wandern auf ein
+    Archiv-Konto, sonst rissen sie Loecher in fremde Unterhaltungen.
+    """
+    row, err = target_user(user_id)
+    if err:
+        return err
+    me = current_user()
+    if row["id"] == me["id"]:
+        return jsonify({"error": "Das eigene Konto kannst du nicht loeschen."}), 400
+    if row["is_admin"] and not other_admins(user_id):
+        return jsonify({"error": "Das ist der letzte Administrator - "
+                                 "erst einen zweiten ernennen."}), 400
+
+    conn = db()
+    gone = conn.execute("SELECT id FROM users WHERE username=?",
+                        (GONE_USERNAME,)).fetchone()
+    if gone is None:
+        cur = conn.execute(
+            "INSERT INTO users (username, display_name, pw_hash, is_admin, active,"
+            " created_at) VALUES (?,?,'!',0,0,?)",
+            (GONE_USERNAME, "Geloeschtes Konto", int(time.time())))
+        gone_id = cur.lastrowid
+    else:
+        gone_id = gone["id"]
+
+    conn.execute("UPDATE messages SET user_id=? WHERE user_id=?", (gone_id, user_id))
+    conn.execute("UPDATE files SET user_id=? WHERE user_id=?", (gone_id, user_id))
+    conn.execute("DELETE FROM room_members WHERE user_id=?", (user_id,))
+    conn.execute("DELETE FROM push_subs WHERE user_id=?", (user_id,))
+    conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+    conn.commit()
+
+    disconnect_user(user_id)
+    socketio.emit("user_removed", {"id": user_id})
+    log.info("Konto '%s' wurde geloescht", row["username"])
     return jsonify({"ok": True})
 
 
@@ -644,11 +878,14 @@ def api_change_password():
     me = current_user()
     if not check_password_hash(me["pw_hash"], data.get("old") or ""):
         return jsonify({"error": "Das aktuelle Passwort stimmt nicht."}), 400
-    if len(new) < 6:
-        return jsonify({"error": "Das neue Passwort braucht mindestens 6 Zeichen."}), 400
-    db().execute("UPDATE users SET pw_hash=? WHERE id=?",
+    if len(new) < MIN_PASSWORD:
+        return jsonify({"error": f"Das neue Passwort braucht mindestens "
+                                 f"{MIN_PASSWORD} Zeichen."}), 400
+    db().execute("UPDATE users SET pw_hash=?, pw_version=pw_version+1 WHERE id=?",
                  (generate_password_hash(new), me["id"]))
     db().commit()
+    # Die eigene Sitzung soll weiterlaufen, andere Geraete fliegen raus.
+    session["pwv"] = me["pw_version"] + 1
     return jsonify({"ok": True})
 
 
@@ -756,8 +993,8 @@ def api_notify():
 
     if room is None:
         user = conn.execute(
-            "SELECT * FROM users WHERE username=? OR display_name=?",
-            (target.lower(), target)).fetchone()
+            "SELECT * FROM users WHERE (lower(username)=? OR display_name=?)"
+            " AND active=1", (target.lower(), target)).fetchone()
         if user is None:
             return jsonify({"error": f"Weder Gruppe noch Person mit dem Namen "
                                      f"'{target}' gefunden."}), 404
@@ -816,11 +1053,18 @@ def on_connect():
     uid = session.get("uid")
     if not uid:
         return False
+    conn = raw_db()
+    # Gesperrte Konten und veraltete Sitzungen kommen auch mit gueltigem
+    # Cookie nicht mehr an den Datenstrom.
+    me = conn.execute("SELECT active, pw_version FROM users WHERE id=?",
+                      (uid,)).fetchone()
+    if me is None or not me["active"] or session.get("pwv", 0) != me["pw_version"]:
+        conn.close()
+        return False
     with ONLINE_LOCK:
         ONLINE[uid] = ONLINE.get(uid, 0) + 1
         first = ONLINE[uid] == 1
     join_room(f"user:{uid}")
-    conn = raw_db()
     for row in conn.execute("SELECT room_id FROM room_members WHERE user_id=?",
                             (uid,)).fetchall():
         join_room(f"room:{row['room_id']}")
@@ -868,8 +1112,10 @@ def on_send(data):
         return
 
     conn = raw_db()
-    member = conn.execute("SELECT 1 FROM room_members WHERE room_id=? AND user_id=?",
-                          (room_id, uid)).fetchone()
+    member = conn.execute(
+        "SELECT 1 FROM room_members m JOIN users u ON u.id=m.user_id"
+        " WHERE m.room_id=? AND m.user_id=? AND u.active=1",
+        (room_id, uid)).fetchone()
     if not member:
         conn.close()
         return
