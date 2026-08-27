@@ -1,5 +1,10 @@
 # Änderungsverlauf
 
+## Unveröffentlicht
+
+- Architektur `armv7` entfernt: Home Assistant und der Add-on-Builder
+  unterstützen keine 32-Bit-Architekturen mehr
+
 ## 0.2.0
 
 - Antworten auf einzelne Nachrichten mit Zitat im Verlauf

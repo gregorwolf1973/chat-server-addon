@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [aarch64, amd64, armv7]
+        arch: [aarch64, amd64]
     steps:
       - name: Quellcode holen
         uses: actions/checkout@v4
@@ -25,10 +25,11 @@ jobs:
           path: "./chat_server"
 
       - name: Image bauen
-        uses: home-assistant/builder@master
+        uses: home-assistant/builder@2026.02.1
         with:
           args: |
             --test \
             --${{ matrix.arch }} \
             --target /data/chat_server \
+            --image {arch}-addon-chat_server \
             --docker-hub ghcr.io/${{ github.repository_owner }}
