@@ -12,6 +12,11 @@
   let currentRoom = null;
   let typingTimer = null;
   let replyTo = null;
+  // Zustand des gerade gerenderten Verlaufs - steuert Tagestrenner und die
+  // Wiederholung des Absendernamens. Nicht aus dem DOM ablesen: der letzte
+  // Knoten ist im Normalfall eine .msg, kein .day.
+  let lastDay = "";
+  let lastAuthor = null;
   const typingUsers = new Map();
 
   // ---------- Hilfen ----------
@@ -90,8 +95,9 @@
     const res = await api(`/api/rooms/${id}/messages`);
     const msgs = await res.json();
     $("messages").innerHTML = "";
-    let lastDay = "", lastAuthor = null;
-    msgs.forEach((m) => { appendMsg(m, lastDay, lastAuthor); lastDay = dayOf(m.at); lastAuthor = m.user_id; });
+    lastDay = "";
+    lastAuthor = null;
+    msgs.forEach((m) => appendMsg(m));
     scrollDown();
     room.unread = 0;
     renderRooms();
@@ -104,7 +110,7 @@
     box.scrollTop = box.scrollHeight;
   }
 
-  function appendMsg(m, lastDay, lastAuthor) {
+  function appendMsg(m) {
     const box = $("messages");
     const day = dayOf(m.at);
     if (day !== lastDay) {
@@ -112,13 +118,16 @@
       d.className = "day";
       d.textContent = day;
       box.appendChild(d);
+      lastDay = day;
       lastAuthor = null;
     }
+    const prevAuthor = lastAuthor;
+    lastAuthor = m.user_id;
     const wrap = document.createElement("div");
     wrap.className = "msg" + (m.user_id === ME ? " mine" : "") + (m.deleted ? " gone" : "");
     wrap.dataset.id = m.id;
     const room = roomById(m.room_id);
-    const showAuthor = room && room.is_group && m.user_id !== ME && m.user_id !== lastAuthor;
+    const showAuthor = room && room.is_group && m.user_id !== ME && m.user_id !== prevAuthor;
     let inner = showAuthor ? `<div class="author">${esc(m.author)}</div>` : "";
 
     if (m.deleted) {
@@ -214,10 +223,8 @@
   function pushMessage(m) {
     const box = $("messages");
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
-    const last = box.querySelector(".msg:last-child");
-    appendMsg(m, box.querySelector(".day:last-of-type")?.textContent || "", null);
+    appendMsg(m);
     if (atBottom || m.user_id === ME) scrollDown();
-    void last;
   }
 
   // ---------- Socket ----------

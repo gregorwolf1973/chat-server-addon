@@ -48,8 +48,8 @@ Danach `external_url: https://chat.biker633.org` setzen und das Add-on neu start
 
 Das Add-on legt ein Konto „Home Assistant" an. Über `POST /api/notify` schreibt
 eine Automation in eine Gruppe oder direkt an eine Person. Das Token steht in der
-Option `api_token`; bleibt sie leer, wird eines erzeugt und beim Start ins
-Add-on-Log geschrieben (`/data/api_token.txt`).
+Option `api_token`; bleibt sie leer, wird beim ersten Start eines erzeugt und
+in `/data/api_token.txt` abgelegt (im Log steht nur der Pfad, nicht das Token).
 
 ```yaml
 # configuration.yaml

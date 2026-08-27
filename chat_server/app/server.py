@@ -182,13 +182,18 @@ def load_api_token():
     """Token fuer die Home-Assistant-Schnittstelle - aus Option oder /data."""
     configured = _opt("API_TOKEN")
     if configured:
+        log.info("Token fuer die Home-Assistant-Schnittstelle aus der Add-on-Option")
         return configured
     if os.path.exists(TOKEN_PATH):
+        log.info("Token fuer die Home-Assistant-Schnittstelle steht in %s", TOKEN_PATH)
         return open(TOKEN_PATH).read().strip()
     token = secrets.token_urlsafe(32)
     with open(TOKEN_PATH, "w") as fh:
         fh.write(token)
     os.chmod(TOKEN_PATH, 0o600)
+    # Das Token selbst gehoert nicht ins Add-on-Log - das ist in der
+    # Oberflaeche sichtbar und landet in Fehlerberichten.
+    log.info("Token fuer die Home-Assistant-Schnittstelle erzeugt: %s", TOKEN_PATH)
     return token
 
 
@@ -252,7 +257,6 @@ def ensure_vapid():
 
 init_db()
 API_TOKEN = load_api_token()
-log.info("Token fuer die Home-Assistant-Schnittstelle: %s", API_TOKEN)
 
 VAPID = ensure_vapid()
 VAPID_KEY_PATH = os.path.join(DATA_DIR, "vapid_private.pem")
@@ -307,6 +311,25 @@ def push_to_users(user_ids, title, body, url):
 # --------------------------------------------------------------------------
 # Hilfsfunktionen
 # --------------------------------------------------------------------------
+# Nur diese Typen liefern wir direkt im Browser aus. Der MIME-Typ eines
+# Uploads kommt aus dem Multipart-Header des Clients, ist also frei waehlbar -
+# ein "text/html" wuerde als Seite auf unserem eigenen Origin laufen und das
+# Sitzungs-Cookie preisgeben. Alles Uebrige geht als Download raus.
+IMAGE_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"}
+
+
+def safe_mime(raw):
+    mime = (raw or "").split(";")[0].strip().lower()
+    return mime if mime in IMAGE_MIMES else "application/octet-stream"
+
+
+@app.after_request
+def security_headers(resp):
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "no-referrer")
+    return resp
+
+
 def current_user():
     uid = session.get("uid")
     if not uid:
@@ -639,14 +662,15 @@ def api_upload():
     path = os.path.join(UPLOAD_DIR, stored)
     file.save(path)
     size = os.path.getsize(path)
+    mime = safe_mime(file.mimetype)
     cur = db().execute(
         "INSERT INTO files (stored_name, orig_name, mime, size, user_id, created_at)"
         " VALUES (?,?,?,?,?,?)",
-        (stored, secure_filename(file.filename), file.mimetype, size,
+        (stored, secure_filename(file.filename), mime, size,
          session["uid"], int(time.time())))
     db().commit()
     return jsonify({"id": cur.lastrowid, "name": file.filename,
-                    "mime": file.mimetype, "size": size})
+                    "mime": mime, "size": size})
 
 
 @app.get("/files/<int:file_id>")
@@ -660,10 +684,16 @@ def api_file(file_id):
         " WHERE m.file_id=? AND rm.user_id=?", (file_id, session["uid"])).fetchone()
     if not ok and row["user_id"] != session["uid"]:
         abort(403)
-    return send_file(os.path.join(UPLOAD_DIR, row["stored_name"]),
-                     mimetype=row["mime"] or "application/octet-stream",
+    # safe_mime auch beim Ausliefern: Dateien aus aelteren Installationen
+    # tragen noch den vom Client gesetzten Typ in der Datenbank.
+    mime = safe_mime(row["mime"])
+    inline = mime in IMAGE_MIMES and request.args.get("dl") != "1"
+    resp = send_file(os.path.join(UPLOAD_DIR, row["stored_name"]),
+                     mimetype=mime,
                      download_name=row["orig_name"],
-                     as_attachment=request.args.get("dl") == "1")
+                     as_attachment=not inline)
+    resp.headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'"
+    return resp
 
 
 @app.post("/api/push/subscribe")
@@ -766,7 +796,9 @@ def api_notify():
         "SELECT user_id FROM room_members WHERE room_id=?", (room["id"],)).fetchall()]
     with ONLINE_LOCK:
         offline = [m for m in members if m != bot["id"] and m not in ONLINE]
-    url = f"{EXTERNAL_URL}/?room={room['id']}" if EXTERNAL_URL else "/"
+    # Ohne external_url relativ lassen: der Service Worker loest das gegen
+    # seine eigene Adresse auf und trifft damit auch unter Ingress den Chat.
+    url = f"{EXTERNAL_URL}/?room={room['id']}" if EXTERNAL_URL else f"?room={room['id']}"
     push_to_users(offline, "Home Assistant", text[:180], url)
     return jsonify({"ok": True, "room_id": room["id"], "message_id": payload["id"]})
 
@@ -841,6 +873,22 @@ def on_send(data):
     if not member:
         conn.close()
         return
+    if file_id is not None:
+        # Datei-IDs sind fortlaufend. Ohne diese Pruefung koennte man eine
+        # fremde Datei an eine eigene Nachricht haengen und sie damit fuer den
+        # eigenen Raum freischalten - api_file leitet die Berechtigung genau
+        # aus dieser Verknuepfung ab.
+        try:
+            file_id = int(file_id)
+        except (TypeError, ValueError):
+            conn.close()
+            return
+        owner = conn.execute("SELECT user_id FROM files WHERE id=?",
+                             (file_id,)).fetchone()
+        if owner is None or owner["user_id"] != uid:
+            log.warning("Nutzer %s wollte fremde Datei %s anhaengen", uid, file_id)
+            conn.close()
+            return
     if reply_to:
         parent = conn.execute("SELECT room_id FROM messages WHERE id=?",
                               (reply_to,)).fetchone()
@@ -871,7 +919,7 @@ def on_send(data):
         text = f"{payload['author']}: {body or 'Datei'}"
     else:
         text = body or "Datei gesendet"
-    url = f"{EXTERNAL_URL}/?room={room_id}" if EXTERNAL_URL else "/"
+    url = f"{EXTERNAL_URL}/?room={room_id}" if EXTERNAL_URL else f"?room={room_id}"
     push_to_users(offline, title, text[:180], url)
 
 

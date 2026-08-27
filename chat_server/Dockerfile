@@ -13,6 +13,10 @@ RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt
 
 COPY app /opt/chat
 
+# Syntaxfehler sollen den Build brechen, nicht erst den Start auf dem Pi
+RUN python3 -m compileall -q /opt/chat \
+ && python3 -c "import json; json.load(open('/opt/chat/static/manifest.json'))"
+
 # Socket.IO-Client lokal ausliefern (kein CDN zur Laufzeit noetig)
 RUN wget -q -O /opt/chat/static/socket.io.min.js \
       https://cdn.socket.io/4.7.5/socket.io.min.js
