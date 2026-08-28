@@ -841,8 +841,22 @@
    * Zeichnet eine echte Karte in den Behälter - oder, wenn die Kacheln aus
    * sind oder Leaflet nicht kommt, die Umrisskarte aus dem Add-on.
    */
+  let offeneKarten = [];
+
+  // Beim Filtern und beim Schliessen wird neu gezeichnet. Ohne Abbau bliebe
+  // jede vorige Karte samt ihren Zuhoerern im Speicher haengen. Der Versuch
+  // darf scheitern: haengt die Karte schon nicht mehr im Dokument, ist genau
+  // das ja das Ziel.
+  function kartenAbbauen() {
+    offeneKarten.forEach((k) => {
+      try { k.remove(); } catch (err) { /* war schon weg */ }
+    });
+    offeneKarten = [];
+  }
+
   async function karteZeichnen(behaelter, punkte) {
     if (!behaelter) return;
+    kartenAbbauen();
     if (!punkte.length) {
       behaelter.innerHTML = uebersichtHtml(punkte);
       return;
@@ -887,6 +901,7 @@
     // Der Behälter ist gerade erst im Fenster gelandet; Leaflet muss seine
     // Größe danach noch einmal nachmessen.
     setTimeout(() => karte.invalidateSize(), 60);
+    offeneKarten.push(karte);
     return karte;
   }
 
@@ -1019,31 +1034,111 @@
    * Was auf der Live-Karte steht: laufende Standortfreigaben und alle
    * anstehenden Einladungen, bei denen ein Ort hinterlegt ist.
    */
+  // Der Filter überlebt das Schließen der Karte - wer nach "Samstag, Musik"
+  // gesucht hat, will beim nächsten Öffnen nicht von vorn anfangen.
+  let kartenFilter = {zeit: "alle", kategorien: new Set()};
+
+  const ZEITRAEUME = [["alle", "Alles"], ["heute", "Heute"],
+                      ["morgen", "Morgen"], ["woche", "7 Tage"]];
+
+  /** Beginn und Ende des gewählten Zeitraums in Sekunden, oder null. */
+  function zeitfenster(wahl) {
+    if (wahl === "alle") return null;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const tag = 86400000;
+    if (wahl === "heute") return [start.getTime() / 1000, (start.getTime() + tag) / 1000];
+    if (wahl === "morgen") {
+      return [(start.getTime() + tag) / 1000, (start.getTime() + 2 * tag) / 1000];
+    }
+    return [Date.now() / 1000, (start.getTime() + 7 * tag) / 1000];
+  }
+
+  function terminPasst(t) {
+    const fenster = zeitfenster(kartenFilter.zeit);
+    if (fenster) {
+      // Ohne Zeitpunkt lässt sich nicht sagen, ob der Termin ins Fenster
+      // fällt - solche stehen nur unter "Alles".
+      if (!t.beginnt_at) return false;
+      if (t.beginnt_at < fenster[0] || t.beginnt_at >= fenster[1]) return false;
+    }
+    if (kartenFilter.kategorien.size) {
+      // Eines der gewählten Merkmale genügt: "wo läuft Musik oder Tanz"
+      if (!t.kategorien.some((k) => kartenFilter.kategorien.has(k))) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Was auf der Live-Karte steht: laufende Standortfreigaben und die
+   * anstehenden Einladungen mit Ort, die durch den Filter kommen.
+   */
   function kartenPunkte() {
     const jetzt = Math.floor(Date.now() / 1000);
     const personen = (state.live || [])
       .filter((p) => p.bis_at > jetzt)
       .map((p) => Object.assign({art: "person"}, p));
-    const termine = (state.termine || [])
+    const mitOrt = (state.termine || [])
       .filter((ev) => ev.ort && !ev.abgesagt)
       .map((ev) => ({art: "termin", event_id: ev.id, name: ev.titel,
                      lat: ev.ort.lat, lon: ev.ort.lon,
                      ort_text: ev.ort_text, beginnt_at: ev.beginnt_at,
+                     kategorien: ev.kategorien || [],
                      zusagen: (ev.wer.ja || []).length, meine: ev.meine}));
-    return {personen, termine, alle: personen.concat(termine)};
+    const termine = mitOrt.filter(terminPasst);
+    return {personen, termine, alleTermine: mitOrt,
+            alle: personen.concat(termine)};
+  }
+
+  function filterLeiste(alleTermine, gezeigt) {
+    // Nur Merkmale anbieten, die überhaupt vorkommen - tote Knöpfe helfen
+    // niemandem.
+    const vorhanden = [...new Set(alleTermine.flatMap((t) => t.kategorien))]
+      .filter((k) => KATEGORIEN[k]);
+    const aktiv = kartenFilter.zeit !== "alle" || kartenFilter.kategorien.size;
+    return `<div class="kartenfilter">
+      <div class="kf-zeile">
+        <span class="kf-titel">Einladungen</span>
+        ${ZEITRAEUME.map(([wert, text]) =>
+          `<button class="mini-btn ${kartenFilter.zeit === wert ? "an" : ""}"
+                   data-zeit="${wert}">${text}</button>`).join("")}
+      </div>
+      ${vorhanden.length ? `<div class="kf-zeile">
+        ${vorhanden.map((k) =>
+          `<button class="mini-btn ${kartenFilter.kategorien.has(k) ? "an" : ""}"
+                   data-kat="${k}">${esc(KATEGORIEN[k])}</button>`).join("")}
+      </div>` : ""}
+      ${aktiv ? `<div class="kf-zeile">
+        <span class="kf-zahl">${gezeigt} von ${alleTermine.length} ${
+          alleTermine.length === 1 ? "Einladung" : "Einladungen"}</span>
+        <button class="mini-btn" id="kf-weg">Filter aufheben</button>
+      </div>` : ""}
+    </div>`;
   }
 
   function kartenAnsicht() {
-    const {personen, termine, alle} = kartenPunkte();
-    const osm = (p) => `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${
-      p.lon}#map=15/${p.lat}/${p.lon}`;
     const root = modal(`<div class="karten-kopf"><h2>Live-Karte</h2>
       <button class="btn ghost klein" id="karte-teilen">Standort teilen</button>
       <span style="flex:1"></span>
       <button class="icon-btn" id="m-cancel">✕</button></div>
+      <div id="karte-inhalt"></div>`);
+    root.querySelector(".modal").classList.add("wide", "hoch");
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelector("#karte-teilen").addEventListener("click", liveDialog);
+    kartenInhalt(root);
+  }
+
+  function kartenInhalt(root) {
+    root = root || document.getElementById("modal-root");
+    const behaelter = root.querySelector("#karte-inhalt");
+    if (!behaelter) return;
+    const {personen, termine, alleTermine, alle} = kartenPunkte();
+    const osm = (p) => `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${
+      p.lon}#map=15/${p.lat}/${p.lon}`;
+    behaelter.innerHTML = `${filterLeiste(alleTermine, termine.length)}
       <div id="karte-flaeche"></div>
       <div class="karten-fuss">
-        ${personen.length ? `<div class="karten-gruppe">Wer teilt gerade</div>`
+        ${personen.length ? '<div class="karten-gruppe">Wer teilt gerade</div>'
           + personen.map((p) => `<div class="karten-zeile">
             ${avatarHtml("u", p.user_id, p.name, p.avatar, "klein")}
             <div><div class="kz-name">${esc(p.name)}${p.ich ? " (du)" : ""}</div>
@@ -1053,7 +1148,7 @@
                href="${osm(p)}">Öffnen</a>
             ${p.ich ? `<button class="act del" data-stopp="${p.room_id}">Beenden</button>` : ""}
           </div>`).join("") : ""}
-        ${termine.length ? `<div class="karten-gruppe">Einladungen</div>`
+        ${termine.length ? '<div class="karten-gruppe">Einladungen</div>'
           + termine.map((t) => `<div class="karten-zeile termin"
                                      data-termin="${t.event_id}">
             <span class="karten-fahne klein">📅</span>
@@ -1065,17 +1160,34 @@
             <a class="ortslink" target="_blank" rel="noopener noreferrer"
                href="${osm(t)}">Öffnen</a>
           </div>`).join("") : ""}
-        ${alle.length ? "" : '<p class="hint">Sobald jemand seinen Standort '
-          + 'teilt oder eine Einladung einen Ort bekommt, erscheint sie hier.</p>'}
-      </div>`);
-    root.querySelector(".modal").classList.add("wide");
-    karteZeichnen(root.querySelector("#karte-flaeche"), alle);
-    root.querySelector("#m-cancel").addEventListener("click", closeModal);
-    root.querySelector("#karte-teilen").addEventListener("click", liveDialog);
-    root.querySelectorAll("[data-stopp]").forEach((b) =>
+        ${alle.length ? "" : `<p class="hint">${alleTermine.length
+          ? "Zu diesem Filter passt keine Einladung."
+          : "Sobald jemand seinen Standort teilt oder eine Einladung einen Ort "
+            + "bekommt, erscheint sie hier."}</p>`}
+      </div>`;
+    karteZeichnen(behaelter.querySelector("#karte-flaeche"), alle);
+
+    behaelter.querySelectorAll("[data-zeit]").forEach((b) =>
+      b.addEventListener("click", () => {
+        kartenFilter.zeit = b.dataset.zeit;
+        kartenInhalt(root);
+      }));
+    behaelter.querySelectorAll("[data-kat]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const k = b.dataset.kat;
+        if (kartenFilter.kategorien.has(k)) kartenFilter.kategorien.delete(k);
+        else kartenFilter.kategorien.add(k);
+        kartenInhalt(root);
+      }));
+    const weg = behaelter.querySelector("#kf-weg");
+    if (weg) weg.addEventListener("click", () => {
+      kartenFilter = {zeit: "alle", kategorien: new Set()};
+      kartenInhalt(root);
+    });
+    behaelter.querySelectorAll("[data-stopp]").forEach((b) =>
       b.addEventListener("click", () =>
         liveBeenden(parseInt(b.dataset.stopp, 10))));
-    root.querySelectorAll("[data-termin]").forEach((z) =>
+    behaelter.querySelectorAll("[data-termin]").forEach((z) =>
       z.addEventListener("click", (e) => {
         if (e.target.closest("a")) return;
         terminAnsicht(parseInt(z.dataset.termin, 10));
@@ -1085,14 +1197,17 @@
   function renderKarten() {
     const liste = $("karten-liste");
     if (!liste) return;
-    const {personen, termine} = kartenPunkte();
+    // In der Seitenleiste steht immer der volle Stand - ein Filter, den man
+    // in der Karte gesetzt hat, soll hier nichts verschwinden lassen.
+    const {personen, alleTermine} = kartenPunkte();
     const punkte = personen;
     const teile = [];
     if (personen.length) {
       teile.push(`${personen.length} ${personen.length === 1 ? "Freigabe" : "Freigaben"}`);
     }
-    if (termine.length) {
-      teile.push(`${termine.length} ${termine.length === 1 ? "Einladung" : "Einladungen"}`);
+    if (alleTermine.length) {
+      teile.push(`${alleTermine.length} ${
+        alleTermine.length === 1 ? "Einladung" : "Einladungen"}`);
     }
     liste.innerHTML = `<div class="karten-eintrag" id="karte-oeffnen">
         <span class="karten-symbol">🗺️</span>
@@ -1264,8 +1379,11 @@
       ${dabei.length ? `<div class="ev-dabei">${dabei.map((w) =>
         avatarHtml("u", w.id, w.name, w.avatar, "winzig")).join("")}
         <span>${dabei.length === 1 ? "1 Zusage" : `${dabei.length} Zusagen`}</span></div>` : ""}
-      ${(ev.von.id === ME || IS_ADMIN) && !ev.abgesagt
-        ? '<button class="act del ev-absagen">Termin absagen</button>' : ""}
+      ${ev.von.id === ME || IS_ADMIN ? `<div class="ev-verwalten">${
+        ev.abgesagt
+          ? '<button class="act ev-zurueck">Absage zurücknehmen</button>'
+          : '<button class="act ev-bearbeiten">Bearbeiten</button>'
+            + '<button class="act del ev-absagen">Termin absagen</button>'}</div>` : ""}
     </div>`;
   }
 
@@ -1296,6 +1414,31 @@
       terminLaden();
       return;
     }
+    const bearbeiten = e.target.closest(".ev-bearbeiten");
+    if (bearbeiten) {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = bearbeiten.closest(".event").dataset.event;
+      const res = await api(`/api/events/${id}`);
+      if (!res.ok) { toast("Der Termin ist nicht mehr da."); return; }
+      terminDialog(await res.json());
+      return;
+    }
+    const zurueck = e.target.closest(".ev-zurueck");
+    if (zurueck) {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = zurueck.closest(".event").dataset.event;
+      const res = await api(`/api/events/${id}`, {
+        method: "PATCH", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({abgesagt: false}),
+      });
+      if (!res.ok) { toast("Das ging nicht."); return; }
+      eventNeuZeichnen(id);
+      terminLaden();
+      toast("Der Termin steht wieder.");
+      return;
+    }
     const absagen = e.target.closest(".ev-absagen");
     if (absagen) {
       e.preventDefault();
@@ -1309,43 +1452,148 @@
     }
   }, true);
 
-  function terminDialog() {
-    if (!currentRoom) { toast("Öffne zuerst eine Unterhaltung."); return; }
+  // Den Ort auf der Karte antippen. Die Umrisskarte taugt dafür nicht - auf
+  // ihr läge ein Punkt viele Kilometer daneben -, deshalb führt der Weg über
+  // die Straßenkarte, und wer sie aus hat, kann sie hier einschalten.
+  async function ortsWaehler(box, start, beiWahl) {
+    if (!kachelnErlaubt()) {
+      box.innerHTML = `<div class="ortswahl-aus">
+        <p class="hint">Zum Antippen braucht es die Straßenkarte. Die
+          Umrisskarte im Add-on kennt keine Straßen – ein Punkt darauf läge
+          leicht mehrere Kilometer daneben.</p>
+        <button class="btn ghost klein" type="button" id="ow-an">Straßenkarte einschalten</button>
+      </div>`;
+      box.querySelector("#ow-an").addEventListener("click", async () => {
+        const res = await api("/api/me/karten", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({kacheln: true}),
+        });
+        if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
+        if (state.me) state.me.kacheln = true;
+        ortsWaehler(box, start, beiWahl);
+      });
+      return;
+    }
+    box.innerHTML = '<div class="echtkarte"></div>'
+      + '<p class="hint">Tippe auf die Karte, um den Ort zu setzen.</p>';
+    try {
+      await leafletLaden();
+    } catch (err) {
+      box.innerHTML = `<p class="hint">${esc(err.message)}</p>`;
+      return;
+    }
+    const karte = L.map(box.firstElementChild);
+    offeneKarten.push(karte);
+    L.tileLayer(KACHEL_URL, {maxZoom: 19, attribution: KACHEL_DANK}).addTo(karte);
+    // Ohne bekannten Ort auf Deutschland - von dort ist jeder Ort in ein
+    // paar Zoomstufen erreichbar.
+    karte.setView(start ? [start.lat, start.lon] : [51.2, 10.4],
+                  start ? 15 : 5);
+    let marke = start
+      ? L.marker([start.lat, start.lon], {icon: nadelSymbol({art: "termin"})})
+          .addTo(karte)
+      : null;
+    karte.on("click", (e) => {
+      if (marke) marke.remove();
+      marke = L.marker(e.latlng, {icon: nadelSymbol({art: "termin"})}).addTo(karte);
+      beiWahl({lat: e.latlng.lat, lon: e.latlng.lng});
+    });
+    setTimeout(() => karte.invalidateSize(), 60);
+  }
+
+  /** Neue Einladung, oder - mit ev - eine bestehende ändern. */
+  function terminDialog(ev) {
+    const aendern = !!ev;
+    if (!aendern && !currentRoom) {
+      toast("Öffne zuerst eine Unterhaltung.");
+      return;
+    }
     let bildDatei = null;
-    let ort = null;
-    const root = modal(`<h2>Einladung</h2>
+    let bildId = aendern ? ev.file_id : null;
+    let ort = aendern && ev.ort ? {lat: ev.ort.lat, lon: ev.ort.lon} : null;
+
+    const wannWert = (() => {
+      if (!aendern || !ev.beginnt_at) return "";
+      const d = new Date(ev.beginnt_at * 1000);
+      const p = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+        + `T${p(d.getHours())}:${p(d.getMinutes())}`;
+    })();
+
+    const root = modal(`<h2>${aendern ? "Einladung ändern" : "Einladung"}</h2>
       <div class="field"><label for="ev-titel">Was ist geplant?</label>
-        <input id="ev-titel" autocomplete="off" placeholder="Grillen im Garten"></div>
+        <input id="ev-titel" autocomplete="off" placeholder="Grillen im Garten"
+               value="${aendern ? esc(ev.titel) : ""}"></div>
       <div class="field"><label for="ev-wann">Wann</label>
-        <input id="ev-wann" type="datetime-local"></div>
+        <input id="ev-wann" type="datetime-local" value="${wannWert}"></div>
       <div class="field"><label for="ev-ort">Wo</label>
-        <input id="ev-ort" autocomplete="off" placeholder="Bei Gregor, Hofstraße 3">
-        <button class="btn ghost klein" id="ev-hier" type="button">Aktuellen Ort anhängen</button>
-        <span class="hint" id="ev-ort-status"></span></div>
+        <input id="ev-ort" autocomplete="off" placeholder="Bei Gregor, Hofstraße 3"
+               value="${aendern ? esc(ev.ort_text) : ""}">
+        <div class="row schmal">
+          <button class="btn ghost klein" type="button" id="ev-karte">Auf der Karte wählen</button>
+          <button class="btn ghost klein" type="button" id="ev-hier">Aktueller Ort</button>
+        </div>
+        <div class="ortswahl" id="ev-kartenwahl" hidden></div>
+        <div class="ev-ortstand">
+          <span class="hint" id="ev-ort-status"></span>
+          <button class="mini-btn" type="button" id="ev-ort-weg" hidden>Ort entfernen</button>
+        </div>
+      </div>
       <div class="field"><label for="ev-text">Beschreibung</label>
-        <textarea id="ev-text" rows="3"></textarea></div>
+        <textarea id="ev-text" rows="3">${aendern ? esc(ev.beschreibung) : ""}</textarea></div>
       <div class="field"><label>Was ist geboten?</label>
-        <div class="ev-kats">${Object.entries(KATEGORIEN).map(([k, t]) =>
-          `<button type="button" class="ev-kat" data-k="${k}">${t}</button>`).join("")}</div>
+        <div class="ev-kats">${Object.entries(KATEGORIEN).map(([k, txt]) =>
+          `<button type="button" class="ev-kat ${
+            aendern && ev.kategorien.includes(k) ? "gewaehlt" : ""}"
+            data-k="${k}">${txt}</button>`).join("")}</div>
       </div>
       <div class="field"><label>Bild</label>
-        <button class="btn ghost klein" id="ev-bild" type="button">Bild wählen</button>
-        <span class="hint" id="ev-bild-name"></span></div>
+        <div class="row schmal">
+          <button class="btn ghost klein" type="button" id="ev-bild">Bild wählen</button>
+          <button class="btn ghost klein" type="button" id="ev-bild-weg"
+                  ${bildId ? "" : "hidden"}>Bild entfernen</button>
+        </div>
+        <span class="hint" id="ev-bild-name">${bildId ? "Ein Bild ist hinterlegt." : ""}</span></div>
       <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
-      <button class="btn" id="ev-ok">Einladen</button></div>`);
+      <button class="btn" id="ev-ok">${
+        aendern ? "Änderungen speichern" : "Einladen"}</button></div>`);
     root.querySelector(".modal").classList.add("hoch");
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelectorAll(".ev-kat").forEach((b) =>
       b.addEventListener("click", () => b.classList.toggle("gewaehlt")));
 
+    const status = root.querySelector("#ev-ort-status");
+    const wegKnopf = root.querySelector("#ev-ort-weg");
+    const ortAnzeigen = () => {
+      status.textContent = ort
+        ? `Ort gesetzt: ${ort.lat.toFixed(5)}, ${ort.lon.toFixed(5)}`
+        : "Noch kein Punkt auf der Karte.";
+      wegKnopf.hidden = !ort;
+    };
+    ortAnzeigen();
+
+    wegKnopf.addEventListener("click", () => {
+      ort = null;
+      ortAnzeigen();
+      root.querySelector("#ev-kartenwahl").hidden = true;
+    });
+
+    root.querySelector("#ev-karte").addEventListener("click", () => {
+      const box = root.querySelector("#ev-kartenwahl");
+      if (!box.hidden) { box.hidden = true; return; }
+      box.hidden = false;
+      ortsWaehler(box, ort, (neu) => { ort = neu; ortAnzeigen(); });
+    });
+
     root.querySelector("#ev-hier").addEventListener("click", async () => {
-      const status = root.querySelector("#ev-ort-status");
       status.textContent = "Standort wird bestimmt …";
       try {
-        ort = await standortHolen();
-        status.textContent = `Ort angehängt (${ort.lat.toFixed(3)}, ${ort.lon.toFixed(3)})`;
+        const gefunden = await standortHolen();
+        ort = {lat: gefunden.lat, lon: gefunden.lon};
+        ortAnzeigen();
+        const box = root.querySelector("#ev-kartenwahl");
+        if (!box.hidden) ortsWaehler(box, ort, (neu) => { ort = neu; ortAnzeigen(); });
       } catch (err) {
-        ort = null;
         status.textContent = err.message;
       }
     });
@@ -1358,8 +1606,15 @@
         bildDatei = feld.files[0] || null;
         root.querySelector("#ev-bild-name").textContent =
           bildDatei ? bildDatei.name : "";
+        root.querySelector("#ev-bild-weg").hidden = !bildDatei && !bildId;
       });
       feld.click();
+    });
+    root.querySelector("#ev-bild-weg").addEventListener("click", () => {
+      bildDatei = null;
+      bildId = null;
+      root.querySelector("#ev-bild-name").textContent = "Kein Bild.";
+      root.querySelector("#ev-bild-weg").hidden = true;
     });
 
     root.querySelector("#ev-ok").addEventListener("click", async () => {
@@ -1368,14 +1623,13 @@
       const knopf = root.querySelector("#ev-ok");
       knopf.disabled = true;
       try {
-        let fileId = null;
         if (bildDatei) {
           const fd = new FormData();
           fd.append("file", bildDatei);
           const hoch = await api("/api/upload", {method: "POST", body: fd});
           const daten = await hoch.json().catch(() => ({}));
           if (!hoch.ok) { toast(daten.error || "Das Bild ging nicht durch."); return; }
-          fileId = daten.id;
+          bildId = daten.id;
         }
         const wann = root.querySelector("#ev-wann").value;
         const nutzlast = {
@@ -1385,16 +1639,24 @@
           beginnt_at: wann ? Math.floor(new Date(wann).getTime() / 1000) : null,
           kategorien: [...root.querySelectorAll(".ev-kat.gewaehlt")]
             .map((b) => b.dataset.k),
-          file_id: fileId,
+          file_id: bildId,
+          lat: ort ? ort.lat : null,
+          lon: ort ? ort.lon : null,
         };
-        if (ort) { nutzlast.lat = ort.lat; nutzlast.lon = ort.lon; }
-        const res = await api(`/api/rooms/${currentRoom}/event`, {
-          method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify(nutzlast),
-        });
+        const res = aendern
+          ? await api(`/api/events/${ev.id}`, {
+              method: "PATCH", headers: {"Content-Type": "application/json"},
+              body: JSON.stringify(nutzlast)})
+          : await api(`/api/rooms/${currentRoom}/event`, {
+              method: "POST", headers: {"Content-Type": "application/json"},
+              body: JSON.stringify(nutzlast)});
         const daten = await res.json().catch(() => ({}));
         if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
         closeModal();
+        if (aendern) {
+          eventNeuZeichnen(ev.id);
+          toast("Einladung geändert.");
+        }
         terminLaden();
       } finally {
         knopf.disabled = false;
@@ -1455,7 +1717,7 @@
     });
   }
 
-  $("btn-event").addEventListener("click", terminDialog);
+  $("btn-event").addEventListener("click", () => terminDialog());
   $("btn-live").addEventListener("click", liveDialog);
   $("btn-stimmung").addEventListener("click", stimmungDialog);
 
@@ -1724,6 +1986,7 @@
 
   // ---------- Modals ----------
   function modal(html) {
+    kartenAbbauen();
     const root = $("modal-root");
     root.innerHTML = `<div class="modal-bg"><div class="modal">${html}</div></div>`;
     root.querySelector(".modal-bg").addEventListener("click", (e) => {
@@ -1731,7 +1994,10 @@
     });
     return root;
   }
-  const closeModal = () => { $("modal-root").innerHTML = ""; };
+  const closeModal = () => {
+    kartenAbbauen();
+    $("modal-root").innerHTML = "";
+  };
 
   $("btn-new").addEventListener("click", () => {
     const others = state.users.filter((u) => u.id !== ME && u.active !== false);

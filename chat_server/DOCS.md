@@ -260,8 +260,37 @@ Sie erscheint als Karte in der Unterhaltung. Jeder Teilnehmer antwortet mit
 dieselbe Antwort nimmt sie zurück. Wer eingeladen hat, steht automatisch auf
 „Bin dabei“. Die Zusagen aktualisieren sich bei allen sofort.
 
+**Ändern:** Wer eingeladen hat – und der Administrator – kann die Einladung
+später über **Bearbeiten** anpassen: Titel, Zeit, Ort, Beschreibung, Merkmale
+und Bild. Die Zusagen bleiben dabei erhalten. Wird ein Bild ersetzt,
+verschwindet das alte von der Platte.
+
+**Ort auf der Karte antippen:** Im Dialog öffnet **Auf der Karte wählen** eine
+Straßenkarte. Ein Tipp setzt die Nadel, ein weiterer verschiebt sie.
+**Aktueller Ort** übernimmt stattdessen die eigene Position, **Ort entfernen**
+streicht ihn wieder. Ist die Straßenkarte abgeschaltet, steht dort ein Hinweis
+mit einem Knopf, der sie einschaltet – auf der Umrisskarte läge ein Punkt
+leicht mehrere Kilometer daneben, die taugt dafür nicht.
+
 Nur wer eingeladen hat – und der Administrator – kann den Termin **absagen**.
-Er bleibt danach sichtbar, nimmt aber keine Zusagen mehr an.
+Er bleibt danach sichtbar, nimmt aber keine Zusagen mehr an. Über **Absage
+zurücknehmen** steht er wieder, mit allen Zusagen von vorher.
+
+## Was ist wo los?
+
+Über der Live-Karte lässt sich einschränken, welche Einladungen sie zeigt:
+nach Zeitraum (**Heute**, **Morgen**, **7 Tage**, **Alles**) und nach
+Merkmalen. Mehrere Merkmale wirken als *oder* – „Musik" und „Tanz" zusammen
+zeigt alles, wo eines von beidem läuft. Angeboten werden nur Merkmale, die in
+den vorhandenen Einladungen auch vorkommen.
+
+Eine Zeile sagt, wie viel der Filter übrig lässt (*„2 von 6 Einladungen"*),
+und **Filter aufheben** setzt ihn zurück. Der Filter bleibt beim Schließen
+erhalten. Die Standortfreigaben bleiben immer sichtbar – sie sind das, was
+gerade passiert, nicht etwas Geplantes.
+
+Termine ohne Zeitpunkt erscheinen nur unter **Alles**; bei ihnen lässt sich
+nicht sagen, ob sie in einen Zeitraum fallen.
 
 Im Abschnitt **Termine** der Seitenleiste stehen alle anstehenden Termine aus
 allen Unterhaltungen, der nächste zuerst. Das ist nötig, weil eine Einladung

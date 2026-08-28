@@ -1,5 +1,18 @@
 # Änderungsverlauf
 
+## 0.19.0
+
+- **Filter auf der Live-Karte**: nach Zeitraum (Heute, Morgen, 7 Tage, Alles)
+  und nach Merkmalen. Mehrere Merkmale wirken als *oder*. Angeboten werden nur
+  Merkmale, die auch vorkommen; eine Zeile sagt, wie viel uebrig bleibt
+- **Einladungen nachtraeglich aendern**: Titel, Zeit, Ort, Beschreibung,
+  Merkmale, Bild. Die Zusagen bleiben erhalten
+- **Ort per Klick auf der Karte** setzen und verschieben, dazu *Aktueller Ort*
+  und *Ort entfernen*. Ist die Strassenkarte aus, steht dort ein Knopf, der
+  sie einschaltet - die Umrisskarte ist dafuer zu grob
+- **Absage zuruecknehmen**, mitsamt den alten Zusagen
+- Ein ersetztes Bild wird von der Platte geraeumt
+
 ## 0.18.0
 
 - Die **Live-Karte zeigt jetzt auch die Einladungen** - jeden anstehenden

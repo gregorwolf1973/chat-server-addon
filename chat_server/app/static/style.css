@@ -1229,3 +1229,33 @@ audio.abspieler { width: min(260px, 100%); }
 }
 .karten-zeile.termin { cursor: pointer; }
 .karten-zeile.termin:hover { background: var(--surface-2); }
+
+/* Filter auf der Live-Karte */
+.kartenfilter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.kf-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.kf-titel {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.kf-zahl { font-size: 11px; color: var(--muted); margin-right: 2px; }
+
+/* Termin bearbeiten und Ort auf der Karte waehlen */
+.ev-verwalten { display: flex; gap: 6px; margin-top: 9px; }
+.ortswahl { margin: 8px 0; }
+.ortswahl .echtkarte { height: min(280px, 38vh); }
+.ortswahl-aus {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.ev-ortstand { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.ev-ortstand .hint { flex: 1; margin: 0; }
+.row.schmal { display: flex; gap: 6px; margin-top: 6px; }

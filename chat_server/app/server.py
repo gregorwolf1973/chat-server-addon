@@ -1956,6 +1956,103 @@ def api_list_events():
     return jsonify([event_payload(r["id"], uid) for r in rows])
 
 
+@app.patch("/api/events/<int:event_id>")
+@login_required
+def api_update_event(event_id):
+    """Einen Termin nachtraeglich aendern.
+
+    Nur die mitgeschickten Felder werden angefasst - wer den Titel korrigiert,
+    verliert nicht den Ort. Fuer Ort und Bild gilt: null loescht sie.
+    """
+    uid = session["uid"]
+    me = current_user()
+    conn = db()
+    ev = conn.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
+    if ev is None or not is_member(ev["room_id"], uid):
+        abort(403)
+    if ev["user_id"] != uid and not me["is_admin"]:
+        return jsonify({"error": "Nur wer eingeladen hat, kann das aendern."}), 403
+
+    data = request.get_json(force=True)
+    felder, werte = [], []
+
+    if "titel" in data:
+        titel = (data.get("titel") or "").strip()
+        if not titel:
+            return jsonify({"error": "Der Titel fehlt."}), 400
+        felder.append("titel=?")
+        werte.append(titel[:200])
+    if "beschreibung" in data:
+        felder.append("beschreibung=?")
+        werte.append((data.get("beschreibung") or "").strip()[:2000])
+    if "ort_text" in data:
+        felder.append("ort_text=?")
+        werte.append((data.get("ort_text") or "").strip()[:200])
+    if "kategorien" in data:
+        felder.append("kategorien=?")
+        werte.append(",".join(kategorien_saeubern(data.get("kategorien"))))
+    if "abgesagt" in data:
+        felder.append("abgesagt=?")
+        werte.append(1 if data.get("abgesagt") else 0)
+
+    if "beginnt_at" in data:
+        roh = data.get("beginnt_at")
+        if roh is None:
+            felder.append("beginnt_at=?")
+            werte.append(None)
+        else:
+            try:
+                werte.append(int(roh))
+                felder.append("beginnt_at=?")
+            except (TypeError, ValueError):
+                return jsonify({"error": "Der Zeitpunkt ist unbrauchbar."}), 400
+
+    # Ort: beide Werte zusammen, sonst entstuende ein halber Punkt
+    if "lat" in data or "lon" in data:
+        if data.get("lat") is None or data.get("lon") is None:
+            felder += ["lat=?", "lon=?"]
+            werte += [None, None]
+        else:
+            punkt = _koordinaten(data)
+            if punkt is None:
+                return jsonify({"error": "Der Ort ist unbrauchbar."}), 400
+            felder += ["lat=?", "lon=?"]
+            werte += [punkt[0], punkt[1]]
+
+    altes_bild = None
+    if "file_id" in data:
+        roh = data.get("file_id")
+        if roh is None:
+            neu_id = None
+        else:
+            try:
+                neu_id = int(roh)
+            except (TypeError, ValueError):
+                neu_id = None
+            if neu_id is not None and not conn.execute(
+                    "SELECT 1 FROM files WHERE id=? AND user_id=?",
+                    (neu_id, uid)).fetchone():
+                neu_id = None
+        if neu_id != ev["file_id"]:
+            altes_bild = ev["file_id"]
+        felder.append("file_id=?")
+        werte.append(neu_id)
+
+    if not felder:
+        return jsonify(event_payload(event_id, uid, conn))
+
+    werte.append(event_id)
+    conn.execute(f"UPDATE events SET {', '.join(felder)} WHERE id=?", werte)
+    conn.commit()
+    # Das abgeloeste Bild haelt nichts mehr fest
+    if altes_bild:
+        datei_aufraeumen(conn, altes_bild)
+
+    event_mitteilen(event_id, ev["room_id"])
+    log.info("Termin %s von Nutzer %s geaendert", event_id, uid)
+    return jsonify(event_payload(event_id, uid, conn))
+
+
 @app.delete("/api/events/<int:event_id>")
 @login_required
 def api_delete_event(event_id):

@@ -282,12 +282,94 @@ def lauf():
     e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["kacheln"] is True,
              "und wieder einschalten geht auch")
 
+    e.abschnitt("Einen Termin nachtraeglich aendern")
+    # Eigene Gruppe: Anna hat die erste weiter oben verlassen und koennte
+    # dort nicht mehr zusagen.
+    raum2 = admin.post(f"{BASE}/api/rooms", json={
+        "name": "Zweite Runde", "is_group": True,
+        "members": [anna_id]}).json()["id"]
+    aend = admin.post(f"{BASE}/api/rooms/{raum2}/event", json={
+        "titel": "Erst so", "beschreibung": "Text", "ort_text": "Hier",
+        "lat": 49.0, "lon": 8.4, "kategorien": ["essen"],
+        "beginnt_at": int(time.time()) + 86400}).json()["event_id"]
+    anna.post(f"{BASE}/api/events/{aend}/antwort", json={"antwort": "ja"})
+
+    r = admin.patch(f"{BASE}/api/events/{aend}", json={"titel": "Dann so"})
+    e.pruefe(r.status_code == 200, f"der Titel laesst sich aendern = {r.status_code}")
+    ev = r.json()
+    e.pruefe(ev["titel"] == "Dann so", "er steht neu drin")
+    e.pruefe(ev["beschreibung"] == "Text",
+             "die Beschreibung bleibt - nur mitgeschickte Felder aendern sich")
+    e.pruefe(ev["ort"] is not None, "und der Ort auch")
+    e.pruefe(len(ev["wer"]["ja"]) == 2,
+             f"die Zusagen ueberleben die Aenderung = {len(ev['wer']['ja'])}")
+
+    r = admin.patch(f"{BASE}/api/events/{aend}",
+                    json={"lat": 50.5, "lon": 9.5})
+    e.pruefe(abs(r.json()["ort"]["lat"] - 50.5) < 0.001,
+             "der Ort laesst sich verschieben")
+    r = admin.patch(f"{BASE}/api/events/{aend}", json={"lat": 999, "lon": 9.5})
+    e.pruefe(r.status_code == 400, f"Unsinn prallt ab = {r.status_code}")
+    r = admin.patch(f"{BASE}/api/events/{aend}", json={"lat": None, "lon": None})
+    e.pruefe(r.json()["ort"] is None, "und ganz entfernen geht auch")
+
+    r = admin.patch(f"{BASE}/api/events/{aend}",
+                    json={"kategorien": ["tanz", "unfug"]})
+    e.pruefe(r.json()["kategorien"] == ["tanz"],
+             f"Merkmale werden gesaeubert = {r.json()['kategorien']}")
+    r = admin.patch(f"{BASE}/api/events/{aend}", json={"beginnt_at": None})
+    e.pruefe(r.json()["beginnt_at"] is None, "der Zeitpunkt laesst sich streichen")
+    e.pruefe(admin.patch(f"{BASE}/api/events/{aend}",
+                         json={"titel": "  "}).status_code == 400,
+             "ein leerer Titel wird abgewiesen")
+
+    e.abschnitt("Aendern darf nur, wer eingeladen hat")
+    e.pruefe(anna.patch(f"{BASE}/api/events/{aend}",
+                        json={"titel": "Meins"}).status_code == 403,
+             "Anna kommt nicht durch")
+    e.pruefe(bodo.patch(f"{BASE}/api/events/{aend}",
+                        json={"titel": "Meins"}).status_code == 403,
+             "ein Fremder erst recht nicht")
+    e.pruefe(admin.get(f"{BASE}/api/events/{aend}").json()["titel"] == "Dann so",
+             "der Titel steht unveraendert da")
+
+    e.abschnitt("Eine Absage laesst sich zuruecknehmen")
+    admin.delete(f"{BASE}/api/events/{aend}")
+    e.pruefe(admin.get(f"{BASE}/api/events/{aend}").json()["abgesagt"] is True,
+             "abgesagt")
+    r = admin.patch(f"{BASE}/api/events/{aend}", json={"abgesagt": False})
+    e.pruefe(r.json()["abgesagt"] is False, "und wieder zurueckgenommen")
+    e.pruefe(len(r.json()["wer"]["ja"]) == 2, "die Zusagen sind noch da")
+    e.pruefe(anna.post(f"{BASE}/api/events/{aend}/antwort",
+                       json={"antwort": "nein"}).status_code == 200,
+             "und es laesst sich wieder antworten")
+
+    e.abschnitt("Das Bild beim Aendern")
+    bild_a = hochladen(admin, "a.png", PNG, "image/png").json()["id"]
+    bild_b = hochladen(admin, "b.png", PNG, "image/png").json()["id"]
+    admin.patch(f"{BASE}/api/events/{aend}", json={"file_id": bild_a})
+    e.pruefe(admin.get(f"{BASE}/api/events/{aend}").json()["file_id"] == bild_a,
+             "ein Bild laesst sich nachtraeglich anhaengen")
+    admin.patch(f"{BASE}/api/events/{aend}", json={"file_id": bild_b})
+    ev = admin.get(f"{BASE}/api/events/{aend}").json()
+    e.pruefe(ev["file_id"] == bild_b, "und austauschen")
+    e.pruefe(admin.get(f"{BASE}/files/{bild_a}").status_code == 404,
+             "das abgeloeste Bild wird aufgeraeumt")
+    fremd_b = hochladen(bodo, "fremd2.png", PNG, "image/png").json()["id"]
+    admin.patch(f"{BASE}/api/events/{aend}", json={"file_id": fremd_b})
+    e.pruefe(admin.get(f"{BASE}/api/events/{aend}").json()["file_id"] is None,
+             "eine fremde Datei laesst sich auch beim Aendern nicht einhaengen")
+
     e.abschnitt("Ohne Anmeldung geht gar nichts")
+
     import requests
     r = requests.post(BASE + "/api/me/karten", json={"kacheln": False},
                       allow_redirects=False)
     e.pruefe(r.status_code in (302, 401),
              f"/api/me/karten weist Fremde ab = {r.status_code}")
+    e.pruefe(requests.patch(BASE + f"/api/events/{aend}", json={"titel": "x"},
+                            allow_redirects=False).status_code in (302, 401),
+             "Termine aendern ohne Anmeldung geht nicht")
     for pfad in ("/api/events", "/api/live", "/api/stimmung"):
         r = requests.get(BASE + pfad, allow_redirects=False)
         e.pruefe(r.status_code in (302, 401),
