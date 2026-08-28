@@ -1,5 +1,11 @@
 # Änderungsverlauf
 
+## 0.26.1
+
+- Der Reiter **Zugesagt** ist weg. Stattdessen filtert die **Terminliste**
+  selbst: *Alle*, *Zugesagt* und *Offen*, jeweils mit Anzahl. *Offen* zeigt,
+  was noch auf eine Antwort wartet
+
 ## 0.26.0
 
 - **Empfehlungen** im neuen Reiter *Tipps*: Film, Kino, Restaurant, Bar,

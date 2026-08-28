@@ -384,7 +384,9 @@ Termine ohne Zeitpunkt erscheinen nur unter **Alles**; bei ihnen lässt sich
 nicht sagen, ob sie in einen Zeitraum fallen.
 
 Im Abschnitt **Termine** der Seitenleiste stehen alle anstehenden Termine aus
-allen Unterhaltungen, der nächste zuerst. Das ist nötig, weil eine Einladung
+allen Unterhaltungen, der nächste zuerst. Darüber lässt sich einschränken:
+**Alle**, **Zugesagt** (wo du „Bin dabei“ bist) und **Offen** (was noch auf
+deine Antwort wartet). Jeder Knopf trägt seine Anzahl. Das ist nötig, weil eine Einladung
 im Verlauf sonst nach oben rutscht und aus dem Blick gerät. Zwölf Stunden
 nach Beginn fällt ein Termin aus der Liste – die laufende Feier ist noch zu
 sehen, die von vorletzter Woche nicht mehr.
@@ -439,7 +441,7 @@ WhatsApp. Sichtbar ist immer genau einer:
 | **Karten** | laufende Standortfreigaben, Zugang zur Live-Karte | aktive Freigaben |
 | **Stimmung** | worauf dein Kreis gerade Lust hat | gültige Meldungen |
 | **Termine** | alles Anstehende aus allen Unterhaltungen | Anzahl |
-| **Zugesagt** | nur die Termine, bei denen du „Bin dabei“ bist | Anzahl |
+| **Tipps** | Empfehlungen aus deinem Kreis | Anzahl |
 
 Der zuletzt gewählte Reiter bleibt am Gerät gespeichert und ist nach dem
 Neuladen wieder da. Das sagt nichts über deine Daten aus, sondern nur, worauf

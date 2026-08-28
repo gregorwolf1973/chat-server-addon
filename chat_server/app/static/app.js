@@ -1208,7 +1208,7 @@
   // Immer nur ein Abschnitt auf einmal, wie die Filterknöpfe bei WhatsApp.
   // Die Wahl bleibt am Gerät: sie sagt nichts über die eigenen Daten aus,
   // sondern nur, worauf man an diesem Bildschirm gerade schaut.
-  const REITER = ["chats", "karten", "stimmung", "termine", "zugesagt", "tipps"];
+  const REITER = ["chats", "karten", "stimmung", "termine", "tipps"];
   let aktiverReiter = "chats";
   try {
     const gemerkt = localStorage.getItem("chat-reiter");
@@ -1246,31 +1246,9 @@
     setze("zahl-stimmung",
           (state.stimmung || []).filter((s) => s.bis_at > jetzt).length);
     setze("zahl-termine", (state.termine || []).length);
-    setze("zahl-zugesagt", zugesagteTermine().length);
     setze("zahl-tipps", (state.tipps || []).length);
   }
 
-  const zugesagteTermine = () =>
-    (state.termine || []).filter((ev) => ev.meine === "ja");
-
-  function renderZugesagt() {
-    const liste = $("zugesagt-liste");
-    if (!liste) return;
-    const meine = zugesagteTermine();
-    if (!meine.length) {
-      liste.innerHTML = '<div class="abschnitt-leer">Du hast noch nichts '
-        + 'zugesagt. Was ansteht, findest du unter „Termine“.</div>';
-      return;
-    }
-    liste.innerHTML = meine.map((ev) => `<div class="termin-zeile" data-id="${ev.id}">
-      <div class="tz-datum">${terminZeit(ev.beginnt_at)}</div>
-      <div class="tz-titel">${esc(ev.titel)}</div>
-      <div class="tz-sub">${esc(ev.von.name)}${ev.ort_text
-        ? ` · ${esc(ev.ort_text)}` : ""} · ${(ev.wer.ja || []).length} Zusagen</div>
-    </div>`).join("");
-    liste.querySelectorAll(".termin-zeile").forEach((el) =>
-      el.addEventListener("click", () => terminAnsicht(parseInt(el.dataset.id, 10))));
-  }
 
   function renderKarten() {
     const liste = $("karten-liste");
@@ -1766,28 +1744,68 @@
     renderTermine();
   }
 
+  // Statt eines eigenen Reiters filtert die Terminliste selbst. "Offen" ist
+  // der nuetzlichste Blick: was wartet noch auf meine Antwort.
+  const TERMIN_FILTER = [
+    ["", "Alle"],
+    ["ja", "Zugesagt"],
+    ["offen", "Offen"],
+  ];
+  let terminFilter = "";
+
+  function terminPasstZumFilter(ev) {
+    if (!terminFilter) return true;
+    if (terminFilter === "offen") return !ev.meine;
+    return ev.meine === terminFilter;
+  }
+
   function renderTermine() {
     const liste = $("termin-liste");
     if (!liste) return;
     const alle = state.termine || [];
-    if (!alle.length) {
-      liste.innerHTML = '<div class="abschnitt-leer">Nichts steht an. '
-        + 'Mit ‚Einladung‘ im Chat legst du etwas an.</div>';
-      renderZugesagt();
+    const gezeigt = alle.filter(terminPasstZumFilter);
+
+    const leiste = $("termin-filter");
+    if (leiste) {
+      leiste.innerHTML = alle.length
+        ? TERMIN_FILTER.map(([wert, text]) => {
+            const zahl = wert === ""
+              ? alle.length
+              : alle.filter((ev) => wert === "offen" ? !ev.meine
+                                                     : ev.meine === wert).length;
+            return `<button class="mini-btn ${terminFilter === wert ? "an" : ""}"
+                     data-tf="${wert}">${text}${zahl ? ` · ${zahl}` : ""}</button>`;
+          }).join("")
+        : "";
+      leiste.querySelectorAll("[data-tf]").forEach((b) =>
+        b.addEventListener("click", () => {
+          terminFilter = b.dataset.tf;
+          renderTermine();
+        }));
+    }
+
+    if (!gezeigt.length) {
+      liste.innerHTML = `<div class="abschnitt-leer">${alle.length
+        ? "Dazu steht nichts an."
+        : "Nichts steht an. Mit ‚Einladung‘ im Chat legst du etwas an."
+        }</div>`;
       reiterZahlen();
+      renderKarten();
       return;
     }
-    liste.innerHTML = alle.map((ev) => `<div class="termin-zeile" data-id="${ev.id}"
+    liste.innerHTML = gezeigt.map((ev) => `<div class="termin-zeile" data-id="${ev.id}"
         data-room="${ev.room_id}">
       <div class="tz-datum">${terminZeit(ev.beginnt_at)}</div>
       <div class="tz-titel">${esc(ev.titel)}</div>
-      <div class="tz-sub">${(ev.wer.ja || []).length} Zusagen${
+      <div class="tz-sub">${esc(ev.von.name)}${ev.ort_text
+        ? ` · ${esc(ev.ort_text)}` : ""} · ${
+        (ev.wer.ja || []).length} Zusagen${
         ev.meine ? ` · du: ${{ja: "dabei", nein: "abgesagt",
-                              vielleicht: "vielleicht"}[ev.meine]}` : ""}</div>
+                                   vielleicht: "vielleicht"}[ev.meine]}` : ""}</div>
     </div>`).join("");
     liste.querySelectorAll(".termin-zeile").forEach((el) =>
       el.addEventListener("click", () => terminAnsicht(parseInt(el.dataset.id, 10))));
-    renderZugesagt();
+    reiterZahlen();
     // Die Zahl neben der Live-Karte zaehlt Einladungen mit
     renderKarten();
   }
