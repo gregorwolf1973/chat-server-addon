@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Zugang beantragen</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-180.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <img class="brand-logo" src="{{ url_for('static', filename='icon-192.png') }}" alt="">
+
+      {% if closed %}
+        <h1>Zugang beantragen</h1>
+        <p class="sub">Die Registrierung ist zurzeit geschlossen. Wende dich an
+          jemanden, der bereits ein Konto hat.</p>
+        <a class="btn ghost block" href="{{ url_for('login_page') }}">Zur Anmeldung</a>
+
+      {% elif done %}
+        <h1>Antrag ist unterwegs</h1>
+        <p class="sub">Ein Administrator schaut ihn sich an und schaltet dein
+          Konto frei. Danach kannst du dich mit deinem Benutzernamen und
+          Passwort anmelden.</p>
+        <a class="btn block" href="{{ url_for('login_page') }}">Zur Anmeldung</a>
+
+      {% else %}
+        <h1>Zugang beantragen</h1>
+        <p class="sub">Sag uns kurz, wer du bist – ein Administrator gibt den
+          Zugang danach frei.</p>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <form method="post">
+          <div class="field">
+            <label for="username">Benutzername</label>
+            <input id="username" name="username" autocomplete="username" required
+                   value="{{ form.username if form else '' }}">
+          </div>
+          <div class="field">
+            <label for="display_name">Anzeigename</label>
+            <input id="display_name" name="display_name" autocomplete="name" required
+                   value="{{ form.display_name if form else '' }}">
+          </div>
+          <div class="field">
+            <label for="password">Passwort (mindestens 6 Zeichen)</label>
+            <input id="password" name="password" type="password"
+                   autocomplete="new-password" required>
+          </div>
+
+          <p class="hint">Mindestens eines von beiden, damit wir dich erreichen können:</p>
+          <div class="field">
+            <label for="email">E-Mail</label>
+            <input id="email" name="email" type="email" autocomplete="email"
+                   value="{{ form.email if form else '' }}">
+          </div>
+          <div class="field">
+            <label for="phone">Telefon</label>
+            <input id="phone" name="phone" type="tel" autocomplete="tel"
+                   value="{{ form.phone if form else '' }}">
+          </div>
+
+          <div class="field">
+            <label for="note">Weshalb möchtest du Zugang?</label>
+            <textarea id="note" name="note" rows="3" required>{{ form.note if form else '' }}</textarea>
+          </div>
+          <button class="btn" type="submit">Antrag abschicken</button>
+        </form>
+        <p class="hint"><a href="{{ url_for('login_page') }}">Ich habe schon ein Konto</a></p>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

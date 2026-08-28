@@ -20,6 +20,7 @@ auf dem Handy. Läuft als Add-on auf dem Pi, Daten bleiben in `/data`.
 | `admin_user` / `admin_password` | wird beim ersten Start als Administrator angelegt; spätere Änderungen der Option ändern das Passwort **nicht** (das geht in der Oberfläche) |
 | `external_url` | vollständige externe Adresse, z. B. `https://chat.biker633.org` – wird für die Ziel-URL der Push-Benachrichtigungen gebraucht |
 | `max_upload_mb` | Größenlimit pro Datei (Standard 25) |
+| `allow_registration` | ob sich Leute selbst um Zugang bewerben dürfen (Standard: ja). Freigeben musst du sie trotzdem – ohne Freigabe kommt niemand hinein |
 
 ## Externer Zugriff über Cloudflare Tunnel
 
@@ -74,6 +75,23 @@ action:
 Ist `room` ein Benutzername, entsteht beim ersten Mal automatisch ein Direktchat
 mit „Home Assistant". Ist niemand online, geht die Nachricht zusätzlich als Push
 aufs Handy.
+
+## Zugang beantragen
+
+Auf der Anmeldeseite steht **Zugang beantragen**. Wer das ausfüllt, gibt
+Benutzernamen, Anzeigenamen, ein Passwort, **E-Mail oder Telefonnummer** und
+eine kurze Begründung an.
+
+Der Antrag legt noch kein nutzbares Konto an: Bis zur Freigabe kommt niemand
+hinein, und der Name taucht auch in keiner Auswahlliste auf. Administratoren
+finden die Anträge oben unter **… → Benutzer verwalten**, mit Kontaktdaten
+und Begründung, und entscheiden mit **Freigeben** oder **Ablehnen**
+(letzteres entfernt den Antrag). Wer als Administrator Push eingeschaltet
+hat, bekommt bei jedem neuen Antrag eine Benachrichtigung.
+
+Die Seite steht offen im Netz, deshalb nimmt sie höchstens drei Anträge je
+Stunde und Absender an. Ganz abschalten lässt sie sich mit der Option
+`allow_registration`.
 
 ## Benutzer verwalten
 

@@ -283,6 +283,9 @@
 
   // Konten geaendert oder entfernt - Namen und Auswahllisten nachziehen.
   socket.on("user_changed", () => loadState());
+  socket.on("user_pending", (u) => {
+    if (IS_ADMIN) toast(`Neuer Zugangsantrag von ${u.display_name}.`);
+  });
   socket.on("user_removed", () => loadState());
 
   // Wer gesperrt oder geloescht wird, fliegt serverseitig aus der Verbindung.
@@ -359,7 +362,7 @@
   const closeModal = () => { $("modal-root").innerHTML = ""; };
 
   $("btn-new").addEventListener("click", () => {
-    const others = state.users.filter((u) => u.id !== ME);
+    const others = state.users.filter((u) => u.id !== ME && u.active !== false);
     const root = modal(`<h2>Neue Unterhaltung</h2>
       <div class="field"><label>Gruppenname (leer lassen für Einzelchat)</label>
       <input id="m-name" placeholder="z. B. Familie"></div>
@@ -396,7 +399,7 @@
   $("btn-invite").addEventListener("click", () => {
     const room = roomById(currentRoom);
     const inRoom = new Set(room.members.map((m) => m.id));
-    const cands = state.users.filter((u) => !inRoom.has(u.id));
+    const cands = state.users.filter((u) => !inRoom.has(u.id) && u.active !== false);
     const root = modal(`<h2>Person zu „${esc(room.name)}“ hinzufügen</h2>
       ${cands.map((u) => `<div class="pick" data-id="${u.id}">${esc(u.display_name)}</div>`).join("")
         || '<p class="hint">Alle Konten sind schon in dieser Gruppe.</p>'}
@@ -455,11 +458,29 @@
     if (!box) return;
     const res = await api("/api/users");
     if (!res.ok) { box.innerHTML = '<p class="hint">Liste nicht verfügbar.</p>'; return; }
-    const users = await res.json();
+    const alle = await res.json();
+    const antraege = alle.filter((u) => u.pending);
+    const users = alle.filter((u) => !u.pending);
     // Der letzte verbliebene Administrator darf sich nicht selbst entmachten -
     // dann gaebe es niemanden mehr, der Konten verwaltet.
     const letzterAdmin = users.filter((u) => u.is_admin && u.active).length <= 1;
-    box.innerHTML = users.map((u) => {
+    const antragsHtml = antraege.length ? `<div class="antraege">
+      <h3>Zugangsanträge <span class="chip warn">${antraege.length}</span></h3>
+      ${antraege.map((u) => `<div class="urow antrag" data-id="${u.id}">
+        <div class="uinfo">
+          <span class="uname">${esc(u.display_name)}</span>
+          <span class="utag">@${esc(u.username)}</span>
+          ${u.email ? `<a class="kontakt" href="mailto:${esc(u.email)}">${esc(u.email)}</a>` : ""}
+          ${u.phone ? `<a class="kontakt" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>` : ""}
+          ${u.note ? `<span class="begruendung">${esc(u.note)}</span>` : ""}
+        </div>
+        <div class="uacts">
+          <button class="act ok" data-act="approve">Freigeben</button>
+          <button class="act del" data-act="reject">Ablehnen</button>
+        </div>
+      </div>`).join("")}
+    </div>` : "";
+    box.innerHTML = antragsHtml + users.map((u) => {
       const selbst = u.id === ME;
       const schuetzen = selbst || (u.is_admin && letzterAdmin);
       return `
@@ -481,17 +502,29 @@
             ? '<span class="hint inline">letzter Administrator</span>' : ""}
         </div>
       </div>`;
-    }).join("") || '<p class="hint">Es gibt noch keine weiteren Konten.</p>';
+    }).join("") || (antragsHtml ? "" : '<p class="hint">Es gibt noch keine weiteren Konten.</p>');
 
     box.querySelectorAll(".act").forEach((btn) => btn.addEventListener("click", async () => {
       const row = btn.closest(".urow");
       const id = parseInt(row.dataset.id, 10);
-      const user = users.find((u) => u.id === id);
+      const user = alle.find((u) => u.id === id);
       const json = (body) => ({method: "PATCH",
                                headers: {"Content-Type": "application/json"},
                                body: JSON.stringify(body)});
       let ok = false;
-      if (btn.dataset.act === "pw") {
+      if (btn.dataset.act === "approve") {
+        ok = await adminCall(`/api/users/${id}/approve`, {method: "POST"},
+                             "Zugang freigegeben.");
+      } else if (btn.dataset.act === "reject") {
+        const antrag = alle.find((u) => u.id === id);
+        if (!confirm(`Antrag von „${antrag.display_name}“ ablehnen?
+
+`
+                     + "Das Konto wird dabei entfernt."))
+          return;
+        ok = await adminCall(`/api/users/${id}`, {method: "DELETE"},
+                             "Antrag abgelehnt.");
+      } else if (btn.dataset.act === "pw") {
         return passwordDialog(user, root);
       } else if (btn.dataset.act === "admin") {
         ok = await adminCall(`/api/users/${id}`, json({is_admin: !user.is_admin}),

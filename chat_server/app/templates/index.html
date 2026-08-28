@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#0e1416">
   <title>Chat</title>
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-180.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body data-base="{{ base }}" data-me="{{ me.id }}" data-name="{{ me.display_name }}"

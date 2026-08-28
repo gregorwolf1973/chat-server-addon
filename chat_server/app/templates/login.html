@@ -4,11 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Anmelden</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-180.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <div class="login-wrap">
     <div class="login-card">
+      <img class="brand-logo" src="{{ url_for('static', filename='icon-192.png') }}" alt="">
       <h1>Chat</h1>
       <p class="sub">Melde dich mit deinem Konto an.</p>
       {% if error %}<div class="error">{{ error }}</div>{% endif %}
@@ -23,6 +26,10 @@
         </div>
         <button class="btn" type="submit">Anmelden</button>
       </form>
+      {% if registration_open %}
+      <p class="hint">Noch kein Konto?
+        <a href="{{ url_for('register_page') }}">Zugang beantragen</a></p>
+      {% endif %}
     </div>
   </div>
 </body>

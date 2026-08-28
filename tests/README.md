@@ -26,7 +26,8 @@ PYTHONPATH=tests .venv/bin/python tests/test_security.py
 kill %1
 ```
 
-Danach dasselbe für `tests/test_users.py` und `tests/test_media.py`.
+Danach dasselbe für `tests/test_users.py`, `tests/test_media.py` und
+`tests/test_register.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
 
@@ -52,6 +53,13 @@ das durch Altbestände fehl.
 * `nosniff` und eine enge CSP auf der Datei-Route.
 * Fremde Datei-IDs lassen sich nicht an eigene Nachrichten hängen.
 * Die Pfade im PWA-Manifest lösen auf existierende Adressen auf.
+
+`test_register.py` (24 Prüfungen)
+
+* Die Registrierungsseite ist ohne Anmeldung erreichbar, die Pflichtangaben
+  greifen.
+* Vor der Freigabe kommt niemand hinein und taucht in keiner Liste auf.
+* Freigeben und Ablehnen, dazu die Bremse gegen Massenanträge.
 
 `test_media.py` (19 Prüfungen)
 

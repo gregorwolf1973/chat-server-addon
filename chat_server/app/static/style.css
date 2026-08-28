@@ -540,3 +540,55 @@ button { cursor: pointer; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---------- Marke und Zugangsanträge ---------- */
+.brand-logo {
+  width: 76px;
+  height: 76px;
+  display: block;
+  margin: 0 auto 14px;
+}
+.btn.block { display: block; text-align: center; text-decoration: none; line-height: 2.2; }
+
+.antraege { margin-bottom: 18px; }
+.antraege h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.urow.antrag {
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  align-items: flex-start;
+}
+.urow.antrag .uinfo { flex-direction: column; align-items: flex-start; gap: 4px; }
+.chip.warn { color: var(--accent); border-color: var(--accent); }
+.kontakt { font-size: 12px; color: var(--accent); }
+.begruendung {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  margin-top: 2px;
+}
+.act.ok { color: var(--text); border-color: var(--accent); }
+.act.ok:hover { background: var(--accent); color: #14202a; }
+
+.login-card textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font: inherit;
+  resize: vertical;
+}
+.login-card textarea:focus { outline: none; border-color: var(--accent); }
+.login-card .hint a { color: var(--accent); }

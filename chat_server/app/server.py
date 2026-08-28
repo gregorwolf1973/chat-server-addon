@@ -35,6 +35,7 @@ def _opt(name):
 
 EXTERNAL_URL = _opt("EXTERNAL_URL").rstrip("/")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "info").upper()
+ALLOW_REGISTRATION = _opt("ALLOW_REGISTRATION").lower() not in ("false", "0", "off")
 
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO),
                     format="%(asctime)s %(levelname)s %(message)s")
@@ -98,6 +99,10 @@ CREATE TABLE IF NOT EXISTS users (
     is_admin INTEGER NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,
     pw_version INTEGER NOT NULL DEFAULT 0,
+    pending INTEGER NOT NULL DEFAULT 0,
+    email TEXT,
+    phone TEXT,
+    note TEXT,
     created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS rooms (
@@ -187,6 +192,11 @@ def migrate(conn):
         conn.execute("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
     if "pw_version" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN pw_version INTEGER NOT NULL DEFAULT 0")
+    if "pending" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN pending INTEGER NOT NULL DEFAULT 0")
+    for spalte in ("email", "phone", "note"):
+        if spalte not in cols:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {spalte} TEXT")
     conn.commit()
 
 
@@ -333,6 +343,12 @@ IMAGE_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif
 def safe_mime(raw):
     mime = (raw or "").split(";")[0].strip().lower()
     return mime if mime in IMAGE_MIMES else "application/octet-stream"
+
+
+@app.context_processor
+def vorlagen_werte():
+    """Steht allen Vorlagen zur Verfuegung - etwa fuer den Link zur Anmeldung."""
+    return {"registration_open": ALLOW_REGISTRATION}
 
 
 @app.after_request
@@ -509,6 +525,96 @@ MSG_QUERY = (
 # --------------------------------------------------------------------------
 # Seiten
 # --------------------------------------------------------------------------
+# Die Registrierung steht offen im Netz. Ohne Bremse koennte sie jemand mit
+# Antraegen fluten - drei je Stunde und Adresse reichen fuer echte Anfragen.
+ANTRAEGE = {}
+ANTRAEGE_LOCK = threading.Lock()
+ANTRAEGE_PRO_STUNDE = 3
+
+
+def zu_viele_antraege(adresse):
+    jetzt = time.time()
+    with ANTRAEGE_LOCK:
+        frisch = [t for t in ANTRAEGE.get(adresse, []) if jetzt - t < 3600]
+        # Nebenbei aufraeumen, damit die Tabelle nicht unbegrenzt waechst
+        for schluessel in [k for k, v in ANTRAEGE.items()
+                           if all(jetzt - t >= 3600 for t in v)]:
+            ANTRAEGE.pop(schluessel, None)
+        if len(frisch) >= ANTRAEGE_PRO_STUNDE:
+            ANTRAEGE[adresse] = frisch
+            return True
+        frisch.append(jetzt)
+        ANTRAEGE[adresse] = frisch
+        return False
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register_page():
+    """Selbstregistrierung - das Konto wartet danach auf Freigabe."""
+    if not ALLOW_REGISTRATION:
+        return render_template("register.html", closed=True), 403
+    if request.method == "GET":
+        return render_template("register.html")
+
+    formular = {
+        "username": (request.form.get("username") or "").strip().lower(),
+        "display_name": (request.form.get("display_name") or "").strip(),
+        "email": (request.form.get("email") or "").strip(),
+        "phone": (request.form.get("phone") or "").strip(),
+        "note": (request.form.get("note") or "").strip(),
+    }
+    passwort = request.form.get("password") or ""
+
+    def zurueck(fehler):
+        return render_template("register.html", error=fehler, form=formular)
+
+    if not formular["username"] or not formular["display_name"]:
+        return zurueck("Benutzername und Anzeigename werden gebraucht.")
+    if formular["username"] in SYSTEM_USERS:
+        return zurueck("Dieser Benutzername ist vergeben.")
+    if len(passwort) < MIN_PASSWORD:
+        return zurueck(f"Das Passwort braucht mindestens {MIN_PASSWORD} Zeichen.")
+    if not formular["email"] and not formular["phone"]:
+        return zurueck("Gib eine E-Mail-Adresse oder eine Telefonnummer an, "
+                       "damit wir dich erreichen koennen.")
+    if not formular["note"]:
+        return zurueck("Schreib kurz, weshalb du Zugang moechtest.")
+    if zu_viele_antraege(request.headers.get("X-Forwarded-For",
+                                             request.remote_addr or "?")):
+        return zurueck("Es sind schon mehrere Antraege von dir eingegangen. "
+                       "Bitte warte eine Stunde.")
+
+    conn = db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO users (username, display_name, pw_hash, is_admin, active,"
+            " pending, email, phone, note, created_at)"
+            " VALUES (?,?,?,0,0,1,?,?,?,?)",
+            (formular["username"], formular["display_name"],
+             generate_password_hash(passwort), formular["email"][:200],
+             formular["phone"][:60], formular["note"][:1000], int(time.time())))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        return zurueck("Diesen Benutzernamen gibt es schon.")
+
+    row = conn.execute("SELECT * FROM users WHERE id=?", (cur.lastrowid,)).fetchone()
+    log.info("Neuer Zugangsantrag von '%s'", formular["username"])
+    socketio.emit("user_pending", user_payload(row))
+    benachrichtige_admins(conn, formular["display_name"])
+    return render_template("register.html", done=True)
+
+
+def benachrichtige_admins(conn, name):
+    """Administratoren per Push ueber einen neuen Antrag informieren."""
+    admins = [r["id"] for r in conn.execute(
+        "SELECT id FROM users WHERE is_admin=1 AND active=1").fetchall()]
+    if not admins:
+        return
+    ziel = f"{EXTERNAL_URL}/" if EXTERNAL_URL else "./"
+    push_to_users(admins, "Neuer Zugangsantrag",
+                  f"{name} moechte Zugang zum Chat", ziel)
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login_page():
     if request.method == "POST":
@@ -519,6 +625,10 @@ def login_page():
         # Schreibweise suchen.
         row = db().execute("SELECT * FROM users WHERE lower(username)=?",
                            (username,)).fetchone()
+        if row is not None and row["pending"]:
+            return render_template(
+                "login.html", error="Dein Zugang wurde noch nicht freigegeben. "
+                                    "Ein Administrator prueft die Anfrage.")
         if row is not None and not row["active"]:
             return render_template(
                 "login.html", error="Dieses Konto ist gesperrt. Wende dich an einen Administrator.")
@@ -569,7 +679,7 @@ def api_state():
     marks = ",".join("?" * len(SYSTEM_USERS))
     users = conn.execute(
         "SELECT id, username, display_name, is_admin, active FROM users"
-        f" WHERE username NOT IN ({marks}) ORDER BY display_name",
+        f" WHERE username NOT IN ({marks}) AND pending=0 ORDER BY display_name",
         SYSTEM_USERS).fetchall()
     with ONLINE_LOCK:
         online = list(ONLINE.keys())
@@ -711,6 +821,10 @@ def user_payload(row):
         "display_name": row["display_name"],
         "is_admin": bool(row["is_admin"]),
         "active": bool(row["active"]),
+        "pending": bool(row["pending"]),
+        "email": row["email"] or "",
+        "phone": row["phone"] or "",
+        "note": row["note"] or "",
         "created_at": row["created_at"],
     }
 
@@ -722,7 +836,7 @@ def api_list_users():
     rows = db().execute(
         "SELECT * FROM users"
         f" WHERE username NOT IN ({marks})"
-        " ORDER BY active DESC, display_name", SYSTEM_USERS).fetchall()
+        " ORDER BY pending DESC, active DESC, display_name", SYSTEM_USERS).fetchall()
     return jsonify([user_payload(r) for r in rows])
 
 
@@ -773,6 +887,23 @@ def api_reset_password(user_id):
         disconnect_user(user_id)
     log.info("Passwort von '%s' wurde zurueckgesetzt", row["username"])
     return jsonify({"ok": True})
+
+
+@app.post("/api/users/<int:user_id>/approve")
+@admin_required
+def api_approve_user(user_id):
+    """Einen Zugangsantrag freigeben - das Konto wird damit nutzbar."""
+    row, err = target_user(user_id)
+    if err:
+        return err
+    if not row["pending"]:
+        return jsonify({"error": "Dieses Konto wartet nicht auf Freigabe."}), 400
+    db().execute("UPDATE users SET pending=0, active=1 WHERE id=?", (user_id,))
+    db().commit()
+    row = db().execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    log.info("Zugang fuer '%s' freigegeben", row["username"])
+    socketio.emit("user_changed", user_payload(row))
+    return jsonify(user_payload(row))
 
 
 @app.patch("/api/users/<int:user_id>")

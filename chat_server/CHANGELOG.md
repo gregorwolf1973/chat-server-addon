@@ -1,5 +1,21 @@
 # Änderungsverlauf
 
+## 0.5.0
+
+- **Eigenes Logo** – als Add-on-Symbol, auf der Anmeldeseite, als App-Symbol
+  auf dem Home-Bildschirm und als Favicon im Browser-Tab
+- **Selbstregistrierung mit Freigabe**: Auf der Anmeldeseite können Leute
+  über **Zugang beantragen** ein Konto anfragen – mit E-Mail oder
+  Telefonnummer und einer Begründung. Bis ein Administrator freigibt, kommt
+  niemand hinein und der Name erscheint in keiner Auswahlliste
+- Anträge stehen oben in der Benutzerverwaltung, mit Kontaktdaten und
+  Begründung, und lassen sich freigeben oder ablehnen
+- Administratoren mit Push bekommen bei neuen Anträgen eine Benachrichtigung
+- Die offene Registrierungsseite nimmt höchstens drei Anträge je Stunde und
+  Absender an; mit `allow_registration: false` lässt sie sich abschalten
+- Gesperrte Konten erscheinen nicht mehr in der Auswahl für neue
+  Unterhaltungen
+
 ## 0.4.1
 
 - Sprechblasen sind deutlich kompakter: unter jeder Nachricht standen 40 Pixel

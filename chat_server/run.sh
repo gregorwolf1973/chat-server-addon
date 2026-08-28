@@ -5,6 +5,7 @@ export ADMIN_PASSWORD="$(bashio::config 'admin_password')"
 export EXTERNAL_URL="$(bashio::config 'external_url')"
 export API_TOKEN="$(bashio::config 'api_token')"
 export MAX_UPLOAD_MB="$(bashio::config 'max_upload_mb')"
+export ALLOW_REGISTRATION="$(bashio::config 'allow_registration')"
 export LOG_LEVEL="$(bashio::config 'log_level')"
 
 mkdir -p /data/uploads
