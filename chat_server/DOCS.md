@@ -342,13 +342,26 @@ Servern nachgeladen**.
 
 Auch hier gilt: Der Browser gibt den Standort **nur über HTTPS** heraus.
 
-## Die Seitenleiste bleibt kurz
+## Die Reiter in der Seitenleiste
 
-**Stimmung** und **Termine** zeigen höchstens drei Zeilen; darüber hinaus
-lässt sich in der Liste scrollen. Neben der Überschrift steht dann, wie viele
-es insgesamt sind. Die Höhe des Fensters wird gemessen, nicht geraten – eine
-Stimmungsmeldung mit langem Text ist höher als eine kurze, ein fester Wert
-würde die dritte Zeile anschneiden.
+Oben in der Seitenleiste stehen fünf Reiter, wie die Filterknöpfe bei
+WhatsApp. Sichtbar ist immer genau einer:
+
+| Reiter | Inhalt | Zahl daneben |
+|---|---|---|
+| **Unterhaltungen** | die Chatliste | ungelesene Nachrichten |
+| **Karten** | laufende Standortfreigaben, Zugang zur Live-Karte | aktive Freigaben |
+| **Stimmung** | worauf dein Kreis gerade Lust hat | gültige Meldungen |
+| **Termine** | alles Anstehende aus allen Unterhaltungen | Anzahl |
+| **Zugesagt** | nur die Termine, bei denen du „Bin dabei“ bist | Anzahl |
+
+Der zuletzt gewählte Reiter bleibt am Gerät gespeichert und ist nach dem
+Neuladen wieder da. Das sagt nichts über deine Daten aus, sondern nur, worauf
+du an diesem Bildschirm zuletzt geschaut hast – deshalb hängt es am Gerät und
+nicht am Konto.
+
+Die frühere Begrenzung auf drei Zeilen je Abschnitt ist damit entfallen: Es
+steht ohnehin nur eine Liste auf einmal da, und die bekommt die volle Höhe.
 
 ## Straßenkarte oder Umrisse
 

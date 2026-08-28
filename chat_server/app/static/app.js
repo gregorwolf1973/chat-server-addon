@@ -132,6 +132,7 @@
     const list = $("rooms");
     if (!state.rooms.length) {
       list.innerHTML = '<div class="empty" style="padding:24px">Noch keine Unterhaltung. Leg mit „+ Neu“ los.</div>';
+      reiterZahlen();
       return;
     }
     list.innerHTML = state.rooms.map((r) => {
@@ -149,6 +150,7 @@
     }).join("");
     list.querySelectorAll(".room").forEach((el) =>
       el.addEventListener("click", () => openRoom(parseInt(el.dataset.id, 10))));
+    reiterZahlen();
   }
 
   function roomById(id) { return state.rooms.find((r) => r.id === id); }
@@ -1194,30 +1196,71 @@
       }));
   }
 
-  // Hoechstens drei Zeilen zeigen, der Rest ist scrollbar. Die Hoehe wird
-  // gemessen statt geraten: eine Stimmungsmeldung mit langem Text ist hoeher
-  // als eine kurze, ein fester Wert wuerde die dritte Zeile anschneiden.
-  const SICHTBARE_ZEILEN = 3;
+  // ---------- Reiter in der Seitenleiste ----------
+  // Immer nur ein Abschnitt auf einmal, wie die Filterknöpfe bei WhatsApp.
+  // Die Wahl bleibt am Gerät: sie sagt nichts über die eigenen Daten aus,
+  // sondern nur, worauf man an diesem Bildschirm gerade schaut.
+  const REITER = ["chats", "karten", "stimmung", "termine", "zugesagt"];
+  let aktiverReiter = "chats";
+  try {
+    const gemerkt = localStorage.getItem("chat-reiter");
+    if (REITER.includes(gemerkt)) aktiverReiter = gemerkt;
+  } catch (err) { /* privates Fenster: dann eben chats */ }
 
-  function aufDreiBegrenzen(liste) {
-    if (!liste) return;
-    liste.style.maxHeight = "";
-    liste.classList.remove("scrollt");
-    const kinder = [...liste.children];
-    if (kinder.length <= SICHTBARE_ZEILEN) return;
-    const oben = kinder[0].getBoundingClientRect().top;
-    const unten = kinder[SICHTBARE_ZEILEN - 1].getBoundingClientRect().bottom;
-    const hoehe = Math.ceil(unten - oben);
-    // Im ausgeblendeten Abschnitt sind alle Rechtecke leer - dann lieber
-    // nichts setzen als eine Hoehe von null.
-    if (hoehe <= 0) return;
-    liste.style.maxHeight = hoehe + "px";
-    liste.classList.add("scrollt");
+  function reiterSetzen(name) {
+    if (!REITER.includes(name)) return;
+    aktiverReiter = name;
+    try {
+      localStorage.setItem("chat-reiter", name);
+    } catch (err) { /* nicht schlimm, gilt dann nur für diese Sitzung */ }
+    document.querySelectorAll(".reiter-knopf").forEach((b) =>
+      b.classList.toggle("an", b.dataset.reiter === name));
+    document.querySelectorAll("[data-inhalt]").forEach((s) => {
+      s.hidden = s.dataset.inhalt !== name;
+    });
+    const feld = document.querySelector(".seiten-scroll");
+    if (feld) feld.scrollTop = 0;
   }
 
-  function kopfZahl(id, anzahl) {
-    const el = $(id);
-    if (el) el.textContent = anzahl > SICHTBARE_ZEILEN ? String(anzahl) : "";
+  function reiterZahlen() {
+    const setze = (id, zahl) => {
+      const el = $(id);
+      if (!el) return;
+      el.textContent = zahl ? String(zahl) : "";
+      el.hidden = !zahl;
+    };
+    const ungelesen = (state.rooms || [])
+      .reduce((summe, r) => summe + (r.unread || 0), 0);
+    const {personen, alleTermine} = kartenPunkte();
+    const jetzt = Math.floor(Date.now() / 1000);
+    setze("zahl-chats", ungelesen);
+    setze("zahl-karten", personen.length);
+    setze("zahl-stimmung",
+          (state.stimmung || []).filter((s) => s.bis_at > jetzt).length);
+    setze("zahl-termine", (state.termine || []).length);
+    setze("zahl-zugesagt", zugesagteTermine().length);
+  }
+
+  const zugesagteTermine = () =>
+    (state.termine || []).filter((ev) => ev.meine === "ja");
+
+  function renderZugesagt() {
+    const liste = $("zugesagt-liste");
+    if (!liste) return;
+    const meine = zugesagteTermine();
+    if (!meine.length) {
+      liste.innerHTML = '<div class="abschnitt-leer">Du hast noch nichts '
+        + 'zugesagt. Was ansteht, findest du unter „Termine“.</div>';
+      return;
+    }
+    liste.innerHTML = meine.map((ev) => `<div class="termin-zeile" data-id="${ev.id}">
+      <div class="tz-datum">${terminZeit(ev.beginnt_at)}</div>
+      <div class="tz-titel">${esc(ev.titel)}</div>
+      <div class="tz-sub">${esc(ev.von.name)}${ev.ort_text
+        ? ` · ${esc(ev.ort_text)}` : ""} · ${(ev.wer.ja || []).length} Zusagen</div>
+    </div>`).join("");
+    liste.querySelectorAll(".termin-zeile").forEach((el) =>
+      el.addEventListener("click", () => terminAnsicht(parseInt(el.dataset.id, 10))));
   }
 
   function renderKarten() {
@@ -1248,6 +1291,7 @@
         </div>`).join("");
     liste.querySelectorAll(".karten-eintrag").forEach((el) =>
       el.addEventListener("click", kartenAnsicht));
+    reiterZahlen();
   }
 
   // ---------- Stimmung ----------
@@ -1330,6 +1374,7 @@
     if (!liste) return;
     const jetzt = Math.floor(Date.now() / 1000);
     const alle = (state.stimmung || []).filter((s) => s.bis_at > jetzt);
+    reiterZahlen();
     if (!alle.length) {
       liste.innerHTML = '<div class="abschnitt-leer">Noch nichts geplant. '
         + 'Sag, worauf du Lust hast.</div>';
@@ -1351,8 +1396,6 @@
         </div>
       </div>
     </div>`).join("");
-    kopfZahl("stimmung-zahl", alle.length);
-    aufDreiBegrenzen(liste);
     liste.querySelectorAll("[data-mit]").forEach((b) =>
       b.addEventListener("click", async () => {
         const res = await api(`/api/stimmung/${b.dataset.mit}/mit`, {method: "POST"});
@@ -1715,11 +1758,16 @@
   }
 
   function renderTermine() {
-    const abschnitt = $("termin-abschnitt");
     const liste = $("termin-liste");
     if (!liste) return;
     const alle = state.termine || [];
-    abschnitt.hidden = !alle.length;
+    if (!alle.length) {
+      liste.innerHTML = '<div class="abschnitt-leer">Nichts steht an. '
+        + 'Mit ‚Einladung‘ im Chat legst du etwas an.</div>';
+      renderZugesagt();
+      reiterZahlen();
+      return;
+    }
     liste.innerHTML = alle.map((ev) => `<div class="termin-zeile" data-id="${ev.id}"
         data-room="${ev.room_id}">
       <div class="tz-datum">${terminZeit(ev.beginnt_at)}</div>
@@ -1728,10 +1776,9 @@
         ev.meine ? ` · du: ${{ja: "dabei", nein: "abgesagt",
                               vielleicht: "vielleicht"}[ev.meine]}` : ""}</div>
     </div>`).join("");
-    kopfZahl("termin-zahl", alle.length);
-    aufDreiBegrenzen(liste);
     liste.querySelectorAll(".termin-zeile").forEach((el) =>
       el.addEventListener("click", () => terminAnsicht(parseInt(el.dataset.id, 10))));
+    renderZugesagt();
     // Die Zahl neben der Live-Karte zaehlt Einladungen mit
     renderKarten();
   }
@@ -2571,12 +2618,10 @@
   // Minute neu zeichnen genuegt - abgelaufene Eintraege fallen dabei heraus.
   setInterval(() => { renderKarten(); renderStimmung(); }, 60000);
 
-  // Bei geaenderter Breite brechen die Texte anders um, die drei Zeilen sind
-  // dann anders hoch.
-  window.addEventListener("resize", () => {
-    aufDreiBegrenzen($("stimmung-liste"));
-    aufDreiBegrenzen($("termin-liste"));
-  });
+
+  document.querySelectorAll(".reiter-knopf").forEach((b) =>
+    b.addEventListener("click", () => reiterSetzen(b.dataset.reiter)));
+  reiterSetzen(aktiverReiter);
 
   weltkarteLaden();
   terminLaden();

@@ -1,5 +1,16 @@
 # Änderungsverlauf
 
+## 0.21.0
+
+- **Reiter in der Seitenleiste**, wie die Filterknoepfe bei WhatsApp:
+  Unterhaltungen, Karten, Stimmung, Termine und **Zugesagt** - Letzteres
+  zeigt nur die Termine, bei denen man selbst zugesagt hat
+- Jeder Reiter traegt eine Zahl: ungelesene Nachrichten, laufende Freigaben,
+  gueltige Stimmungsmeldungen, anstehende Termine, eigene Zusagen
+- Der zuletzt gewaehlte Reiter bleibt am Geraet gespeichert
+- Die Begrenzung auf drei Zeilen aus 0.20.0 faellt weg: es steht nur noch
+  eine Liste auf einmal da, und die bekommt die volle Hoehe
+
 ## 0.20.1
 
 - **Absagen darf allein, wer eingeladen hat** - der Administrator jetzt
