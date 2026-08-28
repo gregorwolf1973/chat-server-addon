@@ -1,5 +1,23 @@
 # Änderungsverlauf
 
+## 0.16.0
+
+- **Einladungen** (Knopf 📅): Titel, Zeit, Ort, Bild, Beschreibung und
+  Merkmale wie Musik, Tanz, Alkohol, Essen, Sport. Zusagen mit „Bin dabei“,
+  „Vielleicht“, „Kann nicht“ - noch einmal tippen nimmt die Antwort zurueck
+- **Termine** in der Seitenleiste: was ansteht, aus allen Unterhaltungen,
+  der naechste zuerst. Eine Einladung rutscht im Verlauf sonst aus dem Blick
+- **Karten** in der Seitenleiste: Live-Standort fuer 15 Minuten bis 8 Stunden
+  freigeben, je Unterhaltung. Damit ist ohne Zutun klar, wer mitsehen darf.
+  Die Freigabe laeuft von selbst ab, und wer die Gruppe verlaesst, teilt dort
+  nicht weiter. Alle Punkte zusammen auf einer Uebersichtskarte
+- **Stimmung**: worauf ich gerade Lust haette, mit Emoji, Dauer und auf
+  Wunsch Ort - sichtbar fuer alle, mit denen ich eine Unterhaltung teile.
+  Andere tippen auf „Ich mach mit“
+- Die Terminkarte erbte `white-space: pre-wrap` von der Sprechblase; jede
+  Einrueckung im Vorlagentext wurde dadurch zu einer Leerzeile und die Karte
+  doppelt so hoch wie noetig
+
 ## 0.15.1
 
 - Die Kartenvorschau beim Standort war leer. Die Umrisse lagen in einem

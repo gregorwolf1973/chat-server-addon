@@ -291,6 +291,7 @@
         + `<span class="q-text">${esc(m.reply.text)}</span></div>`;
     }
     if (m.poll) inner += abstimmungHtml(m.poll);
+    if (m.event) inner += eventHtml(m.event);
     if (m.ort) inner += ortHtml(m.ort);
     if (m.file && m.album && (m.file.mime || "").startsWith("image/")) {
       inner += `<div class="album" data-anzahl="1">${albumBildHtml(m)}</div>`;
@@ -437,6 +438,11 @@
     if (!kasten) return;
     const res = await api(`/api/polls/${d.poll_id}`);
     if (res.ok) kasten.outerHTML = abstimmungHtml(await res.json());
+  });
+  socket.on("live_geaendert", () => liveLaden());
+  socket.on("stimmung_geaendert", () => stimmungLaden());
+  socket.on("event_geaendert", (d) => {
+    if (d.event_id) eventNeuZeichnen(d.event_id); else terminLaden();
   });
   socket.on("room_removed", (d) => raumVerlassen(d.id));
   socket.on("room_changed", () => loadState());
@@ -733,6 +739,563 @@
                            : "Der Standort ließ sich nicht bestimmen.");
     }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 60000});
   });
+
+  // ---------- Übersichtskarte ----------
+  // Dieselben Umrisse wie bei der Ortsvorschau, aber der Ausschnitt umfasst
+  // mehrere Punkte. Es wird nichts von fremden Servern nachgeladen.
+  function ausschnittFuer(punkte, rand = 0.45, mindest = 34) {
+    const koord = punkte.map((p) => kartenPunkt(p.lat, p.lon));
+    let x1 = Math.min(...koord.map((k) => k.x));
+    let x2 = Math.max(...koord.map((k) => k.x));
+    let y1 = Math.min(...koord.map((k) => k.y));
+    let y2 = Math.max(...koord.map((k) => k.y));
+    // Ohne Mindestgröße wäre bei Punkten in derselben Stadt gar nichts zu
+    // sehen: die grobe Weltkarte kennt keine Straßen, nur Küsten und Grenzen.
+    let weite = Math.max(mindest, (x2 - x1) * (1 + rand * 2));
+    let hoehe = Math.max(mindest * 0.62, (y2 - y1) * (1 + rand * 2));
+    // Seitenverhältnis der Anzeige halten, sonst wird die Karte verzerrt
+    if (weite / hoehe < 1.6) weite = hoehe * 1.6; else hoehe = weite / 1.6;
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const x = Math.max(0, Math.min(KARTE_BREITE - weite, mx - weite / 2));
+    const y = Math.max(0, Math.min(KARTE_HOEHE - hoehe, my - hoehe / 2));
+    return {x, y, weite, hoehe};
+  }
+
+  function uebersichtHtml(punkte) {
+    if (!punkte.length) {
+      return '<div class="karte-leer">Niemand teilt gerade einen Standort.</div>';
+    }
+    const a = ausschnittFuer(punkte);
+    const nadeln = punkte.map((p) => {
+      const k = kartenPunkt(p.lat, p.lon);
+      const l = ((k.x - a.x) / a.weite * 100).toFixed(2);
+      const t = ((k.y - a.y) / a.hoehe * 100).toFixed(2);
+      return `<span class="karten-punkt" style="left:${l}%;top:${t}%"
+                    title="${esc(p.name || "")}">
+        ${avatarHtml("u", p.user_id, p.name, p.avatar, "winzig")}
+        <span class="karten-name">${esc(p.name || "")}</span></span>`;
+    }).join("");
+    return `<div class="grosskarte">
+      <svg viewBox="${a.x} ${a.y} ${a.weite} ${a.hoehe}"
+           preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">`
+      + (weltkarteBereit ? '<use href="#weltkarte"></use>' : "")
+      + `</svg>${nadeln}</div>`;
+  }
+
+  // ---------- Live-Standort ----------
+  // Die Freigabe gehört immer zu einer Unterhaltung und läuft von selbst ab.
+  // Damit ist ohne Zutun klar, wer mitsehen darf: die Mitglieder.
+  let livePing = null;
+
+  const restzeit = (bis) => {
+    const s = bis - Math.floor(Date.now() / 1000);
+    if (s <= 0) return "abgelaufen";
+    if (s < 3600) return `noch ${Math.max(1, Math.round(s / 60))} Min`;
+    const std = Math.floor(s / 3600), min = Math.round(s % 3600 / 60);
+    return min ? `noch ${std} Std ${min} Min` : `noch ${std} Std`;
+  };
+
+  const meineFreigaben = () => (state.live || []).filter((l) => l.ich);
+
+  function pingPlanen() {
+    // Solange ich selbst teile, schicke ich alle zwei Minuten die neue
+    // Position. Ohne eigene Freigabe wird der Standort nicht abgefragt.
+    if (livePing) { clearInterval(livePing); livePing = null; }
+    if (!meineFreigaben().length || !navigator.geolocation) return;
+    livePing = setInterval(() => {
+      if (!meineFreigaben().length) { pingPlanen(); return; }
+      navigator.geolocation.getCurrentPosition((pos) => {
+        api("/api/live/ping", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({lat: pos.coords.latitude, lon: pos.coords.longitude,
+                                genauigkeit: pos.coords.accuracy}),
+        });
+      }, () => {}, {enableHighAccuracy: true, timeout: 20000, maximumAge: 30000});
+    }, 120000);
+  }
+
+  function standortHolen() {
+    return new Promise((fertig, fehler) => {
+      if (!navigator.geolocation) {
+        fehler(new Error("Dieser Browser kennt keinen Standort."));
+        return;
+      }
+      if (location.protocol !== "https:" && location.hostname !== "localhost") {
+        fehler(new Error("Der Standort geht nur über HTTPS – öffne den Chat "
+                         + "über deine externe Adresse."));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => fertig({lat: pos.coords.latitude, lon: pos.coords.longitude,
+                         genauigkeit: pos.coords.accuracy}),
+        (err) => fehler(new Error(err.code === 1
+          ? "Du hast den Zugriff auf den Standort abgelehnt."
+          : "Der Standort ließ sich nicht bestimmen.")),
+        {enableHighAccuracy: true, timeout: 15000, maximumAge: 60000});
+    });
+  }
+
+  function liveDialog() {
+    const gruppen = state.rooms;
+    if (!gruppen.length) { toast("Es gibt noch keine Unterhaltung."); return; }
+    const laufend = meineFreigaben();
+    const root = modal(`<h2>Standort teilen</h2>
+      <p class="hint">Nur die Mitglieder der gewählten Unterhaltung sehen dich –
+        und nur, solange die Freigabe läuft.</p>
+      <div class="field"><label for="live-raum">Unterhaltung</label>
+        <select id="live-raum">${gruppen.map((r) =>
+          `<option value="${r.id}" ${r.id === currentRoom ? "selected" : ""}>${
+            esc(r.name)}</option>`).join("")}</select></div>
+      <div class="field"><label for="live-dauer">Dauer</label>
+        <select id="live-dauer">
+          <option value="15">15 Minuten</option>
+          <option value="60" selected>1 Stunde</option>
+          <option value="180">3 Stunden</option>
+          <option value="480">8 Stunden</option>
+        </select></div>
+      ${laufend.length ? `<div class="live-laufend">Läuft gerade: ${
+        laufend.map((l) => `${esc(l.raum)} (${restzeit(l.bis_at)})`).join(", ")}
+        <button class="btn ghost klein" id="live-stopp">Alle beenden</button></div>` : ""}
+      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
+      <button class="btn" id="live-ok">Teilen</button></div>`);
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    const stopp = root.querySelector("#live-stopp");
+    if (stopp) stopp.addEventListener("click", () => liveBeenden());
+    root.querySelector("#live-ok").addEventListener("click", async () => {
+      const knopf = root.querySelector("#live-ok");
+      knopf.disabled = true;
+      knopf.textContent = "Standort wird bestimmt …";
+      try {
+        const ort = await standortHolen();
+        const res = await api("/api/live", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(Object.assign({
+            room_id: parseInt(root.querySelector("#live-raum").value, 10),
+            minuten: parseInt(root.querySelector("#live-dauer").value, 10),
+          }, ort)),
+        });
+        const daten = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
+        closeModal();
+        toast("Standort wird geteilt.");
+        await liveLaden();
+      } catch (err) {
+        toast(err.message);
+      } finally {
+        knopf.disabled = false;
+        knopf.textContent = "Teilen";
+      }
+    });
+  }
+
+  async function liveBeenden(roomId) {
+    const res = await api("/api/live", {
+      method: "DELETE", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(roomId ? {room_id: roomId} : {}),
+    });
+    if (!res.ok) { toast("Das Beenden ging schief."); return; }
+    closeModal();
+    toast("Standort wird nicht mehr geteilt.");
+    await liveLaden();
+  }
+
+  async function liveLaden() {
+    const res = await api("/api/live");
+    if (!res.ok) return;
+    state.live = await res.json();
+    renderKarten();
+    pingPlanen();
+  }
+
+  function kartenAnsicht() {
+    const jetzt = Math.floor(Date.now() / 1000);
+    const punkte = (state.live || []).filter((p) => p.bis_at > jetzt);
+    const root = modal(`<div class="karten-kopf"><h2>Live-Karte</h2>
+      <button class="btn ghost klein" id="karte-teilen">Standort teilen</button>
+      <span style="flex:1"></span>
+      <button class="icon-btn" id="m-cancel">✕</button></div>
+      <div id="karte-flaeche">${uebersichtHtml(punkte)}</div>
+      <div class="karten-fuss">${punkte.length
+        ? punkte.map((p) => `<div class="karten-zeile">
+            ${avatarHtml("u", p.user_id, p.name, p.avatar, "klein")}
+            <div><div class="kz-name">${esc(p.name)}${p.ich ? " (du)" : ""}</div>
+              <div class="kz-sub">${esc(p.raum)} · ${restzeit(p.bis_at)}</div></div>
+            <span style="flex:1"></span>
+            <a class="ortslink" target="_blank" rel="noopener noreferrer"
+               href="https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${
+                 p.lon}#map=15/${p.lat}/${p.lon}">Öffnen</a>
+            ${p.ich ? `<button class="act del" data-stopp="${p.room_id}">Beenden</button>` : ""}
+          </div>`).join("")
+        : '<p class="hint">Sobald jemand seinen Standort teilt, erscheint er hier.</p>'}
+      </div>
+      <p class="hint">Die Karte zeigt grobe Umrisse – für Straßen tippe auf
+        „Öffnen“.</p>`);
+    root.querySelector(".modal").classList.add("wide");
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelector("#karte-teilen").addEventListener("click", liveDialog);
+    root.querySelectorAll("[data-stopp]").forEach((b) =>
+      b.addEventListener("click", () =>
+        liveBeenden(parseInt(b.dataset.stopp, 10))));
+  }
+
+  function renderKarten() {
+    const liste = $("karten-liste");
+    if (!liste) return;
+    const jetzt = Math.floor(Date.now() / 1000);
+    const punkte = (state.live || []).filter((p) => p.bis_at > jetzt);
+    liste.innerHTML = `<div class="karten-eintrag" id="karte-oeffnen">
+        <span class="karten-symbol">🗺️</span>
+        <div><div class="ke-name">Live-Karte</div>
+          <div class="ke-sub">${punkte.length
+            ? `${punkte.length} ${punkte.length === 1 ? "Freigabe" : "Freigaben"} aktiv`
+            : "Niemand teilt gerade"}</div></div>
+      </div>`
+      + punkte.map((p) => `<div class="karten-eintrag person" data-user="${p.user_id}">
+          ${avatarHtml("u", p.user_id, p.name, p.avatar, "klein")}
+          <div><div class="ke-name">${esc(p.name)}${p.ich ? " (du)" : ""}</div>
+            <div class="ke-sub">${esc(p.raum)} · ${restzeit(p.bis_at)}</div></div>
+        </div>`).join("");
+    liste.querySelectorAll(".karten-eintrag").forEach((el) =>
+      el.addEventListener("click", kartenAnsicht));
+  }
+
+  // ---------- Stimmung ----------
+  const STIMMUNG_EMOJI = ["😎", "🥳", "😌", "🤩", "😴", "🍕", "🍺", "🎬", "⚽",
+                          "🎵", "🚴", "☕", "🌞", "🤔"];
+
+  function stimmungDialog() {
+    const meine = (state.stimmung || []).find((s) => s.meine);
+    const root = modal(`<h2>Worauf hast du Lust?</h2>
+      <p class="hint">Sichtbar für alle, mit denen du eine Unterhaltung teilst.</p>
+      <div class="stimmung-emojis" id="st-emojis">${STIMMUNG_EMOJI.map((e) =>
+        `<button type="button" class="st-emoji ${
+          meine && meine.emoji === e ? "gewaehlt" : ""}" data-e="${e}">${e}</button>`
+        ).join("")}</div>
+      <div class="field"><label for="st-text">Kurz gesagt</label>
+        <input id="st-text" autocomplete="off" maxlength="280"
+               placeholder="Heute Abend Kino – wer kommt mit?"
+               value="${meine ? esc(meine.text) : ""}"></div>
+      <div class="field"><label for="st-dauer">Gilt für</label>
+        <select id="st-dauer">
+          <option value="2">2 Stunden</option>
+          <option value="4" selected>4 Stunden</option>
+          <option value="12">12 Stunden</option>
+          <option value="24">Bis morgen</option>
+        </select></div>
+      <label class="check"><input type="checkbox" id="st-ort"> Meinen Standort dazu</label>
+      <div class="row">${meine
+        ? '<button class="btn ghost" id="st-weg">Meldung löschen</button>'
+        : '<button class="btn ghost" id="m-cancel">Abbrechen</button>'}
+      <button class="btn" id="st-ok">Setzen</button></div>`);
+    let emoji = meine ? meine.emoji : "";
+    root.querySelectorAll(".st-emoji").forEach((b) =>
+      b.addEventListener("click", () => {
+        const schon = b.classList.contains("gewaehlt");
+        root.querySelectorAll(".st-emoji").forEach((x) =>
+          x.classList.remove("gewaehlt"));
+        if (!schon) { b.classList.add("gewaehlt"); emoji = b.dataset.e; }
+        else emoji = "";
+      }));
+    const abbruch = root.querySelector("#m-cancel");
+    if (abbruch) abbruch.addEventListener("click", closeModal);
+    const weg = root.querySelector("#st-weg");
+    if (weg) weg.addEventListener("click", async () => {
+      await api(`/api/stimmung/${meine.id}`, {method: "DELETE"});
+      closeModal();
+      await stimmungLaden();
+    });
+    root.querySelector("#st-ok").addEventListener("click", async () => {
+      const text = root.querySelector("#st-text").value.trim();
+      if (!text) { toast("Schreib kurz, worauf du Lust hast."); return; }
+      const nutzlast = {text, emoji,
+        stunden: parseInt(root.querySelector("#st-dauer").value, 10)};
+      if (root.querySelector("#st-ort").checked) {
+        try {
+          Object.assign(nutzlast, await standortHolen());
+        } catch (err) {
+          toast(err.message + " Die Meldung geht ohne Ort raus.");
+        }
+      }
+      const res = await api("/api/stimmung", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(nutzlast),
+      });
+      const daten = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
+      closeModal();
+      await stimmungLaden();
+    });
+  }
+
+  async function stimmungLaden() {
+    const res = await api("/api/stimmung");
+    if (!res.ok) return;
+    state.stimmung = await res.json();
+    renderStimmung();
+  }
+
+  function renderStimmung() {
+    const liste = $("stimmung-liste");
+    if (!liste) return;
+    const jetzt = Math.floor(Date.now() / 1000);
+    const alle = (state.stimmung || []).filter((s) => s.bis_at > jetzt);
+    if (!alle.length) {
+      liste.innerHTML = '<div class="abschnitt-leer">Noch nichts geplant. '
+        + 'Sag, worauf du Lust hast.</div>';
+      return;
+    }
+    liste.innerHTML = alle.map((s) => `<div class="stimmung-zeile" data-id="${s.id}">
+      <span class="st-icon">${s.emoji || "💬"}</span>
+      <div class="st-body">
+        <div class="st-kopf">${esc(s.name)}${s.meine ? " (du)" : ""}
+          <span class="st-zeit">${restzeit(s.bis_at)}</span></div>
+        <div class="st-text">${esc(s.text)}</div>
+        ${s.ort ? `<div class="st-ort">📍 ${s.ort.lat.toFixed(3)}, ${
+          s.ort.lon.toFixed(3)}</div>` : ""}
+        <div class="st-fuss">
+          <button class="mini-btn ${s.ich_mache_mit ? "an" : ""}" data-mit="${s.id}">
+            ${s.ich_mache_mit ? "Ich bin dabei" : "Ich mach mit"}</button>
+          ${s.mit.length ? `<span class="st-mit" title="${esc(
+            s.mit.map((m) => m.name).join(", "))}">${s.mit.length} dabei</span>` : ""}
+        </div>
+      </div>
+    </div>`).join("");
+    liste.querySelectorAll("[data-mit]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const res = await api(`/api/stimmung/${b.dataset.mit}/mit`, {method: "POST"});
+        if (!res.ok) { toast("Das ging nicht."); return; }
+        await stimmungLaden();
+      }));
+  }
+
+  // ---------- Termine ----------
+  const KATEGORIEN = {
+    musik: "🎵 Musik", tanz: "💃 Tanz", alkohol: "🍺 Alkohol",
+    essen: "🍕 Essen", film: "🎬 Film", sport: "⚽ Sport",
+    spiele: "🎲 Spiele", draussen: "🌳 Draußen", kultur: "🎭 Kultur",
+    reden: "💬 Reden",
+  };
+
+  const terminZeit = (ts) => {
+    if (!ts) return "Zeit offen";
+    const d = new Date(ts * 1000);
+    return d.toLocaleDateString("de-DE", {weekday: "short", day: "2-digit",
+                                          month: "2-digit"})
+      + ", " + d.toLocaleTimeString("de-DE", {hour: "2-digit", minute: "2-digit"})
+      + " Uhr";
+  };
+
+  function eventHtml(ev) {
+    const wer = (art) => (ev.wer[art] || []);
+    const knopf = (art, text) => `<button class="ev-antwort ${
+      ev.meine === art ? "gewaehlt" : ""}" data-antwort="${art}"
+      ${wer(art).length ? `title="${esc(wer(art).map((w) => w.name).join(", "))}"` : ""}>
+      ${text}${wer(art).length ? ` · ${wer(art).length}` : ""}</button>`;
+    const bild = ev.file_id
+      ? `<img class="ev-bild" alt="" src="${BASE}/files/${ev.file_id}">` : "";
+    const marken = ev.kategorien.length
+      ? `<div class="ev-marken">${ev.kategorien.map((k) =>
+          `<span class="ev-marke">${esc(KATEGORIEN[k] || k)}</span>`).join("")}</div>`
+      : "";
+    const dabei = wer("ja");
+    return `<div class="event ${ev.abgesagt ? "abgesagt" : ""}" data-event="${ev.id}">
+      ${bild}
+      <div class="ev-kopf">📅 ${esc(ev.titel)}</div>
+      <div class="ev-zeit">${terminZeit(ev.beginnt_at)}</div>
+      ${ev.ort_text ? `<div class="ev-ort">📍 ${esc(ev.ort_text)}</div>` : ""}
+      ${ev.ort ? karteHtml(ev.ort, 56, "ortskarte ev-karte") : ""}
+      ${ev.beschreibung ? `<div class="ev-text">${esc(ev.beschreibung)}</div>` : ""}
+      ${marken}
+      <div class="ev-von">Eingeladen von ${esc(ev.von.name)}</div>
+      ${ev.abgesagt
+        ? '<div class="ev-weg">Abgesagt</div>'
+        : `<div class="ev-antworten">${knopf("ja", "Bin dabei")}${
+            knopf("vielleicht", "Vielleicht")}${knopf("nein", "Kann nicht")}</div>`}
+      ${dabei.length ? `<div class="ev-dabei">${dabei.map((w) =>
+        avatarHtml("u", w.id, w.name, w.avatar, "winzig")).join("")}
+        <span>${dabei.length === 1 ? "1 Zusage" : `${dabei.length} Zusagen`}</span></div>` : ""}
+      ${(ev.von.id === ME || IS_ADMIN) && !ev.abgesagt
+        ? '<button class="act del ev-absagen">Termin absagen</button>' : ""}
+    </div>`;
+  }
+
+  async function eventNeuZeichnen(eventId) {
+    const kasten = document.querySelector(`.event[data-event="${eventId}"]`);
+    const res = await api(`/api/events/${eventId}`);
+    if (!res.ok) return;
+    const ev = await res.json();
+    if (kasten) kasten.outerHTML = eventHtml(ev);
+    renderTermine();
+  }
+
+  // Antworten und Absagen - überall dort, wo eine Terminkarte steht
+  document.addEventListener("click", async (e) => {
+    const antwort = e.target.closest(".ev-antwort");
+    if (antwort) {
+      e.preventDefault();
+      e.stopPropagation();
+      const kasten = antwort.closest(".event");
+      const gewaehlt = antwort.classList.contains("gewaehlt");
+      const res = await api(`/api/events/${kasten.dataset.event}/antwort`, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        // Noch einmal auf dieselbe Antwort tippen nimmt sie zurück
+        body: JSON.stringify({antwort: gewaehlt ? "" : antwort.dataset.antwort}),
+      });
+      if (!res.ok) { toast("Die Antwort ging nicht durch."); return; }
+      kasten.outerHTML = eventHtml(await res.json());
+      terminLaden();
+      return;
+    }
+    const absagen = e.target.closest(".ev-absagen");
+    if (absagen) {
+      e.preventDefault();
+      e.stopPropagation();
+      const kasten = absagen.closest(".event");
+      if (!confirm("Den Termin für alle absagen?")) return;
+      const res = await api(`/api/events/${kasten.dataset.event}`, {method: "DELETE"});
+      if (!res.ok) { toast("Das Absagen ging nicht."); return; }
+      eventNeuZeichnen(kasten.dataset.event);
+      terminLaden();
+    }
+  }, true);
+
+  function terminDialog() {
+    if (!currentRoom) { toast("Öffne zuerst eine Unterhaltung."); return; }
+    let bildDatei = null;
+    let ort = null;
+    const root = modal(`<h2>Einladung</h2>
+      <div class="field"><label for="ev-titel">Was ist geplant?</label>
+        <input id="ev-titel" autocomplete="off" placeholder="Grillen im Garten"></div>
+      <div class="field"><label for="ev-wann">Wann</label>
+        <input id="ev-wann" type="datetime-local"></div>
+      <div class="field"><label for="ev-ort">Wo</label>
+        <input id="ev-ort" autocomplete="off" placeholder="Bei Gregor, Hofstraße 3">
+        <button class="btn ghost klein" id="ev-hier" type="button">Aktuellen Ort anhängen</button>
+        <span class="hint" id="ev-ort-status"></span></div>
+      <div class="field"><label for="ev-text">Beschreibung</label>
+        <textarea id="ev-text" rows="3"></textarea></div>
+      <div class="field"><label>Was ist geboten?</label>
+        <div class="ev-kats">${Object.entries(KATEGORIEN).map(([k, t]) =>
+          `<button type="button" class="ev-kat" data-k="${k}">${t}</button>`).join("")}</div>
+      </div>
+      <div class="field"><label>Bild</label>
+        <button class="btn ghost klein" id="ev-bild" type="button">Bild wählen</button>
+        <span class="hint" id="ev-bild-name"></span></div>
+      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
+      <button class="btn" id="ev-ok">Einladen</button></div>`);
+    root.querySelector(".modal").classList.add("hoch");
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelectorAll(".ev-kat").forEach((b) =>
+      b.addEventListener("click", () => b.classList.toggle("gewaehlt")));
+
+    root.querySelector("#ev-hier").addEventListener("click", async () => {
+      const status = root.querySelector("#ev-ort-status");
+      status.textContent = "Standort wird bestimmt …";
+      try {
+        ort = await standortHolen();
+        status.textContent = `Ort angehängt (${ort.lat.toFixed(3)}, ${ort.lon.toFixed(3)})`;
+      } catch (err) {
+        ort = null;
+        status.textContent = err.message;
+      }
+    });
+
+    root.querySelector("#ev-bild").addEventListener("click", () => {
+      const feld = document.createElement("input");
+      feld.type = "file";
+      feld.accept = "image/*";
+      feld.addEventListener("change", () => {
+        bildDatei = feld.files[0] || null;
+        root.querySelector("#ev-bild-name").textContent =
+          bildDatei ? bildDatei.name : "";
+      });
+      feld.click();
+    });
+
+    root.querySelector("#ev-ok").addEventListener("click", async () => {
+      const titel = root.querySelector("#ev-titel").value.trim();
+      if (!titel) { toast("Der Titel fehlt."); return; }
+      const knopf = root.querySelector("#ev-ok");
+      knopf.disabled = true;
+      try {
+        let fileId = null;
+        if (bildDatei) {
+          const fd = new FormData();
+          fd.append("file", bildDatei);
+          const hoch = await api("/api/upload", {method: "POST", body: fd});
+          const daten = await hoch.json().catch(() => ({}));
+          if (!hoch.ok) { toast(daten.error || "Das Bild ging nicht durch."); return; }
+          fileId = daten.id;
+        }
+        const wann = root.querySelector("#ev-wann").value;
+        const nutzlast = {
+          titel,
+          beschreibung: root.querySelector("#ev-text").value.trim(),
+          ort_text: root.querySelector("#ev-ort").value.trim(),
+          beginnt_at: wann ? Math.floor(new Date(wann).getTime() / 1000) : null,
+          kategorien: [...root.querySelectorAll(".ev-kat.gewaehlt")]
+            .map((b) => b.dataset.k),
+          file_id: fileId,
+        };
+        if (ort) { nutzlast.lat = ort.lat; nutzlast.lon = ort.lon; }
+        const res = await api(`/api/rooms/${currentRoom}/event`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(nutzlast),
+        });
+        const daten = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
+        closeModal();
+        terminLaden();
+      } finally {
+        knopf.disabled = false;
+      }
+    });
+  }
+
+  async function terminLaden() {
+    const res = await api("/api/events");
+    if (!res.ok) return;
+    state.termine = await res.json();
+    renderTermine();
+  }
+
+  function renderTermine() {
+    const abschnitt = $("termin-abschnitt");
+    const liste = $("termin-liste");
+    if (!liste) return;
+    const alle = state.termine || [];
+    abschnitt.hidden = !alle.length;
+    liste.innerHTML = alle.map((ev) => `<div class="termin-zeile" data-id="${ev.id}"
+        data-room="${ev.room_id}">
+      <div class="tz-datum">${terminZeit(ev.beginnt_at)}</div>
+      <div class="tz-titel">${esc(ev.titel)}</div>
+      <div class="tz-sub">${(ev.wer.ja || []).length} Zusagen${
+        ev.meine ? ` · du: ${{ja: "dabei", nein: "abgesagt",
+                              vielleicht: "vielleicht"}[ev.meine]}` : ""}</div>
+    </div>`).join("");
+    liste.querySelectorAll(".termin-zeile").forEach((el) =>
+      el.addEventListener("click", () => terminAnsicht(parseInt(el.dataset.id, 10))));
+  }
+
+  async function terminAnsicht(eventId) {
+    const res = await api(`/api/events/${eventId}`);
+    if (!res.ok) { toast("Der Termin ist nicht mehr da."); return; }
+    const ev = await res.json();
+    const root = modal(`<div class="karten-kopf"><h2>Termin</h2>
+      <span style="flex:1"></span>
+      <button class="icon-btn" id="m-cancel">✕</button></div>
+      ${eventHtml(ev)}
+      <div class="row"><button class="btn ghost" id="ev-zum-chat">Zur Unterhaltung</button></div>`);
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelector("#ev-zum-chat").addEventListener("click", () => {
+      closeModal();
+      openRoom(ev.room_id);
+    });
+  }
+
+  $("btn-event").addEventListener("click", terminDialog);
+  $("btn-live").addEventListener("click", liveDialog);
+  $("btn-stimmung").addEventListener("click", stimmungDialog);
 
   // ---------- Emoji ----------
   // Eine feste Auswahl statt einer Fremdbibliothek: das haelt das Add-on klein
@@ -1504,10 +2067,20 @@
     state.users = data.users;
     state.me = data.me;
     state.online = new Set(data.online);
+    state.live = data.live || [];
+    state.stimmung = data.stimmung || [];
     renderRooms();
+    renderKarten();
+    renderStimmung();
+    pingPlanen();
   }
 
+  // Die Restzeiten laufen ab, ohne dass der Server etwas schickt. Einmal je
+  // Minute neu zeichnen genuegt - abgelaufene Eintraege fallen dabei heraus.
+  setInterval(() => { renderKarten(); renderStimmung(); }, 60000);
+
   weltkarteLaden();
+  terminLaden();
   loadState().then(() => {
     const wanted = parseInt(new URLSearchParams(location.search).get("room"), 10);
     if (wanted && roomById(wanted)) openRoom(wanted);

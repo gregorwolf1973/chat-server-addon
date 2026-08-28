@@ -26,11 +26,9 @@ PYTHONPATH=tests .venv/bin/python tests/test_security.py
 kill %1
 ```
 
-Danach dasselbe für `tests/test_users.py`, `tests/test_media.py` und
-`tests/test_register.py` und
-`tests/test_avatars.py` und
-`tests/test_notify.py`, `tests/test_login.py`
-und `tests/test_polls.py`.
+Danach dasselbe für `tests/test_users.py`, `tests/test_media.py`,
+`tests/test_register.py`, `tests/test_avatars.py`, `tests/test_notify.py`,
+`tests/test_login.py`, `tests/test_polls.py` und `tests/test_termine.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
 
@@ -62,6 +60,18 @@ das durch Altbestände fehl.
 * Abstimmung anlegen, mit den Fehlerfällen und fremden Unterhaltungen.
 * Abstimmen, zurücknehmen, Einfach- und Mehrfachwahl.
 * Wer gestimmt hat, ist sichtbar; Antworten fremder Fragen werden abgewiesen.
+
+`test_termine.py` (60 Prüfungen)
+
+* Termin anlegen, mit Fehlerfällen; unbekannte Merkmale fallen weg.
+* Zusagen, ändern, zurücknehmen; Fremde sehen und beantworten nichts.
+* Die Terminliste zeigt nur Anstehendes; absagen darf nur der Gastgeber.
+* Das Bild einer Einladung sehen Mitglieder, Fremde nicht – und eine fremde
+  Datei lässt sich nicht einhängen.
+* Live-Standort: starten, Dauer gedeckelt, Ping, beenden; nur Mitglieder
+  sehen ihn, und wer die Gruppe verlässt, teilt dort nicht weiter.
+* Stimmung: setzen, ersetzen, mitmachen, löschen – sichtbar nur für den
+  eigenen Kreis.
 
 `test_notify.py` (13 Prüfungen)
 

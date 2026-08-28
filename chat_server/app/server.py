@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS messages (
     deleted INTEGER NOT NULL DEFAULT 0,
     album TEXT,
     poll_id INTEGER,
+    event_id INTEGER,
     lat REAL,
     lon REAL,
     created_at INTEGER NOT NULL
@@ -175,6 +176,55 @@ CREATE TABLE IF NOT EXISTS poll_votes (
     user_id INTEGER NOT NULL,
     created_at INTEGER NOT NULL,
     PRIMARY KEY (poll_id, option_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY,
+    room_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    titel TEXT NOT NULL,
+    beschreibung TEXT,
+    ort_text TEXT,
+    lat REAL,
+    lon REAL,
+    beginnt_at INTEGER,
+    file_id INTEGER,
+    kategorien TEXT,
+    abgesagt INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS event_antworten (
+    event_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    antwort TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (event_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS live_orte (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    room_id INTEGER NOT NULL,
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    genauigkeit REAL,
+    bis_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (user_id, room_id)
+);
+CREATE TABLE IF NOT EXISTS stimmungen (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    emoji TEXT,
+    text TEXT NOT NULL,
+    lat REAL,
+    lon REAL,
+    bis_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS stimmung_mit (
+    stimmung_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (stimmung_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS push_subs (
     id INTEGER PRIMARY KEY,
@@ -232,6 +282,8 @@ def migrate(conn):
             conn.execute(f"ALTER TABLE messages ADD COLUMN {spalte} REAL")
     if "poll_id" not in cols:
         conn.execute("ALTER TABLE messages ADD COLUMN poll_id INTEGER")
+    if "event_id" not in cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN event_id INTEGER")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "active" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
@@ -567,6 +619,8 @@ def msg_payload(row):
                 if row["lat"] is not None and row["lon"] is not None else None),
         "poll": (poll_payload(row["poll_id"], session.get("uid"))
                  if row["poll_id"] else None),
+        "event": (event_payload(row["event_id"], session.get("uid"))
+                  if row["event_id"] else None),
         "body": "" if deleted else row["body"],
         "at": row["created_at"],
         "deleted": deleted,
@@ -625,6 +679,165 @@ def poll_payload(poll_id, uid, conn=None):
             "meine": any(w["id"] == uid for w in je_option.get(o["id"], [])),
         } for o in optionen],
     }
+
+
+# Fuer Termine erlaubte Merkmale. Eine feste Liste, damit die Filter spaeter
+# verlaesslich sind - freie Schlagworte waeren nach zwei Wochen ein Wildwuchs.
+KATEGORIEN = ["musik", "tanz", "alkohol", "essen", "film", "sport",
+              "spiele", "draussen", "kultur", "reden"]
+ANTWORTEN = ("ja", "nein", "vielleicht")
+
+
+def event_payload(event_id, uid, conn=None):
+    """Termin mit Zu- und Absagen - und was ich selbst geantwortet habe."""
+    conn = conn or db()
+    ev = conn.execute(
+        "SELECT e.*, u.display_name, u.avatar, f.mime FROM events e"
+        " JOIN users u ON u.id=e.user_id"
+        " LEFT JOIN files f ON f.id=e.file_id WHERE e.id=?",
+        (event_id,)).fetchone()
+    if ev is None:
+        return None
+    antworten = conn.execute(
+        "SELECT a.antwort, a.user_id, u.display_name, u.avatar"
+        " FROM event_antworten a JOIN users u ON u.id=a.user_id"
+        " WHERE a.event_id=?", (event_id,)).fetchall()
+    je_antwort = {a: [] for a in ANTWORTEN}
+    meine = ""
+    for a in antworten:
+        if a["antwort"] in je_antwort:
+            je_antwort[a["antwort"]].append(
+                {"id": a["user_id"], "name": a["display_name"],
+                 "avatar": a["avatar"]})
+        if a["user_id"] == uid:
+            meine = a["antwort"]
+    return {
+        "id": ev["id"],
+        "room_id": ev["room_id"],
+        "titel": ev["titel"],
+        "beschreibung": ev["beschreibung"] or "",
+        "ort_text": ev["ort_text"] or "",
+        "ort": ({"lat": ev["lat"], "lon": ev["lon"]}
+                if ev["lat"] is not None and ev["lon"] is not None else None),
+        "beginnt_at": ev["beginnt_at"],
+        "file_id": ev["file_id"],
+        "kategorien": [k for k in (ev["kategorien"] or "").split(",") if k],
+        "abgesagt": bool(ev["abgesagt"]),
+        "von": {"id": ev["user_id"], "name": ev["display_name"],
+                "avatar": ev["avatar"]},
+        "meine": meine,
+        "wer": je_antwort,
+        "created_at": ev["created_at"],
+    }
+
+
+def mein_kreis(uid, conn=None):
+    """Alle, mit denen ich mindestens eine Unterhaltung teile.
+
+    Solange es keine gegenseitigen Freundschaften gibt, ist das die ehrlichste
+    Abgrenzung: wer nie mit mir geschrieben hat, sieht meine Stimmung nicht.
+    """
+    conn = conn or db()
+    rows = conn.execute(
+        "SELECT DISTINCT b.user_id FROM room_members a"
+        " JOIN room_members b ON b.room_id=a.room_id"
+        " WHERE a.user_id=? AND b.user_id<>?", (uid, uid)).fetchall()
+    return {r["user_id"] for r in rows}
+
+
+def live_sichtbar(uid, conn=None):
+    """Laufende Standortfreigaben aus meinen Unterhaltungen."""
+    conn = conn or db()
+    jetzt = int(time.time())
+    rows = conn.execute(
+        "SELECT l.*, u.display_name, u.avatar, r.name AS raumname, r.is_group"
+        " FROM live_orte l JOIN users u ON u.id=l.user_id"
+        " JOIN rooms r ON r.id=l.room_id"
+        " WHERE l.bis_at>? AND l.room_id IN"
+        "   (SELECT room_id FROM room_members WHERE user_id=?)"
+        " ORDER BY l.updated_at DESC", (jetzt, uid)).fetchall()
+    raus = []
+    for r in rows:
+        name = r["raumname"]
+        if not r["is_group"]:
+            name = "Direkt"
+        raus.append({
+            "id": r["id"],
+            "user_id": r["user_id"],
+            "name": r["display_name"],
+            "avatar": r["avatar"],
+            "room_id": r["room_id"],
+            "raum": name,
+            "lat": r["lat"],
+            "lon": r["lon"],
+            "genauigkeit": r["genauigkeit"],
+            "bis_at": r["bis_at"],
+            "updated_at": r["updated_at"],
+            "ich": r["user_id"] == uid,
+        })
+    return raus
+
+
+def _koordinaten(data):
+    """Breite und Laenge aus einer Anfrage - oder None, wenn unbrauchbar."""
+    try:
+        lat, lon = float(data.get("lat")), float(data.get("lon"))
+    except (TypeError, ValueError):
+        return None
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        return None
+    return lat, lon
+
+
+def _genauigkeit(data):
+    try:
+        wert = float(data.get("genauigkeit"))
+    except (TypeError, ValueError):
+        return None
+    return wert if 0 <= wert <= 100000 else None
+
+
+def stimmung_mitteilen(uid, conn=None):
+    """Meinen Kreis anstossen, die Pinnwand neu zu laden."""
+    for ziel in mein_kreis(uid, conn) | {uid}:
+        socketio.emit("stimmung_geaendert", {}, to=f"user:{ziel}")
+
+
+def stimmung_payload(row, uid, conn=None):
+    conn = conn or db()
+    mit = conn.execute(
+        "SELECT m.user_id, u.display_name, u.avatar FROM stimmung_mit m"
+        " JOIN users u ON u.id=m.user_id WHERE m.stimmung_id=?",
+        (row["id"],)).fetchall()
+    return {
+        "id": row["id"],
+        "user_id": row["user_id"],
+        "name": row["display_name"],
+        "avatar": row["avatar"],
+        "emoji": row["emoji"] or "",
+        "text": row["text"],
+        "ort": ({"lat": row["lat"], "lon": row["lon"]}
+                if row["lat"] is not None and row["lon"] is not None else None),
+        "bis_at": row["bis_at"],
+        "created_at": row["created_at"],
+        "mit": [{"id": m["user_id"], "name": m["display_name"],
+                 "avatar": m["avatar"]} for m in mit],
+        "ich_mache_mit": any(m["user_id"] == uid for m in mit),
+        "meine": row["user_id"] == uid,
+    }
+
+
+def stimmungen_sichtbar(uid, conn=None):
+    """Eigene Stimmung plus die aus meinem Kreis, solange sie gilt."""
+    conn = conn or db()
+    jetzt = int(time.time())
+    erlaubt = mein_kreis(uid, conn) | {uid}
+    rows = conn.execute(
+        "SELECT s.*, u.display_name, u.avatar FROM stimmungen s"
+        " JOIN users u ON u.id=s.user_id WHERE s.bis_at>?"
+        " ORDER BY s.created_at DESC", (jetzt,)).fetchall()
+    return [stimmung_payload(r, uid, conn) for r in rows
+            if r["user_id"] in erlaubt]
 
 
 MSG_QUERY = (
@@ -890,6 +1103,8 @@ def api_state():
         "rooms": payload,
         "users": [dict(u) for u in users],
         "online": online,
+        "live": live_sichtbar(uid, conn),
+        "stimmung": stimmungen_sichtbar(uid, conn),
     })
 
 
@@ -976,6 +1191,15 @@ def raum_aufraeumen(conn, room_id):
         "SELECT DISTINCT file_id FROM messages WHERE room_id=? AND file_id IS NOT NULL",
         (room_id,)).fetchall()]
     raum = conn.execute("SELECT avatar FROM rooms WHERE id=?", (room_id,)).fetchone()
+    # Termine haengen an der Unterhaltung - mit ihr verschwinden auch die
+    # Zusagen, die Bilder und laufende Standortfreigaben.
+    dateien += [r["file_id"] for r in conn.execute(
+        "SELECT file_id FROM events WHERE room_id=? AND file_id IS NOT NULL",
+        (room_id,)).fetchall()]
+    conn.execute("DELETE FROM event_antworten WHERE event_id IN"
+                 " (SELECT id FROM events WHERE room_id=?)", (room_id,))
+    conn.execute("DELETE FROM events WHERE room_id=?", (room_id,))
+    conn.execute("DELETE FROM live_orte WHERE room_id=?", (room_id,))
     conn.execute("DELETE FROM messages WHERE room_id=?", (room_id,))
     conn.execute("DELETE FROM room_members WHERE room_id=?", (room_id,))
     conn.execute("DELETE FROM rooms WHERE id=?", (room_id,))
@@ -995,6 +1219,9 @@ def api_leave_room(room_id):
         abort(403)
     conn = db()
     conn.execute("DELETE FROM room_members WHERE room_id=? AND user_id=?",
+                 (room_id, uid))
+    # Wer geht, teilt hier auch seinen Standort nicht mehr
+    conn.execute("DELETE FROM live_orte WHERE room_id=? AND user_id=?",
                  (room_id, uid))
     conn.commit()
     # Bleibt niemand ausser dem Bot uebrig, kann der Raum ganz weg
@@ -1253,6 +1480,12 @@ def api_delete_user(user_id):
     conn.execute("UPDATE files SET user_id=? WHERE user_id=?", (gone_id, user_id))
     conn.execute("DELETE FROM room_members WHERE user_id=?", (user_id,))
     conn.execute("DELETE FROM push_subs WHERE user_id=?", (user_id,))
+    conn.execute("DELETE FROM live_orte WHERE user_id=?", (user_id,))
+    conn.execute("DELETE FROM stimmung_mit WHERE user_id=? OR stimmung_id IN"
+                 " (SELECT id FROM stimmungen WHERE user_id=?)",
+                 (user_id, user_id))
+    conn.execute("DELETE FROM stimmungen WHERE user_id=?", (user_id,))
+    conn.execute("DELETE FROM event_antworten WHERE user_id=?", (user_id,))
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
     conn.commit()
 
@@ -1311,6 +1544,12 @@ def api_file(file_id):
     ok = db().execute(
         "SELECT 1 FROM messages m JOIN room_members rm ON rm.room_id=m.room_id"
         " WHERE m.file_id=? AND rm.user_id=?", (file_id, session["uid"])).fetchone()
+    if not ok:
+        # Das Bild einer Einladung haengt am Termin, nicht an einer Nachricht
+        ok = db().execute(
+            "SELECT 1 FROM events e JOIN room_members rm ON rm.room_id=e.room_id"
+            " WHERE e.file_id=? AND rm.user_id=?",
+            (file_id, session["uid"])).fetchone()
     if not ok and row["user_id"] != session["uid"]:
         abort(403)
     # safe_mime auch beim Ausliefern: Dateien aus aelteren Installationen
@@ -1545,6 +1784,374 @@ def api_get_poll(poll_id):
     return jsonify(poll_payload(poll_id, uid))
 
 
+# --------------------------------------------------------------------------
+# Termine
+# --------------------------------------------------------------------------
+def kategorien_saeubern(roh):
+    if not isinstance(roh, list):
+        return []
+    raus = []
+    for k in roh:
+        k = str(k or "").strip().lower()
+        if k in KATEGORIEN and k not in raus:
+            raus.append(k)
+    return raus
+
+
+def event_mitteilen(event_id, room_id):
+    """Alle in der Unterhaltung ueber eine Aenderung am Termin anstossen."""
+    socketio.emit("event_geaendert", {"event_id": event_id, "room_id": room_id},
+                  to=f"room:{room_id}")
+
+
+@app.post("/api/rooms/<int:room_id>/event")
+@login_required
+def api_create_event(room_id):
+    """Termin anlegen - er erscheint als Karte in der Unterhaltung."""
+    uid = session["uid"]
+    if not is_member(room_id, uid):
+        abort(403)
+    data = request.get_json(force=True)
+    titel = (data.get("titel") or "").strip()
+    if not titel:
+        return jsonify({"error": "Der Titel fehlt."}), 400
+
+    beginnt = data.get("beginnt_at")
+    try:
+        beginnt = int(beginnt) if beginnt else None
+    except (TypeError, ValueError):
+        return jsonify({"error": "Der Zeitpunkt ist unbrauchbar."}), 400
+
+    punkt = _koordinaten(data) if data.get("lat") is not None else None
+
+    conn = db()
+    file_id = data.get("file_id")
+    if file_id is not None:
+        try:
+            file_id = int(file_id)
+        except (TypeError, ValueError):
+            file_id = None
+        # Nur eigene, frisch hochgeladene Bilder - sonst liesse sich eine
+        # fremde Datei in den eigenen Termin einhaengen.
+        if file_id is not None and not conn.execute(
+                "SELECT 1 FROM files WHERE id=? AND user_id=?",
+                (file_id, uid)).fetchone():
+            file_id = None
+
+    now = int(time.time())
+    cur = conn.execute(
+        "INSERT INTO events (room_id, user_id, titel, beschreibung, ort_text,"
+        " lat, lon, beginnt_at, file_id, kategorien, created_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (room_id, uid, titel[:200],
+         (data.get("beschreibung") or "").strip()[:2000],
+         (data.get("ort_text") or "").strip()[:200],
+         punkt[0] if punkt else None, punkt[1] if punkt else None,
+         beginnt, file_id,
+         ",".join(kategorien_saeubern(data.get("kategorien"))), now))
+    event_id = cur.lastrowid
+    # Wer einlaedt, ist selbstverstaendlich dabei
+    conn.execute(
+        "INSERT INTO event_antworten (event_id, user_id, antwort, created_at)"
+        " VALUES (?,?,'ja',?)", (event_id, uid, now))
+    cur = conn.execute(
+        "INSERT INTO messages (room_id, user_id, body, event_id, created_at)"
+        " VALUES (?,?,'',?,?)", (room_id, uid, event_id, now))
+    msg_id = cur.lastrowid
+    conn.execute("UPDATE room_members SET last_read=? WHERE room_id=? AND user_id=?",
+                 (msg_id, room_id, uid))
+    conn.commit()
+
+    row = conn.execute(MSG_QUERY + " WHERE m.id=?", (msg_id,)).fetchone()
+    socketio.emit("message", msg_payload(row), to=f"room:{room_id}")
+    mitglieder = [r["user_id"] for r in conn.execute(
+        "SELECT user_id FROM room_members WHERE room_id=?", (room_id,)).fetchall()]
+    with ONLINE_LOCK:
+        abwesend = [m for m in mitglieder if m != uid and m not in ONLINE]
+    ziel = f"{EXTERNAL_URL}/?room={room_id}" if EXTERNAL_URL else f"?room={room_id}"
+    push_to_users(abwesend, "Einladung", titel[:180], ziel)
+    return jsonify({"ok": True, "event_id": event_id, "message_id": msg_id})
+
+
+@app.post("/api/events/<int:event_id>/antwort")
+@login_required
+def api_event_antwort(event_id):
+    """Zusagen, absagen, vielleicht - oder die Antwort zuruecknehmen."""
+    uid = session["uid"]
+    conn = db()
+    ev = conn.execute("SELECT room_id, abgesagt FROM events WHERE id=?",
+                      (event_id,)).fetchone()
+    if ev is None or not is_member(ev["room_id"], uid):
+        abort(403)
+    if ev["abgesagt"]:
+        return jsonify({"error": "Der Termin wurde abgesagt."}), 400
+    antwort = (request.get_json(force=True).get("antwort") or "").strip().lower()
+    if antwort and antwort not in ANTWORTEN:
+        return jsonify({"error": "Diese Antwort gibt es nicht."}), 400
+    if not antwort:
+        conn.execute("DELETE FROM event_antworten WHERE event_id=? AND user_id=?",
+                     (event_id, uid))
+    else:
+        conn.execute(
+            "INSERT INTO event_antworten (event_id, user_id, antwort, created_at)"
+            " VALUES (?,?,?,?) ON CONFLICT(event_id, user_id)"
+            " DO UPDATE SET antwort=excluded.antwort, created_at=excluded.created_at",
+            (event_id, uid, antwort, int(time.time())))
+    conn.commit()
+    event_mitteilen(event_id, ev["room_id"])
+    return jsonify(event_payload(event_id, uid, conn))
+
+
+@app.get("/api/events/<int:event_id>")
+@login_required
+def api_get_event(event_id):
+    uid = session["uid"]
+    ev = db().execute("SELECT room_id FROM events WHERE id=?",
+                      (event_id,)).fetchone()
+    if ev is None or not is_member(ev["room_id"], uid):
+        abort(403)
+    return jsonify(event_payload(event_id, uid))
+
+
+@app.get("/api/events")
+@login_required
+def api_list_events():
+    """Was ansteht - aus allen meinen Unterhaltungen, naechster zuerst.
+
+    Ein Termin rutscht im Verlauf nach oben und ist dann weg; die Liste holt
+    ihn zurueck. Zwoelf Stunden nach Beginn faellt er heraus: die laufende
+    Feier soll noch zu sehen sein, die von vorletzter Woche nicht mehr.
+    """
+    uid = session["uid"]
+    grenze = int(time.time()) - 12 * 3600
+    rows = db().execute(
+        "SELECT id FROM events WHERE room_id IN"
+        "   (SELECT room_id FROM room_members WHERE user_id=?)"
+        " AND abgesagt=0 AND (beginnt_at IS NULL OR beginnt_at>?)"
+        " ORDER BY beginnt_at IS NULL, beginnt_at LIMIT 50",
+        (uid, grenze)).fetchall()
+    return jsonify([event_payload(r["id"], uid) for r in rows])
+
+
+@app.delete("/api/events/<int:event_id>")
+@login_required
+def api_delete_event(event_id):
+    """Absagen darf, wer eingeladen hat - und der Administrator."""
+    uid = session["uid"]
+    me = current_user()
+    conn = db()
+    ev = conn.execute("SELECT room_id, user_id FROM events WHERE id=?",
+                      (event_id,)).fetchone()
+    if ev is None or not is_member(ev["room_id"], uid):
+        abort(403)
+    if ev["user_id"] != uid and not me["is_admin"]:
+        return jsonify({"error": "Nur wer eingeladen hat, kann absagen."}), 403
+    conn.execute("UPDATE events SET abgesagt=1 WHERE id=?", (event_id,))
+    conn.commit()
+    event_mitteilen(event_id, ev["room_id"])
+    return jsonify({"ok": True})
+
+
+# --------------------------------------------------------------------------
+# Live-Standort
+# --------------------------------------------------------------------------
+# Die Freigabe gilt immer nur fuer eine Unterhaltung und laeuft von selbst ab.
+# Damit ist ohne weiteres Zutun geklaert, wer mitsehen darf: die Mitglieder.
+LIVE_MAX_MINUTEN = 8 * 60
+
+
+@app.get("/api/live")
+@login_required
+def api_live_lesen():
+    return jsonify(live_sichtbar(session["uid"]))
+
+
+@app.post("/api/live")
+@login_required
+def api_live_starten():
+    """Freigabe starten oder verlaengern."""
+    uid = session["uid"]
+    data = request.get_json(force=True)
+    try:
+        room_id = int(data.get("room_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Es fehlt die Unterhaltung."}), 400
+    if not is_member(room_id, uid):
+        abort(403)
+    punkt = _koordinaten(data)
+    if punkt is None:
+        return jsonify({"error": "Der Standort ist unbrauchbar."}), 400
+    try:
+        minuten = int(data.get("minuten") or 60)
+    except (TypeError, ValueError):
+        minuten = 60
+    minuten = max(5, min(LIVE_MAX_MINUTEN, minuten))
+
+    now = int(time.time())
+    bis = now + minuten * 60
+    conn = db()
+    conn.execute(
+        "INSERT INTO live_orte (user_id, room_id, lat, lon, genauigkeit,"
+        " bis_at, updated_at) VALUES (?,?,?,?,?,?,?)"
+        " ON CONFLICT(user_id, room_id) DO UPDATE SET lat=excluded.lat,"
+        " lon=excluded.lon, genauigkeit=excluded.genauigkeit,"
+        " bis_at=excluded.bis_at, updated_at=excluded.updated_at",
+        (uid, room_id, punkt[0], punkt[1], _genauigkeit(data), bis, now))
+    conn.commit()
+    socketio.emit("live_geaendert", {"room_id": room_id}, to=f"room:{room_id}")
+    return jsonify({"ok": True, "bis_at": bis})
+
+
+@app.post("/api/live/ping")
+@login_required
+def api_live_ping():
+    """Neue Position fuer alle laufenden Freigaben - ein Aufruf statt viele."""
+    uid = session["uid"]
+    data = request.get_json(force=True)
+    punkt = _koordinaten(data)
+    if punkt is None:
+        return jsonify({"error": "Der Standort ist unbrauchbar."}), 400
+    now = int(time.time())
+    conn = db()
+    raeume = [r["room_id"] for r in conn.execute(
+        "SELECT room_id FROM live_orte WHERE user_id=? AND bis_at>?",
+        (uid, now)).fetchall()]
+    if not raeume:
+        return jsonify({"ok": True, "aktiv": 0})
+    conn.execute(
+        "UPDATE live_orte SET lat=?, lon=?, genauigkeit=?, updated_at=?"
+        " WHERE user_id=? AND bis_at>?",
+        (punkt[0], punkt[1], _genauigkeit(data), now, uid, now))
+    conn.commit()
+    for room_id in raeume:
+        socketio.emit("live_geaendert", {"room_id": room_id}, to=f"room:{room_id}")
+    return jsonify({"ok": True, "aktiv": len(raeume)})
+
+
+@app.delete("/api/live")
+@login_required
+def api_live_beenden():
+    """Freigabe beenden - eine bestimmte oder alle auf einmal."""
+    uid = session["uid"]
+    data = request.get_json(silent=True) or {}
+    conn = db()
+    roh = data.get("room_id")
+    if roh is None:
+        raeume = [r["room_id"] for r in conn.execute(
+            "SELECT room_id FROM live_orte WHERE user_id=?", (uid,)).fetchall()]
+        conn.execute("DELETE FROM live_orte WHERE user_id=?", (uid,))
+    else:
+        try:
+            raeume = [int(roh)]
+        except (TypeError, ValueError):
+            return jsonify({"error": "Unbekannte Unterhaltung."}), 400
+        conn.execute("DELETE FROM live_orte WHERE user_id=? AND room_id=?",
+                     (uid, raeume[0]))
+    conn.commit()
+    for rid in raeume:
+        socketio.emit("live_geaendert", {"room_id": rid}, to=f"room:{rid}")
+    return jsonify({"ok": True, "beendet": len(raeume)})
+
+
+# --------------------------------------------------------------------------
+# Stimmung
+# --------------------------------------------------------------------------
+STIMMUNG_MAX_STUNDEN = 24
+
+
+@app.get("/api/stimmung")
+@login_required
+def api_stimmung_lesen():
+    return jsonify(stimmungen_sichtbar(session["uid"]))
+
+
+@app.post("/api/stimmung")
+@login_required
+def api_stimmung_setzen():
+    """Worauf ich gerade Lust haette. Ersetzt meine vorige Meldung."""
+    uid = session["uid"]
+    data = request.get_json(force=True)
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "Schreib kurz, worauf du Lust hast."}), 400
+    try:
+        stunden = int(data.get("stunden") or 4)
+    except (TypeError, ValueError):
+        stunden = 4
+    stunden = max(1, min(STIMMUNG_MAX_STUNDEN, stunden))
+    punkt = _koordinaten(data) if data.get("lat") is not None else None
+
+    now = int(time.time())
+    conn = db()
+    # Immer nur eine gueltige Meldung je Person - sonst steht die Pinnwand
+    # nach einer Woche voll mit alten Launen.
+    conn.execute("DELETE FROM stimmung_mit WHERE stimmung_id IN"
+                 " (SELECT id FROM stimmungen WHERE user_id=?)", (uid,))
+    conn.execute("DELETE FROM stimmungen WHERE user_id=?", (uid,))
+    cur = conn.execute(
+        "INSERT INTO stimmungen (user_id, emoji, text, lat, lon, bis_at,"
+        " created_at) VALUES (?,?,?,?,?,?,?)",
+        (uid, (data.get("emoji") or "")[:8], text[:280],
+         punkt[0] if punkt else None, punkt[1] if punkt else None,
+         now + stunden * 3600, now))
+    conn.commit()
+    stimmung_mitteilen(uid, conn)
+    row = conn.execute(
+        "SELECT s.*, u.display_name, u.avatar FROM stimmungen s"
+        " JOIN users u ON u.id=s.user_id WHERE s.id=?",
+        (cur.lastrowid,)).fetchone()
+    return jsonify(stimmung_payload(row, uid, conn))
+
+
+@app.post("/api/stimmung/<int:stimmung_id>/mit")
+@login_required
+def api_stimmung_mitmachen(stimmung_id):
+    """Ich mache mit - noch einmal tippen nimmt es zurueck."""
+    uid = session["uid"]
+    conn = db()
+    row = conn.execute(
+        "SELECT s.*, u.display_name, u.avatar FROM stimmungen s"
+        " JOIN users u ON u.id=s.user_id WHERE s.id=?",
+        (stimmung_id,)).fetchone()
+    if row is None or row["bis_at"] <= int(time.time()):
+        return jsonify({"error": "Diese Meldung gilt nicht mehr."}), 404
+    if row["user_id"] != uid and row["user_id"] not in mein_kreis(uid, conn):
+        abort(403)
+    hatte = conn.execute(
+        "SELECT 1 FROM stimmung_mit WHERE stimmung_id=? AND user_id=?",
+        (stimmung_id, uid)).fetchone()
+    if hatte:
+        conn.execute("DELETE FROM stimmung_mit WHERE stimmung_id=? AND user_id=?",
+                     (stimmung_id, uid))
+    else:
+        conn.execute(
+            "INSERT INTO stimmung_mit (stimmung_id, user_id, created_at)"
+            " VALUES (?,?,?)", (stimmung_id, uid, int(time.time())))
+    conn.commit()
+    # Auch die Person selbst anstossen, falls sie nicht in meinem Kreis liegt
+    socketio.emit("stimmung_geaendert", {}, to=f"user:{row['user_id']}")
+    stimmung_mitteilen(uid, conn)
+    return jsonify(stimmung_payload(row, uid, conn))
+
+
+@app.delete("/api/stimmung/<int:stimmung_id>")
+@login_required
+def api_stimmung_loeschen(stimmung_id):
+    uid = session["uid"]
+    conn = db()
+    row = conn.execute("SELECT user_id FROM stimmungen WHERE id=?",
+                       (stimmung_id,)).fetchone()
+    if row is None:
+        return jsonify({"ok": True})
+    if row["user_id"] != uid and not current_user()["is_admin"]:
+        abort(403)
+    conn.execute("DELETE FROM stimmung_mit WHERE stimmung_id=?", (stimmung_id,))
+    conn.execute("DELETE FROM stimmungen WHERE id=?", (stimmung_id,))
+    conn.commit()
+    stimmung_mitteilen(uid, conn)
+    return jsonify({"ok": True})
+
+
 @app.post("/api/rooms/<int:room_id>/color")
 @login_required
 def api_set_room_color(room_id):
@@ -1582,6 +2189,11 @@ def datei_aufraeumen(conn, file_id):
     noch_benutzt = conn.execute(
         "SELECT 1 FROM messages WHERE file_id=?", (file_id,)).fetchone()
     if noch_benutzt:
+        return False
+    # Auch das Bild einer Einladung haelt die Datei fest, obwohl keine
+    # Nachricht daran haengt.
+    if conn.execute("SELECT 1 FROM events WHERE file_id=?",
+                    (file_id,)).fetchone():
         return False
     row = conn.execute("SELECT stored_name FROM files WHERE id=?",
                        (file_id,)).fetchone()

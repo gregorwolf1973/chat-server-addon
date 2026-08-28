@@ -19,7 +19,26 @@
         <span class="brand">Chat</span>
         <button class="icon-btn" id="btn-new" title="Neue Unterhaltung">+ Neu</button>
       </header>
-      <div class="room-list" id="rooms"></div>
+      <div class="seiten-scroll">
+        <section class="abschnitt" id="karten-abschnitt">
+          <div class="abschnitt-kopf"><span>Karten</span>
+            <button class="mini-btn" id="btn-live">Teilen</button></div>
+          <div id="karten-liste"></div>
+        </section>
+        <section class="abschnitt" id="stimmung-abschnitt">
+          <div class="abschnitt-kopf"><span>Stimmung</span>
+            <button class="mini-btn" id="btn-stimmung">Setzen</button></div>
+          <div id="stimmung-liste"></div>
+        </section>
+        <section class="abschnitt" id="termin-abschnitt" hidden>
+          <div class="abschnitt-kopf"><span>Termine</span></div>
+          <div id="termin-liste"></div>
+        </section>
+        <section class="abschnitt">
+          <div class="abschnitt-kopf"><span>Unterhaltungen</span></div>
+          <div class="room-list" id="rooms"></div>
+        </section>
+      </div>
       <footer>
         <span class="dot on"></span>
         <span id="me-name">{{ me.display_name }}</span>
@@ -62,6 +81,7 @@
         <button class="icon-btn" id="btn-file" title="Datei anhängen">📎</button>
         <button class="icon-btn" id="btn-ort" title="Standort senden">📍</button>
         <button class="icon-btn" id="btn-abstimmung" title="Abstimmung">📊</button>
+        <button class="icon-btn" id="btn-event" title="Einladung">📅</button>
         <input type="file" id="file-input" multiple hidden>
         <textarea id="input" rows="1" enterkeyhint="send"
                   placeholder="Nachricht schreiben…"></textarea>

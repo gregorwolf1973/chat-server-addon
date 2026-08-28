@@ -247,6 +247,73 @@ Der Browser gibt den Standort **nur über HTTPS** heraus – also über
 `external_url`, nicht über den Ingress im Heimnetz. Dort erscheint ein
 entsprechender Hinweis.
 
+## Einladungen und Termine
+
+Der Knopf 📅 legt eine **Einladung** an: Titel, Zeitpunkt, Ort in Worten,
+Beschreibung, ein Bild und Merkmale wie 🎵 Musik, 💃 Tanz, 🍺 Alkohol,
+🍕 Essen, 🎬 Film, ⚽ Sport, 🎲 Spiele, 🌳 Draußen, 🎭 Kultur, 💬 Reden.
+**Aktuellen Ort anhängen** setzt zusätzlich eine Kartenvorschau in die
+Einladung.
+
+Sie erscheint als Karte in der Unterhaltung. Jeder Teilnehmer antwortet mit
+**Bin dabei**, **Vielleicht** oder **Kann nicht**; ein zweiter Tipp auf
+dieselbe Antwort nimmt sie zurück. Wer eingeladen hat, steht automatisch auf
+„Bin dabei“. Die Zusagen aktualisieren sich bei allen sofort.
+
+Nur wer eingeladen hat – und der Administrator – kann den Termin **absagen**.
+Er bleibt danach sichtbar, nimmt aber keine Zusagen mehr an.
+
+Im Abschnitt **Termine** der Seitenleiste stehen alle anstehenden Termine aus
+allen Unterhaltungen, der nächste zuerst. Das ist nötig, weil eine Einladung
+im Verlauf sonst nach oben rutscht und aus dem Blick gerät. Zwölf Stunden
+nach Beginn fällt ein Termin aus der Liste – die laufende Feier ist noch zu
+sehen, die von vorletzter Woche nicht mehr.
+
+Wer die Unterhaltung gerade nicht offen hat, bekommt eine Benachrichtigung
+über die Einladung.
+
+## Live-Standort und der Abschnitt „Karten“
+
+Über **Teilen** im Abschnitt **Karten** gibst du deinen Standort für eine
+gewählte Dauer frei: 15 Minuten, 1 Stunde, 3 Stunden oder 8 Stunden. Länger
+als acht Stunden geht nicht, und die Freigabe endet von selbst.
+
+Die Freigabe gehört immer zu **einer Unterhaltung**. Damit ist ohne weiteres
+Zutun klar, wer mitsehen darf: ihre Mitglieder. Wer eine Gruppe verlässt,
+teilt dort sofort nicht mehr. Über **Beenden** hörst du jederzeit auf.
+
+Solange eine Freigabe läuft, steht sie mit Name, Unterhaltung und Restzeit im
+Abschnitt **Karten**. Ein Tipp öffnet die **Live-Karte** mit allen Punkten auf
+einem gemeinsamen Ausschnitt.
+
+Solange du selbst teilst, schickt die Oberfläche alle zwei Minuten die neue
+Position. Ohne eigene Freigabe wird der Standort **gar nicht abgefragt**.
+
+Die Karte zeigt dieselben groben Umrisse wie die Ortsvorschau – Küsten und
+Grenzen, keine Straßen. Liegen alle Punkte dicht beieinander, wird der
+Ausschnitt trotzdem nicht enger als etwa zwölf Längengrade gezeichnet, sonst
+wäre schlicht nichts zu sehen. Für Straßen führt **Öffnen** zu einer
+Kartenanwendung. Wie beim Standort in Nachrichten wird **nichts von fremden
+Servern nachgeladen**.
+
+Auch hier gilt: Der Browser gibt den Standort **nur über HTTPS** heraus.
+
+## Stimmung
+
+Über **Setzen** im Abschnitt **Stimmung** sagst du, worauf du gerade Lust
+hättest – ein Emoji, ein Satz, eine Geltungsdauer von zwei Stunden bis morgen
+und auf Wunsch dein Standort. Andere tippen auf **Ich mach mit**; ein zweiter
+Tipp nimmt es zurück.
+
+Sichtbar ist eine Meldung für alle, mit denen du **mindestens eine
+Unterhaltung teilst**. Solange es keine gegenseitigen Freundschaften gibt,
+ist das die ehrlichste Abgrenzung: Wer nie mit dir geschrieben hat, sieht
+deine Stimmung nicht.
+
+Je Person gilt immer nur **eine** Meldung – eine neue ersetzt die alte, sonst
+stünde die Pinnwand nach einer Woche voller alter Launen. Abgelaufene
+Meldungen verschwinden von selbst.
+
 ## Bilder und Dateien
 
 Der Knopf **Medien** unten links öffnet alles, was in deinen Unterhaltungen
