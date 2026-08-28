@@ -1,5 +1,13 @@
 # Änderungsverlauf
 
+## 0.11.0
+
+- **Mehrere Bilder auf einmal erscheinen als Album** in einer Sprechblase mit
+  einer Uhrzeit, statt als lauter Einzelnachrichten. Das Raster richtet sich
+  nach der Anzahl: zwei nebeneinander, bei dreien eines breit oben und zwei
+  darunter, ab vier gleichmäßig
+- Jedes Bild bleibt eine eigene Nachricht und damit einzeln löschbar
+
 ## 0.10.0
 
 - **Emoji-Auswahl** neben dem Eingabefeld: rund 375 Zeichen in elf Gruppen,

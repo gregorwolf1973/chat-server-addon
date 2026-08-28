@@ -236,8 +236,11 @@ rund 375 Zeichen in elf Gruppen. Eingefügt wird an der Stelle, an der die
 Schreibmarke steht. Auf dem Handy geht natürlich auch die Tastatur.
 
 **Mehrere auf einmal:** Über die Büroklammer lassen sich mehrere Dateien
-zugleich auswählen. Jede wird eine eigene Nachricht, der Fortschritt steht
-währenddessen am unteren Rand.
+zugleich auswählen. Sind Bilder dabei, erscheinen sie als **Album** in einer
+Sprechblase mit einer Uhrzeit – zwei nebeneinander, bei dreien eines breit
+oben und zwei darunter, ab vier gleichmäßig. Jedes Bild bleibt dabei eine
+eigene Nachricht und lässt sich einzeln löschen. Der Fortschritt steht
+während des Hochladens am unteren Rand.
 
 Beim Löschen verschwindet die Datei aus dem Verlauf **und vom Server** – die
 Bytes bleiben nicht liegen. Eigene Dateien darf jeder löschen, fremde nur ein

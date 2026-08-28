@@ -216,7 +216,31 @@
       + `<span class="fsize">${fileSize(datei.size)}</span></a>`;
   }
 
+  // Gehoert die Nachricht zu einem Album, das gerade schon gerendert wurde?
+  // Dann wandert das Bild in dessen Raster, statt eine neue Blase zu oeffnen.
+  function inAlbumEinhaengen(m) {
+    if (!m.album || !m.file || !(m.file.mime || "").startsWith("image/")) return false;
+    const letzte = $("messages").querySelector(".msg:last-child");
+    if (!letzte || letzte.dataset.album !== m.album) return false;
+    const raster = letzte.querySelector(".album");
+    if (!raster) return false;
+    raster.insertAdjacentHTML("beforeend", albumBildHtml(m));
+    raster.dataset.anzahl = Math.min(raster.children.length, 5);
+    // Die Uhrzeit gehoert ans Ende des Albums, nicht zum ersten Bild
+    const zeit = letzte.querySelector(".meta");
+    if (zeit) zeit.textContent = timeOf(m.at);
+    return true;
+  }
+
+  function albumBildHtml(m) {
+    const url = `${BASE}/files/${m.file.id}`;
+    return `<a class="album-bild" href="${url}" target="_blank" rel="noopener"`
+      + ` data-nachricht="${m.id}">`
+      + `<img src="${url}" alt="${esc(m.file.name)}" loading="lazy"></a>`;
+  }
+
   function appendMsg(m) {
+    if (inAlbumEinhaengen(m)) return;
     const box = $("messages");
     const day = dayOf(m.at);
     if (day !== lastDay) {
@@ -231,6 +255,7 @@
     const wrap = document.createElement("div");
     wrap.className = "msg" + (eigene ? " mine" : "") + (m.deleted ? " gone" : "");
     wrap.dataset.id = m.id;
+    if (m.album) wrap.dataset.album = m.album;
     const room = roomById(m.room_id);
     // In Gruppen steht an jeder fremden Nachricht Bild und Name - im
     // Direktchat waere beides ueberfluessig, dort weiss man, mit wem man
@@ -265,7 +290,11 @@
         + `<span class="q-author">${esc(m.reply.author)}</span>`
         + `<span class="q-text">${esc(m.reply.text)}</span></div>`;
     }
-    if (m.file) inner += anhangHtml(m.file);
+    if (m.file && m.album && (m.file.mime || "").startsWith("image/")) {
+      inner += `<div class="album" data-anzahl="1">${albumBildHtml(m)}</div>`;
+    } else if (m.file) {
+      inner += anhangHtml(m.file);
+    }
 
     const canDelete = eigene || IS_ADMIN;
     // Text und Uhrzeit stecken in einem eigenen Block. Waere die Zeit an der
@@ -457,7 +486,7 @@
   // als erstes Argument weiter - und das heisst dort fileId.
   $("btn-send").addEventListener("click", () => send());
 
-  function send(fileId) {
+  function send(fileId, album) {
     const body = input.value.trim();
     if ((!body && !fileId) || !currentRoom) return;
     if (!socket.connected) {
@@ -470,7 +499,8 @@
     // Der Server bestaetigt den Empfang. Bleibt sie aus, kommt der Text
     // zurueck ins Feld, statt still zu verschwinden.
     socket.timeout(8000).emit("send",
-      {room_id: currentRoom, body, file_id: fileId || null, reply_to: replyTo},
+      {room_id: currentRoom, body, file_id: fileId || null, reply_to: replyTo,
+       album: album || null},
       (zeitfehler, antwort) => {
         if (zeitfehler) {
           toast("Der Server hat nicht geantwortet – bitte noch einmal senden.");
@@ -585,6 +615,12 @@
     // Mehrere Dateien nacheinander - jede wird eine eigene Nachricht, so wie
     // man es von anderen Messengern kennt.
     const raum = currentRoom;
+    // Alle Bilder eines Vorgangs bekommen dieselbe Kennung und erscheinen
+    // dadurch als ein Album. Bei einer einzelnen Datei braucht es das nicht.
+    const bilder = dateien.filter((d) => (d.type || "").startsWith("image/"));
+    const album = bilder.length > 1
+      ? "a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+      : null;
     let fertig = 0;
     for (const datei of dateien) {
       toast(dateien.length > 1
@@ -598,7 +634,7 @@
         continue;
       }
       if (currentRoom !== raum) return;   // inzwischen woanders
-      send(daten.id);
+      send(daten.id, (datei.type || "").startsWith("image/") ? album : null);
       fertig += 1;
     }
     if (dateien.length > 1) toast(`${fertig} von ${dateien.length} gesendet.`);

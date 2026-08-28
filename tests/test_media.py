@@ -3,7 +3,8 @@ import os
 import sys
 
 from helpers import (BASE, PNG, Ergebnis, als_admin, anmelden, eigene_id,
-                     hochladen, senden, verbindungen_schliessen)
+                     hochladen, senden, senden_mit_antwort,
+                     verbindungen_schliessen)
 
 UPLOADS = os.path.join(os.environ.get("DATA_DIR", ""), "uploads")
 
@@ -180,6 +181,29 @@ def main():
                  "und die Bytes sind von der Platte weg")
     e.pruefe(admin.delete(f"{BASE}/api/rooms/{gemeinsam}").status_code == 404,
              "ein zweites Loeschen meldet sauber 404")
+
+    e.abschnitt("Album-Kennung fuer gebuendelte Bilder")
+    for name in ("alb1.png", "alb2.png"):
+        d = hochladen(anna, name, PNG, "image/png").json()
+        senden_mit_antwort(anna, raum_anna, "", datei=d["id"], album="abc123")
+    nachrichten = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()
+    mit_album = [m for m in nachrichten if m.get("album") == "abc123"]
+    e.pruefe(len(mit_album) == 2,
+             f"beide Bilder tragen dieselbe Kennung ({len(mit_album)})")
+    e.pruefe(all(m["file"] for m in mit_album),
+             "und haengen weiterhin je an einer eigenen Nachricht")
+
+    d = hochladen(anna, "einzeln.png", PNG, "image/png").json()
+    senden_mit_antwort(anna, raum_anna, "", datei=d["id"])
+    letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
+    e.pruefe(letzte["album"] is None, "ein einzelnes Bild bekommt keine Kennung")
+
+    d = hochladen(anna, "boese.png", PNG, "image/png").json()
+    senden_mit_antwort(anna, raum_anna, "", datei=d["id"],
+                       album="<script>alert(1)</script>")
+    letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
+    e.pruefe(letzte["album"] is None,
+             "eine Kennung mit Sonderzeichen wird verworfen")
 
     e.abschnitt("Verlaesst der Letzte, verschwindet alles")
     zuzweit = admin.post(f"{BASE}/api/rooms",

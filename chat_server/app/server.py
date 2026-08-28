@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS messages (
     file_id INTEGER,
     reply_to INTEGER,
     deleted INTEGER NOT NULL DEFAULT 0,
+    album TEXT,
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_msg_room ON messages(room_id, id);
@@ -191,6 +192,8 @@ def migrate(conn):
         conn.execute("ALTER TABLE messages ADD COLUMN reply_to INTEGER")
     if "deleted" not in cols:
         conn.execute("ALTER TABLE messages ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
+    if "album" not in cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN album TEXT")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "active" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
@@ -521,6 +524,7 @@ def msg_payload(row):
         "room_id": row["room_id"],
         "user_id": row["user_id"],
         "author": row["display_name"],
+        "album": row["album"],
         "body": "" if deleted else row["body"],
         "at": row["created_at"],
         "deleted": deleted,
@@ -1649,6 +1653,11 @@ def on_send(data):
     body = (data.get("body") or "").strip()
     file_id = data.get("file_id")
     reply_to = data.get("reply_to")
+    # Mehrere Bilder auf einmal tragen dieselbe Kennung und erscheinen dann
+    # als ein Album statt als lauter Einzelnachrichten.
+    album = (str(data.get("album") or "").strip() or None)
+    if album and (len(album) > 40 or not album.replace("-", "").isalnum()):
+        album = None
     if not body and not file_id:
         return {"ok": False, "error": "Die Nachricht ist leer."}
 
@@ -1683,8 +1692,9 @@ def on_send(data):
             reply_to = None
     now = int(time.time())
     cur = conn.execute(
-        "INSERT INTO messages (room_id, user_id, body, file_id, reply_to, created_at)"
-        " VALUES (?,?,?,?,?,?)", (room_id, uid, body[:8000], file_id, reply_to, now))
+        "INSERT INTO messages (room_id, user_id, body, file_id, reply_to, album,"
+        " created_at) VALUES (?,?,?,?,?,?,?)",
+        (room_id, uid, body[:8000], file_id, reply_to, album, now))
     msg_id = cur.lastrowid
     conn.execute("UPDATE room_members SET last_read=? WHERE room_id=? AND user_id=?",
                  (msg_id, room_id, uid))
