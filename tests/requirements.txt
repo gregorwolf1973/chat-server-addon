@@ -1,0 +1,2 @@
+# Nur fuer die Tests - das Add-on selbst braucht das nicht.
+requests==2.32.3
