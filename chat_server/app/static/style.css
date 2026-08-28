@@ -1798,11 +1798,17 @@ audio.abspieler { width: min(260px, 100%); }
   .field input, .modal input, .modal select, .login-card input {
     min-height: 44px;
   }
-  /* Ein Haekchen von 13 Pixeln trifft niemand */
+  /* Ein Haekchen von 13 Pixeln trifft niemand. flex: 0 0 auto ist dabei
+     der entscheidende Teil: als Flex-Element schrumpft es sonst wieder auf
+     seine natuerliche Groesse zurueck - selbst eine Breite mit !important
+     bleibt dann wirkungslos. */
   .check input[type="checkbox"] {
+    flex: 0 0 auto;
     width: 24px;
     height: 24px;
   }
+  /* Der Aufklapper zum Datenschutz war 17 Pixel hoch */
+  .datenschutz summary { min-height: 44px; display: flex; align-items: center; }
   .check { gap: 12px; min-height: 44px; }
 
   /* Zeilen in Listen: genug Hoehe und Abstand, damit man nicht die
@@ -1864,3 +1870,27 @@ audio.abspieler { width: min(260px, 100%); }
   .chat-header { gap: 6px; padding: 10px 12px; }
   .chat-header .sub { display: none; }
 }
+
+/* ---------- Hinweis zum Datenschutz bei der Registrierung ---------- */
+.datenschutz {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: left;
+}
+.datenschutz summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+}
+.datenschutz p { margin: 9px 0 0; line-height: 1.55; }
+.login-card .check { text-align: left; align-items: flex-start; }
+.login-card .check span { font-size: 12.5px; line-height: 1.45; }
+.login-card .check input { margin-top: 2px; }
+
+/* Geburtstage in der Terminliste */
+.termin-zeile.geburtstag .tz-datum { color: #e58fd0; }
+.termin-zeile.geburtstag .tz-titel { font-weight: 600; }

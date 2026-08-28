@@ -1788,6 +1788,27 @@
     renderTermine();
   }
 
+  // ---------- Geburtstage ----------
+  // Sie kommen als eigene Liste vom Server und werden erst hier unter die
+  // Termine gemischt. Ein Geburtstag ist kein Termin: es gibt nichts
+  // zuzusagen und niemanden, der einlaedt.
+  async function geburtstageLaden() {
+    const res = await api("/api/geburtstage");
+    if (!res.ok) return;
+    state.geburtstage = await res.json();
+    renderTermine();
+  }
+
+  const geburtstagText = (g) => {
+    if (g.heute) return "Heute!";
+    const d = new Date(g.naechster_at * 1000);
+    const tage = Math.round((d - new Date().setHours(0, 0, 0, 0)) / 86400000);
+    const datum = d.toLocaleDateString("de-DE",
+      {weekday: "short", day: "2-digit", month: "2-digit"});
+    return tage === 1 ? `Morgen · ${datum}`
+                      : `${datum} · in ${tage} Tagen`;
+  };
+
   // Statt eines eigenen Reiters filtert die Terminliste selbst. "Offen" ist
   // der nuetzlichste Blick: was wartet noch auf meine Antwort.
   const TERMIN_FILTER = [
@@ -1808,6 +1829,9 @@
     if (!liste) return;
     const alle = state.termine || [];
     const gezeigt = alle.filter(terminPasstZumFilter);
+    // Geburtstage stehen nur unter "Alle" - sie warten auf keine Antwort und
+    // man kann bei ihnen nichts zusagen.
+    const geburtstage = terminFilter ? [] : (state.geburtstage || []);
 
     const leiste = $("termin-filter");
     if (leiste) {
@@ -1828,7 +1852,7 @@
         }));
     }
 
-    if (!gezeigt.length) {
+    if (!gezeigt.length && !geburtstage.length) {
       liste.innerHTML = `<div class="abschnitt-leer">${alle.length
         ? "Dazu steht nichts an."
         : "Nichts steht an. Mit ‚Einladung‘ im Chat legst du etwas an."
@@ -1837,21 +1861,58 @@
       renderKarten();
       return;
     }
-    liste.innerHTML = gezeigt.map((ev) => `<div class="termin-zeile" data-id="${ev.id}"
+    // Termine und Geburtstage in eine Reihenfolge bringen
+    const gemischt = [
+      ...gezeigt.map((ev) => ({art: "termin", at: ev.beginnt_at || Infinity, ev})),
+      ...geburtstage.map((g) => ({art: "geburtstag", at: g.naechster_at, g})),
+    ].sort((a, b) => a.at - b.at);
+
+    liste.innerHTML = gemischt.map((x) => x.art === "geburtstag"
+      ? `<div class="termin-zeile geburtstag" data-person="${x.g.user_id}">
+          <div class="tz-datum">🎂 ${esc(geburtstagText(x.g))}</div>
+          <div class="tz-titel">${esc(x.g.name)}${x.g.ich ? " (du)" : ""}</div>
+          <div class="tz-sub">wird ${x.g.wird}</div>
+        </div>`
+      : terminZeileHtml(x.ev)).join("");
+    liste.querySelectorAll("[data-person]").forEach((el) =>
+      el.addEventListener("click", () => {
+        const id = parseInt(el.dataset.person, 10);
+        if (id === ME) return;
+        // Zum Gratulieren: die Unterhaltung mit der Person oeffnen
+        const raum = (state.rooms || []).find((r) => !r.is_group
+          && r.members.some((m) => m.id === id));
+        if (raum) { openRoom(raum.id); return; }
+        // Noch kein Direktchat: einen anlegen, damit man gleich gratulieren
+        // kann, statt erst durch "+ Neu" zu gehen.
+        api("/api/rooms", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({members: [id], is_group: false}),
+        }).then(async (res) => {
+          const daten = await res.json().catch(() => ({}));
+          if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+          await loadState();
+          openRoom(daten.id);
+        });
+      }));
+    reiterZahlen();
+    renderKarten();
+    liste.querySelectorAll(".termin-zeile:not(.geburtstag)").forEach((el) =>
+      el.addEventListener("click", () => terminAnsicht(parseInt(el.dataset.id, 10))));
+    return;
+  }
+
+  function terminZeileHtml(ev) {
+    return `<div class="termin-zeile" data-id="${ev.id}"
         data-room="${ev.room_id}">
       <div class="tz-datum">${terminZeit(ev.beginnt_at)}</div>
       <div class="tz-titel">${esc(ev.titel)}</div>
       <div class="tz-sub">${esc(ev.von.name)}${ev.ort_text
         ? ` · ${esc(ev.ort_text)}` : ""} · ${
-        (ev.wer.ja || []).length} Zusagen${
+        (ev.wer.ja || []).length} ${
+        (ev.wer.ja || []).length === 1 ? "Zusage" : "Zusagen"}${
         ev.meine ? ` · du: ${{ja: "dabei", nein: "abgesagt",
                                    vielleicht: "vielleicht"}[ev.meine]}` : ""}</div>
-    </div>`).join("");
-    liste.querySelectorAll(".termin-zeile").forEach((el) =>
-      el.addEventListener("click", () => terminAnsicht(parseInt(el.dataset.id, 10))));
-    reiterZahlen();
-    // Die Zahl neben der Live-Karte zaehlt Einladungen mit
-    renderKarten();
+    </div>`;
   }
 
   async function terminAnsicht(eventId) {
@@ -3435,6 +3496,15 @@
       <div class="field"><label>Neues Passwort</label><input id="p-new" type="password"></div>
       <button class="btn" id="p-ok">Passwort ändern</button>
       <hr class="sep">
+      <h2>Geburtstag</h2>
+      <p class="hint">Freiwillig. Wenn du ihn angibst, erscheint er bei den
+        Leuten aus deinem Kreis unter „Termine“.</p>
+      <div class="field">
+        <input id="me-geb" type="date"
+               value="${state.me && state.me.geburtstag ? state.me.geburtstag : ""}">
+      </div>
+      <button class="btn ghost" id="geb-ok">Geburtstag speichern</button>
+      <hr class="sep">
       <h2>Aussehen</h2>
       <div class="kf-zeile" id="thema-wahl"></div>
       <hr class="sep">
@@ -3471,6 +3541,18 @@
       await loadState();
       closeModal();
       $("btn-settings").click();
+    });
+    root.querySelector("#geb-ok").addEventListener("click", async () => {
+      const wert = root.querySelector("#me-geb").value;
+      const res = await api("/api/me/geburtstag", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({geburtstag: wert}),
+      });
+      const daten = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+      if (state.me) state.me.geburtstag = daten.geburtstag;
+      toast(daten.geburtstag ? "Geburtstag gespeichert." : "Geburtstag entfernt.");
+      geburtstageLaden();
     });
     const themaFeld = root.querySelector("#thema-wahl");
     const themaZeichnen = () => {
@@ -3921,6 +4003,7 @@
   themaSetzen(themaLesen());
   weltkarteLaden();
   terminLaden();
+  geburtstageLaden();
   tippsLaden();
   loadState().then(() => {
     const wanted = parseInt(new URLSearchParams(location.search).get("room"), 10);

@@ -61,9 +61,41 @@
           </div>
 
           <div class="field">
+            <label for="geburtstag">Geburtstag (freiwillig)</label>
+            <input id="geburtstag" name="geburtstag" type="date"
+                   value="{{ form.geburtstag if form else '' }}">
+            <p class="hint">Wenn du ihn angibst, erscheint er bei deinen
+              Freunden unter „Termine“. Ohne Angabe bleibt er einfach leer.</p>
+          </div>
+
+          <div class="field">
             <label for="note">Weshalb möchtest du Zugang?</label>
             <textarea id="note" name="note" rows="3" required>{{ form.note if form else '' }}</textarea>
           </div>
+
+          <details class="datenschutz">
+            <summary>Was wird gespeichert?</summary>
+            <p>Dies ist ein privater Server. Gespeichert werden Benutzername,
+              Anzeigename, dein Passwort (nur als Prüfsumme, nicht im
+              Klartext), deine Kontaktangabe, deine Begründung und – falls
+              angegeben – dein Geburtstag. Dazu kommt alles, was du später
+              selbst schreibst oder hochlädst: Nachrichten, Bilder, Dateien,
+              Standorte und Sprachaufnahmen.</p>
+            <p>Sichtbar ist das jeweils nur für die Personen, mit denen du
+              schreibst, sowie für den Administrator dieses Servers. Die Daten
+              liegen auf dessen Gerät und werden nicht an Dritte
+              weitergegeben.</p>
+            <p>Du kannst jederzeit verlangen, dass dein Konto und deine
+              Beiträge gelöscht werden – wende dich dazu an den
+              Administrator.</p>
+          </details>
+
+          <label class="check">
+            <input type="checkbox" id="zustimmung" name="zustimmung" required>
+            <span>Ich bin einverstanden, dass meine Angaben zu diesem Zweck
+              gespeichert werden.</span>
+          </label>
+
           <button class="btn" type="submit">Antrag abschicken</button>
         </form>
         <p class="hint"><a href="{{ url_for('login_page') }}">Ich habe schon ein Konto</a></p>

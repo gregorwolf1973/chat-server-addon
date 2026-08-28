@@ -9,11 +9,16 @@ from helpers import BASE, Ergebnis, als_admin, anmelden, verbindungen_schliessen
 
 def antrag(username="neuling", display="Neuer Nachbar", passwort="start123",
            email="neu@example.org", phone="", note="Wohne nebenan",
-           sitzung=None):
+           sitzung=None, zustimmung="on", geburtstag=""):
     s = sitzung or requests.Session()
-    return s.post(f"{BASE}/register", data={
-        "username": username, "display_name": display, "password": passwort,
-        "email": email, "phone": phone, "note": note}, allow_redirects=False)
+    daten = {"username": username, "display_name": display,
+             "password": passwort, "email": email, "phone": phone,
+             "note": note, "geburtstag": geburtstag}
+    # Ohne den Haken legt der Server kein Konto an - die Reihen hier
+    # setzen ihn also, ausser sie pruefen genau das Gegenteil.
+    if zustimmung:
+        daten["zustimmung"] = zustimmung
+    return s.post(f"{BASE}/register", data=daten, allow_redirects=False)
 
 
 def main():

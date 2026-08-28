@@ -1,5 +1,20 @@
 # Änderungsverlauf
 
+## 0.30.0
+
+- **Geburtstag** bei der Registrierung (freiwillig) und nachtraeglich in den
+  Einstellungen. Angegebene Geburtstage stehen unter **Termine** zwischen den
+  Einladungen, mit Alter und "Heute!" am Tag selbst
+- Ein Tipp darauf oeffnet die Unterhaltung mit der Person - und legt sie an,
+  falls es noch keine gibt
+- **Einwilligung zur Speicherung** ist beim Antrag Pflicht, mit aufklappbarer
+  Auskunft darueber, was gespeichert wird und wer es sieht. Der Zeitpunkt
+  wird zum Konto vermerkt
+- Das Kaestchen war auf dem Telefon 13 Pixel breit: als Flex-Element
+  schrumpfte es auf seine natuerliche Groesse zurueck, wogegen selbst eine
+  Breite mit `!important` nichts ausrichtete
+- "1 Zusagen" heisst jetzt "1 Zusage"
+
 ## 0.29.0
 
 - **Muster statt Foto** als Hintergrund: Punkte, Karo, Wellen, Kreuze,

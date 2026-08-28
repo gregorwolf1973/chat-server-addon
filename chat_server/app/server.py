@@ -5,6 +5,7 @@ Flask + Socket.IO, SQLite unter /data, Web-Push fuer Benachrichtigungen.
 """
 import base64
 import json
+import datetime
 import logging
 import os
 import secrets
@@ -127,6 +128,8 @@ CREATE TABLE IF NOT EXISTS users (
     phone TEXT,
     note TEXT,
     avatar TEXT,
+    geburtstag TEXT,
+    zustimmung_at INTEGER,
     karten_kacheln INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL
 );
@@ -342,7 +345,9 @@ def migrate(conn):
         conn.execute("ALTER TABLE users ADD COLUMN pw_version INTEGER NOT NULL DEFAULT 0")
     if "pending" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN pending INTEGER NOT NULL DEFAULT 0")
-    for spalte in ("email", "phone", "note", "avatar"):
+    if "zustimmung_at" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN zustimmung_at INTEGER")
+    for spalte in ("email", "phone", "note", "avatar", "geburtstag"):
         if spalte not in cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN {spalte} TEXT")
     if "karten_kacheln" not in cols:
@@ -959,6 +964,7 @@ def register_page():
         "email": (request.form.get("email") or "").strip(),
         "phone": (request.form.get("phone") or "").strip(),
         "note": (request.form.get("note") or "").strip(),
+        "geburtstag": (request.form.get("geburtstag") or "").strip(),
     }
     passwort = request.form.get("password") or ""
 
@@ -976,6 +982,16 @@ def register_page():
                        "damit wir dich erreichen koennen.")
     if not formular["note"]:
         return zurueck("Schreib kurz, weshalb du Zugang moechtest.")
+    # Das Geburtsdatum ist freiwillig - aber wenn eines dasteht, muss es
+    # stimmen, sonst taucht die Person nie in der Terminliste auf.
+    geburtstag, fehler = geburtstag_pruefen(formular["geburtstag"])
+    if fehler:
+        return zurueck(fehler)
+    # Ohne Haken kein Konto - und der Zeitpunkt wird festgehalten, sonst
+    # laesst sich spaeter nicht sagen, dass jemand zugestimmt hat.
+    if not request.form.get("zustimmung"):
+        return zurueck("Ohne dein Einverstaendnis zur Speicherung koennen wir "
+                       "kein Konto anlegen.")
     if zu_viele_antraege(request.headers.get("X-Forwarded-For",
                                              request.remote_addr or "?")):
         return zurueck("Es sind schon mehrere Antraege von dir eingegangen. "
@@ -985,11 +1001,12 @@ def register_page():
     try:
         cur = conn.execute(
             "INSERT INTO users (username, display_name, pw_hash, is_admin, active,"
-            " pending, email, phone, note, created_at)"
-            " VALUES (?,?,?,0,0,1,?,?,?,?)",
+            " pending, email, phone, note, geburtstag, zustimmung_at,"
+            " created_at) VALUES (?,?,?,0,0,1,?,?,?,?,?,?)",
             (formular["username"], formular["display_name"],
              generate_password_hash(passwort), formular["email"][:200],
-             formular["phone"][:60], formular["note"][:1000], int(time.time())))
+             formular["phone"][:60], formular["note"][:1000], geburtstag,
+             int(time.time()), int(time.time())))
         conn.commit()
     except sqlite3.IntegrityError:
         return zurueck("Diesen Benutzernamen gibt es schon.")
@@ -1169,7 +1186,8 @@ def api_state():
     return jsonify({
         "me": {"id": uid, "name": me["display_name"],
                "is_admin": bool(me["is_admin"]), "avatar": me["avatar"],
-               "kacheln": bool(me["karten_kacheln"])},
+               "kacheln": bool(me["karten_kacheln"]),
+               "geburtstag": me["geburtstag"]},
         "rooms": payload,
         "users": [dict(u) for u in users],
         "online": online,
@@ -2138,6 +2156,99 @@ def api_tipp_loeschen(tipp_id):
     for ziel in mein_kreis(uid, conn):
         socketio.emit("tipps_geaendert", {}, to=f"user:{ziel}")
     return jsonify({"ok": True})
+
+
+# --------------------------------------------------------------------------
+# Geburtstage
+# --------------------------------------------------------------------------
+# Gespeichert wird das Datum, angezeigt der naechste Geburtstag. Die Angabe
+# ist freiwillig - wer sie nicht machen will, taucht eben nicht auf.
+def geburtstag_pruefen(roh):
+    """'JJJJ-MM-TT' -> derselbe Text, oder None. Zweiter Rueckgabewert ist
+    eine Meldung, wenn etwas eingegeben wurde, das nicht taugt."""
+    roh = (roh or "").strip()
+    if not roh:
+        return None, None
+    try:
+        tag = datetime.date.fromisoformat(roh)
+    except ValueError:
+        return None, "Das Geburtsdatum ist unbrauchbar."
+    heute = datetime.date.today()
+    if tag > heute:
+        return None, "Das Geburtsdatum liegt in der Zukunft."
+    if tag.year < heute.year - 120:
+        return None, "Das Geburtsdatum ist zu lange her."
+    return tag.isoformat(), None
+
+
+def naechster_geburtstag(datum, heute=None):
+    """Wann hat jemand das naechste Mal Geburtstag - und wie alt wird er?"""
+    heute = heute or datetime.date.today()
+    tag = datetime.date.fromisoformat(datum)
+    # Der 29. Februar wird in Jahren ohne Schalttag am 1. Maerz gefeiert
+    def am(jahr):
+        try:
+            return datetime.date(jahr, tag.month, tag.day)
+        except ValueError:
+            return datetime.date(jahr, 3, 1)
+    naechster = am(heute.year)
+    if naechster < heute:
+        naechster = am(heute.year + 1)
+    return naechster, naechster.year - tag.year
+
+
+@app.get("/api/geburtstage")
+@login_required
+def api_geburtstage():
+    """Die naechsten Geburtstage aus meinem Kreis - meiner mit dabei."""
+    uid = session["uid"]
+    conn = db()
+    erlaubt = mein_kreis(uid, conn) | {uid}
+    marks = ",".join("?" * len(SYSTEM_USERS))
+    rows = conn.execute(
+        "SELECT id, display_name, avatar, geburtstag FROM users"
+        f" WHERE geburtstag IS NOT NULL AND geburtstag<>''"
+        f" AND username NOT IN ({marks}) AND active=1 AND pending=0",
+        SYSTEM_USERS).fetchall()
+    heute = datetime.date.today()
+    raus = []
+    for r in rows:
+        if r["id"] not in erlaubt:
+            continue
+        try:
+            wann, jahre = naechster_geburtstag(r["geburtstag"], heute)
+        except ValueError:
+            continue
+        raus.append({
+            "user_id": r["id"],
+            "name": r["display_name"],
+            "avatar": r["avatar"],
+            "datum": r["geburtstag"],
+            "naechster": wann.isoformat(),
+            # Mitternacht als Zeitpunkt - die Terminliste sortiert danach
+            "naechster_at": int(datetime.datetime.combine(
+                wann, datetime.time(0, 0)).timestamp()),
+            "wird": jahre,
+            "heute": wann == heute,
+            "ich": r["id"] == uid,
+        })
+    raus.sort(key=lambda g: g["naechster_at"])
+    return jsonify(raus)
+
+
+@app.post("/api/me/geburtstag")
+@login_required
+def api_set_geburtstag():
+    """Eigenes Geburtsdatum setzen oder wieder loeschen."""
+    datum, fehler = geburtstag_pruefen(
+        request.get_json(force=True).get("geburtstag"))
+    if fehler:
+        return jsonify({"error": fehler}), 400
+    conn = db()
+    conn.execute("UPDATE users SET geburtstag=? WHERE id=?",
+                 (datum, session["uid"]))
+    conn.commit()
+    return jsonify({"ok": True, "geburtstag": datum})
 
 
 # --------------------------------------------------------------------------

@@ -525,6 +525,34 @@ geht keine einzige Anfrage hinaus.
 
 Wird ein Konto gelöscht, verschwinden seine Empfehlungen mit.
 
+## Geburtstage
+
+Bei der Registrierung wird nach dem **Geburtstag** gefragt – freiwillig. Wer
+schon ein Konto hat, trägt ihn in den Einstellungen nach; dort lässt er sich
+auch wieder löschen.
+
+Angegebene Geburtstage erscheinen unter **Termine** zwischen den Einladungen,
+nach Datum einsortiert: 🎂 mit Name und dem Alter, das erreicht wird. Am Tag
+selbst steht dort „Heute!". Ein Tipp öffnet die Unterhaltung mit der Person –
+und legt sie an, falls es noch keine gibt.
+
+Sichtbar sind sie für deinen Kreis, also Freunde und alle, mit denen du eine
+Unterhaltung teilst. Unter den engeren Filtern (*Zugesagt*, *Offen*) tauchen
+Geburtstage nicht auf: Es gibt bei ihnen nichts zuzusagen.
+
+Der 29. Februar wird in Jahren ohne Schalttag am 1. März gezählt.
+
+## Einwilligung bei der Registrierung
+
+Ein Antrag lässt sich nur abschicken, wenn das Kästchen zur **Speicherung der
+Daten** gesetzt ist. Darüber steht aufklappbar, was gespeichert wird, wer es
+sieht und dass man die Löschung verlangen kann. Der Zeitpunkt der Einwilligung
+wird zum Konto vermerkt.
+
+Das ist eine sachliche Beschreibung dessen, was diese Software speichert –
+keine fertige Datenschutzerklärung. Ob und was du darüber hinaus brauchst,
+hängt davon ab, wen du auf deinen Server lässt.
+
 ## Freunde
 
 Unten links öffnet **Freunde** die Liste aller Konten auf diesem Server. Eine
