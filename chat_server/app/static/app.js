@@ -290,6 +290,7 @@
         + `<span class="q-author">${esc(m.reply.author)}</span>`
         + `<span class="q-text">${esc(m.reply.text)}</span></div>`;
     }
+    if (m.poll) inner += abstimmungHtml(m.poll);
     if (m.ort) inner += ortHtml(m.ort);
     if (m.file && m.album && (m.file.mime || "").startsWith("image/")) {
       inner += `<div class="album" data-anzahl="1">${albumBildHtml(m)}</div>`;
@@ -431,6 +432,12 @@
   // Konten geaendert oder entfernt - Namen und Auswahllisten nachziehen.
   socket.on("user_changed", () => loadState());
   socket.on("avatar_changed", () => loadState());
+  socket.on("poll_changed", async (d) => {
+    const kasten = $("messages").querySelector(`.abstimmung[data-poll="${d.poll_id}"]`);
+    if (!kasten) return;
+    const res = await api(`/api/polls/${d.poll_id}`);
+    if (res.ok) kasten.outerHTML = abstimmungHtml(await res.json());
+  });
   socket.on("room_removed", (d) => raumVerlassen(d.id));
   socket.on("room_changed", () => loadState());
   socket.on("user_pending", (u) => {
@@ -533,6 +540,89 @@
     }
     balken.hidden = !!verbunden;
   }
+
+  // ---------- Abstimmung ----------
+  function abstimmungHtml(poll) {
+    const gesamt = poll.teilnehmer || 0;
+    const balken = poll.optionen.map((o) => {
+      const anteil = gesamt ? Math.round(o.stimmen / gesamt * 100) : 0;
+      const wer = o.wer.map((w) => w.name).join(", ");
+      return `<button class="wahl ${o.meine ? "meine" : ""}" data-option="${o.id}"
+                      ${wer ? `title="${esc(wer)}"` : ""}>
+        <span class="wahl-balken" style="width:${anteil}%"></span>
+        <span class="wahl-text">${esc(o.text)}</span>
+        <span class="wahl-zahl">${o.stimmen}</span>
+      </button>`;
+    }).join("");
+    return `<div class="abstimmung" data-poll="${poll.id}">
+      <div class="frage">📊 ${esc(poll.frage)}</div>
+      <div class="wahlen">${balken}</div>
+      <div class="wahl-fuss">${gesamt === 1 ? "1 Stimme" : `${gesamt} Stimmen`}${
+        poll.mehrfach ? " · mehrere Antworten möglich" : ""}</div>
+    </div>`;
+  }
+
+  // Stimme abgeben - der Server schickt die neue Auswertung zurueck
+  $("messages").addEventListener("click", async (e) => {
+    const knopf = e.target.closest(".wahl");
+    if (!knopf) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const kasten = knopf.closest(".abstimmung");
+    const res = await api(`/api/polls/${kasten.dataset.poll}/vote`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({option_id: parseInt(knopf.dataset.option, 10)}),
+    });
+    if (!res.ok) { toast("Die Stimme ging nicht durch."); return; }
+    kasten.outerHTML = abstimmungHtml(await res.json());
+  }, true);
+
+  function abstimmungDialog() {
+    if (!currentRoom) return;
+    const root = modal(`<h2>Neue Abstimmung</h2>
+      <div class="field"><label>Frage</label><input id="ab-frage" autocomplete="off"></div>
+      <div class="field"><label>Antworten</label><div id="ab-optionen"></div></div>
+      <button class="btn ghost" id="ab-mehr">+ Antwort</button>
+      <label class="check"><input type="checkbox" id="ab-mehrfach">
+        Mehrere Antworten erlaubt</label>
+      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
+      <button class="btn" id="ab-ok">Abstimmung starten</button></div>`);
+    const liste = root.querySelector("#ab-optionen");
+    const zeileAnfuegen = () => {
+      if (liste.children.length >= 12) { toast("Zwölf Antworten sind genug."); return; }
+      const zeile = document.createElement("div");
+      zeile.className = "ab-zeile";
+      zeile.innerHTML = `<input class="ab-option" autocomplete="off"
+        placeholder="Antwort ${liste.children.length + 1}">
+        <button class="act del" type="button" title="Entfernen">✕</button>`;
+      zeile.querySelector(".act").addEventListener("click", () => {
+        if (liste.children.length <= 2) { toast("Zwei Antworten braucht es."); return; }
+        zeile.remove();
+      });
+      liste.appendChild(zeile);
+    };
+    zeileAnfuegen();
+    zeileAnfuegen();
+    root.querySelector("#ab-mehr").addEventListener("click", zeileAnfuegen);
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelector("#ab-ok").addEventListener("click", async () => {
+      const frage = root.querySelector("#ab-frage").value.trim();
+      const optionen = [...root.querySelectorAll(".ab-option")]
+        .map((i) => i.value.trim()).filter(Boolean);
+      if (!frage) { toast("Die Frage fehlt."); return; }
+      if (optionen.length < 2) { toast("Es braucht mindestens zwei Antworten."); return; }
+      const res = await api(`/api/rooms/${currentRoom}/poll`, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({frage, optionen,
+                              mehrfach: root.querySelector("#ab-mehrfach").checked}),
+      });
+      const daten = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
+      closeModal();
+    });
+  }
+
+  $("btn-abstimmung").addEventListener("click", abstimmungDialog);
 
   // ---------- Standort ----------
   // Die Weltkarte liegt als SVG im Add-on - fuer die Vorschau wird ein

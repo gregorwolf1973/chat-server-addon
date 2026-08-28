@@ -1,5 +1,16 @@
 # Änderungsverlauf
 
+## 0.15.0
+
+- **Gruppenabstimmung**: Der Knopf 📊 legt eine Frage mit bis zu zwölf
+  Antworten an, wahlweise mit mehreren erlaubten Antworten. Sie erscheint als
+  Nachricht mit Balken und Stimmenzahl
+- Ein Tipp stimmt ab, ein weiterer nimmt die Stimme zurück. Bei Einfachwahl
+  ersetzt eine neue Stimme die alte
+- Wer für was gestimmt hat, steht im Tooltip der Antwort
+- Stimmen anderer erscheinen sofort, ohne die Seite neu zu laden. Wer die
+  Unterhaltung geschlossen hat, wird über die Abstimmung benachrichtigt
+
 ## 0.14.0
 
 - **Standort senden**: Der Knopf 📍 schickt den eigenen Standort in die

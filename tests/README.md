@@ -29,7 +29,8 @@ kill %1
 Danach dasselbe für `tests/test_users.py`, `tests/test_media.py` und
 `tests/test_register.py` und
 `tests/test_avatars.py` und
-`tests/test_notify.py`.
+`tests/test_notify.py`, `tests/test_login.py`
+und `tests/test_polls.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
 
@@ -55,6 +56,12 @@ das durch Altbestände fehl.
 * `nosniff` und eine enge CSP auf der Datei-Route.
 * Fremde Datei-IDs lassen sich nicht an eigene Nachrichten hängen.
 * Die Pfade im PWA-Manifest lösen auf existierende Adressen auf.
+
+`test_polls.py` (22 Prüfungen)
+
+* Abstimmung anlegen, mit den Fehlerfällen und fremden Unterhaltungen.
+* Abstimmen, zurücknehmen, Einfach- und Mehrfachwahl.
+* Wer gestimmt hat, ist sichtbar; Antworten fremder Fragen werden abgewiesen.
 
 `test_notify.py` (13 Prüfungen)
 

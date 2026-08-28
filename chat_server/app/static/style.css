@@ -924,3 +924,54 @@ audio.abspieler { width: min(260px, 100%); }
 }
 .ortsgrad { font-family: var(--mono); color: var(--muted); }
 .ortslink { color: var(--accent); }
+
+/* ---------- Abstimmung ---------- */
+.abstimmung {
+  min-width: min(280px, 68vw);
+  margin-bottom: 4px;
+}
+.abstimmung .frage {
+  font-weight: 600;
+  margin-bottom: 9px;
+  line-height: 1.35;
+}
+.wahlen { display: flex; flex-direction: column; gap: 5px; }
+.wahl {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  text-align: left;
+  font-size: 14px;
+  color: var(--text);
+}
+.wahl:hover { border-color: var(--accent); }
+.wahl.meine { border-color: var(--accent); }
+.wahl-balken {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(242, 166, 90, 0.18);
+  transition: width 0.25s ease;
+}
+.wahl.meine .wahl-balken { background: rgba(242, 166, 90, 0.32); }
+.wahl-text { position: relative; flex: 1; min-width: 0; }
+.wahl-zahl {
+  position: relative;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.wahl.meine .wahl-zahl { color: var(--accent); }
+.wahl-fuss { margin-top: 7px; font-size: 11px; color: var(--muted); }
+
+.ab-zeile { display: flex; gap: 6px; margin-bottom: 6px; }
+.ab-zeile input { flex: 1; min-width: 0; }
+.ab-zeile .act { flex: 0 0 auto; align-self: center; }

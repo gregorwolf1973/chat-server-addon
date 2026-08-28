@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS messages (
     reply_to INTEGER,
     deleted INTEGER NOT NULL DEFAULT 0,
     album TEXT,
+    poll_id INTEGER,
     lat REAL,
     lon REAL,
     created_at INTEGER NOT NULL
@@ -153,6 +154,27 @@ CREATE TABLE IF NOT EXISTS files (
     size INTEGER,
     user_id INTEGER,
     created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS polls (
+    id INTEGER PRIMARY KEY,
+    room_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    frage TEXT NOT NULL,
+    mehrfach INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS poll_options (
+    id INTEGER PRIMARY KEY,
+    poll_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    platz INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS poll_votes (
+    poll_id INTEGER NOT NULL,
+    option_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (poll_id, option_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS push_subs (
     id INTEGER PRIMARY KEY,
@@ -208,6 +230,8 @@ def migrate(conn):
     for spalte in ("lat", "lon"):
         if spalte not in cols:
             conn.execute(f"ALTER TABLE messages ADD COLUMN {spalte} REAL")
+    if "poll_id" not in cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN poll_id INTEGER")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "active" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
@@ -541,6 +565,8 @@ def msg_payload(row):
         "album": row["album"],
         "ort": ({"lat": row["lat"], "lon": row["lon"]}
                 if row["lat"] is not None and row["lon"] is not None else None),
+        "poll": (poll_payload(row["poll_id"], session.get("uid"))
+                 if row["poll_id"] else None),
         "body": "" if deleted else row["body"],
         "at": row["created_at"],
         "deleted": deleted,
@@ -564,6 +590,41 @@ def msg_payload(row):
             "size": row["size"],
         }
     return out
+
+
+def poll_payload(poll_id, uid, conn=None):
+    """Frage, Antworten, Stimmen - und was ich selbst gewaehlt habe."""
+    conn = conn or db()
+    poll = conn.execute("SELECT * FROM polls WHERE id=?", (poll_id,)).fetchone()
+    if poll is None:
+        return None
+    optionen = conn.execute(
+        "SELECT * FROM poll_options WHERE poll_id=? ORDER BY platz",
+        (poll_id,)).fetchall()
+    stimmen = conn.execute(
+        "SELECT v.option_id, v.user_id, u.display_name FROM poll_votes v"
+        " JOIN users u ON u.id=v.user_id WHERE v.poll_id=?",
+        (poll_id,)).fetchall()
+    je_option = {}
+    for s in stimmen:
+        je_option.setdefault(s["option_id"], []).append(
+            {"id": s["user_id"], "name": s["display_name"]})
+    # Wie viele Personen haben ueberhaupt abgestimmt? Bei Mehrfachwahl ist das
+    # weniger als die Summe der Stimmen.
+    teilnehmer = len({s["user_id"] for s in stimmen})
+    return {
+        "id": poll["id"],
+        "frage": poll["frage"],
+        "mehrfach": bool(poll["mehrfach"]),
+        "teilnehmer": teilnehmer,
+        "optionen": [{
+            "id": o["id"],
+            "text": o["text"],
+            "stimmen": len(je_option.get(o["id"], [])),
+            "wer": je_option.get(o["id"], []),
+            "meine": any(w["id"] == uid for w in je_option.get(o["id"], [])),
+        } for o in optionen],
+    }
 
 
 MSG_QUERY = (
@@ -1379,6 +1440,109 @@ def api_set_room_avatar(room_id):
 # niemand soll sie den anderen aufdraengen.
 FARBEN = {"#1f4a48", "#3b4a6b", "#4a3b5c", "#5c4030", "#2f5136", "#5c3040",
           "#334a5c", "#4a4a2f"}
+
+
+@app.post("/api/rooms/<int:room_id>/poll")
+@login_required
+def api_create_poll(room_id):
+    """Abstimmung anlegen - sie erscheint als Nachricht in der Unterhaltung."""
+    uid = session["uid"]
+    if not is_member(room_id, uid):
+        abort(403)
+    data = request.get_json(force=True)
+    frage = (data.get("frage") or "").strip()
+    roh = data.get("optionen") or []
+    optionen = []
+    for o in roh:
+        text = (str(o) or "").strip()
+        if text and text not in optionen:
+            optionen.append(text[:120])
+    if not frage:
+        return jsonify({"error": "Die Frage fehlt."}), 400
+    if len(optionen) < 2:
+        return jsonify({"error": "Es braucht mindestens zwei Antworten."}), 400
+    if len(optionen) > 12:
+        return jsonify({"error": "Mehr als zwoelf Antworten sind zu viel."}), 400
+
+    conn = db()
+    now = int(time.time())
+    cur = conn.execute(
+        "INSERT INTO polls (room_id, user_id, frage, mehrfach, created_at)"
+        " VALUES (?,?,?,?,?)",
+        (room_id, uid, frage[:300], 1 if data.get("mehrfach") else 0, now))
+    poll_id = cur.lastrowid
+    conn.executemany(
+        "INSERT INTO poll_options (poll_id, text, platz) VALUES (?,?,?)",
+        [(poll_id, text, i) for i, text in enumerate(optionen)])
+    cur = conn.execute(
+        "INSERT INTO messages (room_id, user_id, body, poll_id, created_at)"
+        " VALUES (?,?,'',?,?)", (room_id, uid, poll_id, now))
+    msg_id = cur.lastrowid
+    conn.execute("UPDATE room_members SET last_read=? WHERE room_id=? AND user_id=?",
+                 (msg_id, room_id, uid))
+    conn.commit()
+
+    row = conn.execute(MSG_QUERY + " WHERE m.id=?", (msg_id,)).fetchone()
+    socketio.emit("message", msg_payload(row), to=f"room:{room_id}")
+    mitglieder = [r["user_id"] for r in conn.execute(
+        "SELECT user_id FROM room_members WHERE room_id=?", (room_id,)).fetchall()]
+    with ONLINE_LOCK:
+        abwesend = [m for m in mitglieder if m != uid and m not in ONLINE]
+    ziel = f"{EXTERNAL_URL}/?room={room_id}" if EXTERNAL_URL else f"?room={room_id}"
+    push_to_users(abwesend, "Neue Abstimmung", frage[:180], ziel)
+    return jsonify({"ok": True, "poll_id": poll_id, "message_id": msg_id})
+
+
+@app.post("/api/polls/<int:poll_id>/vote")
+@login_required
+def api_vote(poll_id):
+    """Stimme abgeben oder zuruecknehmen."""
+    uid = session["uid"]
+    conn = db()
+    poll = conn.execute("SELECT * FROM polls WHERE id=?", (poll_id,)).fetchone()
+    if poll is None or not is_member(poll["room_id"], uid):
+        abort(403)
+    try:
+        option_id = int(request.get_json(force=True).get("option_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Es wurde keine Antwort ausgewaehlt."}), 400
+    gehoert = conn.execute(
+        "SELECT 1 FROM poll_options WHERE id=? AND poll_id=?",
+        (option_id, poll_id)).fetchone()
+    if not gehoert:
+        return jsonify({"error": "Diese Antwort gehoert nicht zur Frage."}), 400
+
+    hatte = conn.execute(
+        "SELECT 1 FROM poll_votes WHERE poll_id=? AND option_id=? AND user_id=?",
+        (poll_id, option_id, uid)).fetchone()
+    if hatte:
+        # Noch einmal tippen nimmt die Stimme zurueck
+        conn.execute("DELETE FROM poll_votes WHERE poll_id=? AND option_id=?"
+                     " AND user_id=?", (poll_id, option_id, uid))
+    else:
+        if not poll["mehrfach"]:
+            conn.execute("DELETE FROM poll_votes WHERE poll_id=? AND user_id=?",
+                         (poll_id, uid))
+        conn.execute(
+            "INSERT INTO poll_votes (poll_id, option_id, user_id, created_at)"
+            " VALUES (?,?,?,?)", (poll_id, option_id, uid, int(time.time())))
+    conn.commit()
+    # Jeder sieht seine eigene Wahl markiert, deshalb nur ein Anstoss zum
+    # Nachladen statt der fertigen Auswertung.
+    socketio.emit("poll_changed", {"poll_id": poll_id, "room_id": poll["room_id"]},
+                  to=f"room:{poll['room_id']}")
+    return jsonify(poll_payload(poll_id, uid, conn))
+
+
+@app.get("/api/polls/<int:poll_id>")
+@login_required
+def api_get_poll(poll_id):
+    uid = session["uid"]
+    poll = db().execute("SELECT room_id FROM polls WHERE id=?",
+                        (poll_id,)).fetchone()
+    if poll is None or not is_member(poll["room_id"], uid):
+        abort(403)
+    return jsonify(poll_payload(poll_id, uid))
 
 
 @app.post("/api/rooms/<int:room_id>/color")

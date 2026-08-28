@@ -217,6 +217,20 @@ Die Uhrzeit sitzt unten rechts in der Sprechblase.
 Nachricht oder auf das Bild in den Angaben zur Unterhaltung zeigt es
 formatfüllend. Ein weiterer Tipp schließt die Ansicht.
 
+## Abstimmung
+
+Der Knopf 📊 öffnet eine neue Abstimmung: Frage, bis zu zwölf Antworten und
+auf Wunsch **mehrere Antworten erlaubt**. Sie erscheint als Nachricht in der
+Unterhaltung.
+
+Ein Tipp auf eine Antwort gibt die Stimme ab, ein weiterer nimmt sie zurück.
+Bei Einfachwahl ersetzt eine neue Stimme die vorherige. Balken und Zahlen
+aktualisieren sich bei allen sofort, ohne die Seite neu zu laden. Wer für
+welche Antwort gestimmt hat, zeigt der Tooltip.
+
+Wer die Unterhaltung gerade nicht offen hat, bekommt eine Benachrichtigung
+über die neue Abstimmung.
+
 ## Standort senden
 
 Der Knopf 📍 neben der Büroklammer schickt den eigenen Standort. In der
