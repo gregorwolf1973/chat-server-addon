@@ -134,15 +134,26 @@ button { cursor: pointer; }
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
-.field input, .modal input, .modal select {
+/* textarea gehoert ausdruecklich dazu. Fehlte es hier, bekamen die
+   Beschreibungsfelder in den Dialogen gar keine Gestaltung - also weissen
+   Browsergrund mitten im dunklen Fenster und die winzige Standardgroesse. */
+.field input, .field textarea, .modal input, .modal textarea, .modal select {
   width: 100%;
   padding: 10px 12px;
   background: var(--bg);
+  color: var(--text);
   border: 1px solid var(--line);
   border-radius: 8px;
   outline: none;
 }
-.field input:focus, .modal input:focus, .composer textarea:focus {
+.field textarea, .modal textarea {
+  min-height: 96px;
+  line-height: 1.5;
+  /* Nur in der Hoehe ziehbar - seitlich wuerde es den Dialog sprengen */
+  resize: vertical;
+}
+.field input:focus, .field textarea:focus, .modal input:focus,
+.modal textarea:focus, .composer textarea:focus {
   border-color: var(--accent);
 }
 .btn {

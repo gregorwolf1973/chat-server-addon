@@ -1,5 +1,14 @@
 # Änderungsverlauf
 
+## 0.27.1
+
+- **Beschreibungsfelder in den Dialogen waren weiss und zu klein.** In der
+  Regel fuer Eingabefelder stand `input` und `select`, aber kein `textarea` -
+  sie bekamen deshalb gar keine Gestaltung. Im dunklen Aussehen hiess das:
+  fast weisse Schrift auf weissem Grund
+- Jetzt gleicher Grund und gleiche Breite wie die einzeiligen Felder,
+  96 statt 66 Pixel hoch und in der Hoehe ziehbar
+
 ## 0.27.0
 
 - **Hell und Dunkel**: in den Einstellungen unter *Aussehen* waehlbar, dazu
