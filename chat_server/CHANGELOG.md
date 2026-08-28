@@ -1,5 +1,12 @@
 # Änderungsverlauf
 
+## 0.24.2
+
+- Die **Medienuebersicht und die Live-Karte** waren auf 400 Pixel gequetscht,
+  obwohl sie als breite Dialoge gedacht sind. `max-width` kann nur
+  verkleinern; gegen die Grundbreite von 400 Pixeln richtete es nichts aus.
+  Jetzt 760 Pixel, auf dem Telefon volle Breite
+
 ## 0.24.1
 
 - **Das Menue hinter der Heftklammer liess sich nicht schliessen.** Im

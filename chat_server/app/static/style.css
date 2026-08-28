@@ -485,7 +485,9 @@ button { cursor: pointer; }
 .hint.inline { margin: 0; align-self: center; font-size: 11px; }
 
 /* ---------- Medienverwaltung ---------- */
-.modal.wide { max-width: 760px; }
+/* Nur max-width zu setzen half nichts: die Grundregel gibt width: 400px vor,
+   und eine Hoechstbreite kann nur verkleinern, nie verbreitern. */
+.modal.wide { width: min(760px, 100%); }
 
 .media-head {
   display: flex;
@@ -1177,7 +1179,7 @@ audio.abspieler { width: min(260px, 100%); }
   cursor: pointer;
 }
 .ev-kat.gewaehlt { color: var(--text); border-color: var(--accent); background: #2a2118; }
-.modal.hoch { max-height: 86vh; overflow-y: auto; }
+.modal.hoch { max-height: 92vh; }
 
 .termin-zeile { padding: 7px 16px; cursor: pointer; }
 .termin-zeile:hover { background: var(--surface-2); }
