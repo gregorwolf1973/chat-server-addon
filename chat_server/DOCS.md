@@ -494,6 +494,14 @@ wert als ein Durchschnitt aus tausend Sternen.
 vorgemerkt haben. Ändern und löschen darf nur, wer die Empfehlung geschrieben
 hat (und der Administrator kann löschen).
 
+Ein Tipp auf die Empfehlung öffnet sie in ganzer Größe – mit Bild, Text, wer
+sie sich gemerkt hat und, wenn ein Ort hinterlegt ist, einer **Straßenkarte**.
+Über **In Karten öffnen** geht es zur Kartenanwendung.
+
+Empfehlungen mit Ort stehen außerdem auf der **Live-Karte**, mit einem ⭐ als
+Nadel. Ein Tipp darauf öffnet sie. Über der Karte lassen sie sich ausblenden,
+falls es zu voll wird.
+
 Sichtbar sind Empfehlungen für deinen Kreis – Freunde und alle, mit denen du
 eine Unterhaltung teilst. Oben lässt sich nach Art filtern; angeboten werden
 nur Arten, die auch vorkommen.
@@ -537,8 +545,8 @@ Meldungen verschwinden von selbst.
 
 ## Bilder und Dateien
 
-Der Knopf **Medien** unten links öffnet alles, was in deinen Unterhaltungen
-geteilt wurde – Bilder als Raster, Dateien als Liste, jeweils mit Absender,
+Der Knopf **Medien** oben in der Unterhaltung öffnet alles, was geteilt
+wurde – Bilder als Raster, Dateien als Liste, jeweils mit Absender,
 Unterhaltung und Zeitpunkt. Über die Auswahl oben lässt sich auf eine
 einzelne Unterhaltung einschränken.
 

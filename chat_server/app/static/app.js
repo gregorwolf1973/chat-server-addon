@@ -797,6 +797,7 @@
   // unterscheidbar, auch wenn beides dicht beieinanderliegt.
   function punktSymbolHtml(p) {
     if (p.art === "termin") return '<span class="karten-fahne">📅</span>';
+    if (p.art === "tipp") return '<span class="karten-fahne stern">⭐</span>';
     if (p.user_id) return avatarHtml("u", p.user_id, p.name, p.avatar, "winzig");
     return '<span class="karten-fahne">📍</span>';
   }
@@ -899,6 +900,8 @@
       const marke = L.marker([p.lat, p.lon], {icon: nadelSymbol(p)}).addTo(karte);
       if (p.event_id) {
         marke.on("click", () => terminAnsicht(p.event_id));
+      } else if (p.tipp_id) {
+        marke.on("click", () => tippAnsicht(p.tipp_id));
       }
       return marke;
     });
@@ -1047,6 +1050,9 @@
   // Der Filter überlebt das Schließen der Karte - wer nach "Samstag, Musik"
   // gesucht hat, will beim nächsten Öffnen nicht von vorn anfangen.
   let kartenFilter = {zeit: "alle", kategorien: new Set()};
+  // Empfehlungen liegen still im Hintergrund - sie sind meist wenige und
+  // stoeren nicht, lassen sich aber ausblenden.
+  let kartenTipps = true;
 
   const ZEITRAEUME = [["alle", "Alles"], ["heute", "Heute"],
                       ["morgen", "Morgen"], ["woche", "7 Tage"]];
@@ -1096,11 +1102,18 @@
                      kategorien: ev.kategorien || [],
                      zusagen: (ev.wer.ja || []).length, meine: ev.meine}));
     const termine = mitOrt.filter(terminPasst);
-    return {personen, termine, alleTermine: mitOrt,
-            alle: personen.concat(termine)};
+    const tipps = kartenTipps
+      ? (state.tipps || []).filter((x) => x.ort).map((x) => ({
+          art: "tipp", tipp_id: x.id, name: x.titel,
+          lat: x.ort.lat, lon: x.ort.lon, ort_text: x.ort_text,
+          sterne: x.sterne, tipp_art: x.art, von: x.name}))
+      : [];
+    return {personen, termine, tipps, alleTermine: mitOrt,
+            alleTipps: (state.tipps || []).filter((x) => x.ort),
+            alle: personen.concat(termine, tipps)};
   }
 
-  function filterLeiste(alleTermine, gezeigt) {
+  function filterLeiste(alleTermine, gezeigt, tippZahl) {
     // Nur Merkmale anbieten, die überhaupt vorkommen - tote Knöpfe helfen
     // niemandem.
     const vorhanden = [...new Set(alleTermine.flatMap((t) => t.kategorien))]
@@ -1117,6 +1130,11 @@
         ${vorhanden.map((k) =>
           `<button class="mini-btn ${kartenFilter.kategorien.has(k) ? "an" : ""}"
                    data-kat="${k}">${esc(KATEGORIEN[k])}</button>`).join("")}
+      </div>` : ""}
+      ${tippZahl ? `<div class="kf-zeile">
+        <span class="kf-titel">Empfehlungen</span>
+        <button class="mini-btn ${kartenTipps ? "an" : ""}" id="kf-tipps"
+          >${tippZahl} auf der Karte</button>
       </div>` : ""}
       ${aktiv ? `<div class="kf-zeile">
         <span class="kf-zahl">${gezeigt} von ${alleTermine.length} ${
@@ -1142,10 +1160,11 @@
     root = root || document.getElementById("modal-root");
     const behaelter = root.querySelector("#karte-inhalt");
     if (!behaelter) return;
-    const {personen, termine, alleTermine, alle} = kartenPunkte();
+    const {personen, termine, tipps, alleTermine, alleTipps, alle} = kartenPunkte();
     const osm = (p) => `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${
       p.lon}#map=15/${p.lat}/${p.lon}`;
-    behaelter.innerHTML = `${filterLeiste(alleTermine, termine.length)}
+    behaelter.innerHTML = `${filterLeiste(alleTermine, termine.length,
+                                          alleTipps.length)}
       <div id="karte-flaeche"></div>
       <div class="karten-fuss">
         ${personen.length ? '<div class="karten-gruppe">Wer teilt gerade</div>'
@@ -1170,6 +1189,17 @@
             <a class="ortslink" target="_blank" rel="noopener noreferrer"
                href="${osm(t)}">Öffnen</a>
           </div>`).join("") : ""}
+        ${tipps.length ? '<div class="karten-gruppe">Empfehlungen</div>'
+          + tipps.map((x) => `<div class="karten-zeile tipp-zeile"
+                                   data-tipp="${x.tipp_id}">
+            <span class="karten-fahne klein">⭐</span>
+            <div><div class="kz-name">${esc(x.name)}</div>
+              <div class="kz-sub">${esc(TIPP_ARTEN[x.tipp_art] || x.tipp_art)}${
+                x.ort_text ? ` · ${esc(x.ort_text)}` : ""} · von ${esc(x.von)}</div></div>
+            <span style="flex:1"></span>
+            <a class="ortslink" target="_blank" rel="noopener noreferrer"
+               href="${osm(x)}">Öffnen</a>
+          </div>`).join("") : ""}
         ${alle.length ? "" : `<p class="hint">${alleTermine.length
           ? "Zu diesem Filter passt keine Einladung."
           : "Sobald jemand seinen Standort teilt oder eine Einladung einen Ort "
@@ -1188,6 +1218,16 @@
         if (kartenFilter.kategorien.has(k)) kartenFilter.kategorien.delete(k);
         else kartenFilter.kategorien.add(k);
         kartenInhalt(root);
+      }));
+    const tippKnopf = behaelter.querySelector("#kf-tipps");
+    if (tippKnopf) tippKnopf.addEventListener("click", () => {
+      kartenTipps = !kartenTipps;
+      kartenInhalt(root);
+    });
+    behaelter.querySelectorAll("[data-tipp]").forEach((z) =>
+      z.addEventListener("click", (e) => {
+        if (e.target.closest("a")) return;
+        tippAnsicht(parseInt(z.dataset.tipp, 10));
       }));
     const weg = behaelter.querySelector("#kf-weg");
     if (weg) weg.addEventListener("click", () => {
@@ -1255,7 +1295,7 @@
     if (!liste) return;
     // In der Seitenleiste steht immer der volle Stand - ein Filter, den man
     // in der Karte gesetzt hat, soll hier nichts verschwinden lassen.
-    const {personen, alleTermine} = kartenPunkte();
+    const {personen, alleTermine, alleTipps} = kartenPunkte();
     const punkte = personen;
     const teile = [];
     if (personen.length) {
@@ -1264,6 +1304,10 @@
     if (alleTermine.length) {
       teile.push(`${alleTermine.length} ${
         alleTermine.length === 1 ? "Einladung" : "Einladungen"}`);
+    }
+    if (alleTipps.length) {
+      teile.push(`${alleTipps.length} ${
+        alleTipps.length === 1 ? "Empfehlung" : "Empfehlungen"}`);
     }
     liste.innerHTML = `<div class="karten-eintrag" id="karte-oeffnen">
         <span class="karten-symbol">🗺️</span>
@@ -1952,7 +1996,7 @@
         : "Noch keine Empfehlung. Sag, was gut war."}</div>`;
       return;
     }
-    liste.innerHTML = gezeigt.map((t) => `<div class="tipp" data-id="${t.id}">
+    liste.innerHTML = gezeigt.map((t) => `<div class="tipp anklickbar" data-id="${t.id}">
       <div class="tp-kopf">
         <span class="tp-art">${esc(TIPP_ARTEN[t.art] || t.art)}</span>
         ${sterneHtml(t.sterne)}
@@ -1973,6 +2017,7 @@
     </div>`).join("");
 
     reiterZahlen();
+    renderKarten();
     liste.querySelectorAll("[data-merken]").forEach((b) =>
       b.addEventListener("click", async () => {
         const res = await api(`/api/tipps/${b.dataset.merken}/merken`,
@@ -1981,11 +2026,68 @@
         await tippsLaden();
       }));
     liste.querySelectorAll("[data-bearbeiten]").forEach((b) =>
-      b.addEventListener("click", () => {
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
         const t = (state.tipps || []).find(
           (x) => x.id === parseInt(b.dataset.bearbeiten, 10));
         if (t) tippDialog(t);
       }));
+    liste.querySelectorAll(".tipp").forEach((k) =>
+      k.addEventListener("click", (e) => {
+        if (e.target.closest(".mini-btn")) return;
+        tippAnsicht(parseInt(k.dataset.id, 10));
+      }));
+  }
+
+  /** Ein Tipp in ganzer Groesse - mit Strassenkarte, wenn ein Ort dranhaengt. */
+  async function tippAnsicht(tippId) {
+    const t = (state.tipps || []).find((x) => x.id === tippId);
+    if (!t) { toast("Diese Empfehlung ist nicht mehr da."); return; }
+    const osm = t.ort
+      ? `https://www.openstreetmap.org/?mlat=${t.ort.lat}&mlon=${t.ort.lon}`
+        + `#map=17/${t.ort.lat}/${t.ort.lon}`
+      : null;
+    const root = modal(`<div class="karten-kopf"><h2>${esc(t.titel)}</h2>
+      <span style="flex:1"></span>
+      <button class="icon-btn" id="m-cancel">✕</button></div>
+      <div class="tp-kopf"><span class="tp-art">${
+        esc(TIPP_ARTEN[t.art] || t.art)}</span>${sterneHtml(t.sterne)}</div>
+      ${t.file_id ? `<img class="ev-bild" alt="" src="${BASE}/files/${t.file_id}">` : ""}
+      ${t.ort_text ? `<div class="tp-ort">📍 ${esc(t.ort_text)}</div>` : ""}
+      ${t.text ? `<div class="tp-text">${esc(t.text)}</div>` : ""}
+      ${t.ort ? '<div class="ortswahl" id="tp-karte-flaeche"></div>' : ""}
+      <div class="tp-fuss">
+        ${avatarHtml("u", t.user_id, t.name, t.avatar, "klein")}
+        <span class="tp-von">Empfohlen von ${esc(t.name)}${t.meiner ? " (du)" : ""}</span>
+      </div>
+      ${t.gemerkt.length ? `<div class="tp-gemerkt">${t.gemerkt.map((m) =>
+        avatarHtml("u", m.id, m.name, m.avatar, "winzig")).join("")}
+        <span>${t.gemerkt.length === 1 ? "1 hat es sich gemerkt"
+                                       : `${t.gemerkt.length} haben es sich gemerkt`}</span>
+        </div>` : ""}
+      <div class="row">
+        <button class="btn ghost" id="tp-a-merken">${
+          t.ich_merke ? "Nicht mehr merken" : "Merken"}</button>
+        ${osm ? `<a class="btn ghost" id="tp-a-osm" target="_blank"
+           rel="noopener noreferrer" href="${osm}"
+           style="text-align:center;text-decoration:none;line-height:2.2">In Karten öffnen</a>` : ""}
+        ${t.meiner ? '<button class="btn" id="tp-a-aendern">Ändern</button>' : ""}
+      </div>`);
+    root.querySelector(".modal").classList.add("wide", "hoch");
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    if (t.ort) {
+      karteZeichnen(root.querySelector("#tp-karte-flaeche"),
+                    [{lat: t.ort.lat, lon: t.ort.lon,
+                      name: t.ort_text || t.titel, art: "tipp"}]);
+    }
+    root.querySelector("#tp-a-merken").addEventListener("click", async () => {
+      const res = await api(`/api/tipps/${t.id}/merken`, {method: "POST"});
+      if (!res.ok) { toast("Das ging nicht."); return; }
+      await tippsLaden();
+      closeModal();
+    });
+    const aendern = root.querySelector("#tp-a-aendern");
+    if (aendern) aendern.addEventListener("click", () => tippDialog(t));
   }
 
   function tippDialog(vorhanden) {
@@ -3396,11 +3498,8 @@
   // Chat nur diese eine. Auf dem Handy ist die Seitenleiste verdeckt, sobald
   // ein Chat offen ist - ohne den zweiten Knopf waere die Uebersicht dort
   // gar nicht erreichbar.
-  $("btn-media").addEventListener("click", () => {
-    medienRaum = 0;
-    medienDialog();
-  });
-
+  // Der Medien-Knopf unten links ist entfallen. Der in der Kopfzeile oeffnet
+  // denselben Dialog, und dort steht "Alle Unterhaltungen" zur Auswahl.
   $("btn-room-media").addEventListener("click", () => {
     medienRaum = currentRoom || 0;
     medienDialog();

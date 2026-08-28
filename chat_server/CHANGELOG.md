@@ -1,5 +1,16 @@
 # Änderungsverlauf
 
+## 0.26.2
+
+- **Von einer Empfehlung kam man nirgends auf eine Karte.** Die Ortseingabe
+  gab es, die Ausgabe fehlte. Ein Tipp auf die Empfehlung oeffnet sie jetzt in
+  ganzer Groesse - mit Bild, Text, wer sie sich gemerkt hat und einer
+  Strassenkarte
+- Empfehlungen mit Ort stehen auch auf der **Live-Karte**, mit ⭐ als Nadel und
+  einem Schalter zum Ausblenden
+- Der **Medien-Knopf unten links** ist entfallen. Der in der Kopfzeile oeffnet
+  denselben Dialog, und dort steht *Alle Unterhaltungen* zur Auswahl
+
 ## 0.26.1
 
 - Der Reiter **Zugesagt** ist weg. Stattdessen filtert die **Terminliste**

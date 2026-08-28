@@ -1621,3 +1621,25 @@ audio.abspieler { width: min(260px, 100%); }
   padding: 0 2px;
 }
 .stern.an { color: var(--accent); }
+
+/* Empfehlungen auf der Karte und in ganzer Groesse */
+.karten-fahne.stern { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8)); }
+.karten-punkt.tipp .karten-name {
+  background: rgba(111, 211, 199, 0.92);
+  color: #14202a;
+  font-weight: 600;
+}
+.karten-zeile.tipp-zeile { cursor: pointer; }
+.karten-zeile.tipp-zeile:hover { background: var(--surface-2); }
+.tipp.anklickbar { cursor: pointer; }
+.tipp.anklickbar:hover { background: var(--surface-2); }
+.tp-gemerkt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.tp-gemerkt .avatar { margin-right: -6px; border: 1px solid var(--surface); }
+.tp-gemerkt span { margin-left: 12px; }
