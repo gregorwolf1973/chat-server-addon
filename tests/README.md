@@ -55,6 +55,9 @@ das durch Altbestände fehl.
 * Fremde Datei-IDs lassen sich nicht an eigene Nachrichten hängen.
 * Die Pfade im PWA-Manifest lösen auf existierende Adressen auf.
 
+* Sprachnachrichten: Länge kommt zurück, wird gedeckelt, und ohne Aufnahme
+  oder bei Unfug verworfen.
+
 `test_polls.py` (22 Prüfungen)
 
 * Abstimmung anlegen, mit den Fehlerfällen und fremden Unterhaltungen.

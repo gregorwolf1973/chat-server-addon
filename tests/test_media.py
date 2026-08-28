@@ -222,6 +222,34 @@ def main():
     letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
     e.pruefe(letzte["ort"] is None, "werden aber verworfen")
 
+    e.abschnitt("Sprachnachrichten")
+    ton = hochladen(anna, "sprachnachricht.webm", b"kein echter Ton, reicht hier",
+                    "audio/webm").json()
+    e.pruefe(ton.get("mime") == "audio/webm",
+             f"eine Aufnahme wird angenommen = {ton.get('mime')}")
+    antwort = senden_mit_antwort(anna, raum_anna, "", datei=ton["id"],
+                                 sprachdauer=14)
+    e.pruefe(antwort and antwort.get("ok"), "sie laesst sich senden")
+    letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
+    e.pruefe(letzte["sprachdauer"] == 14,
+             f"die Laenge kommt zurueck = {letzte['sprachdauer']}")
+
+    # Die Laenge steht nur fuer eine Aufnahme - ohne Datei ergaebe sie keinen
+    # Sinn, und eine Stunde ist die Obergrenze.
+    ton2 = hochladen(anna, "lang.webm", b"x", "audio/webm").json()
+    senden_mit_antwort(anna, raum_anna, "", datei=ton2["id"], sprachdauer=99999)
+    letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
+    e.pruefe(letzte["sprachdauer"] == 3600,
+             f"unsinnig lange Angaben werden gedeckelt = {letzte['sprachdauer']}")
+    senden_mit_antwort(anna, raum_anna, "nur Text", sprachdauer=9)
+    letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
+    e.pruefe(letzte["sprachdauer"] is None,
+             "ohne Aufnahme wird die Laenge verworfen")
+    ton3 = hochladen(anna, "krumm.webm", b"y", "audio/webm").json()
+    senden_mit_antwort(anna, raum_anna, "", datei=ton3["id"], sprachdauer="viel")
+    letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
+    e.pruefe(letzte["sprachdauer"] is None, "und Unfug ebenso")
+
     e.abschnitt("Mehrere Medien auf einmal loeschen")
     eigene = []
     for n in ("s1.png", "s2.png", "s3.png"):

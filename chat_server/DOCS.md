@@ -247,6 +247,25 @@ Der Browser gibt den Standort **nur über HTTPS** heraus – also über
 `external_url`, nicht über den Ingress im Heimnetz. Dort erscheint ein
 entsprechender Hinweis.
 
+## Sprachnachrichten
+
+Rechts im Eingabefeld steht 🎤. Ein Tipp startet die Aufnahme, ein zweiter
+beendet sie und schickt sie ab. Während der Aufnahme laufen darüber die
+Sekunden mit; **Verwerfen** wirft sie weg, ohne etwas zu senden. Nach einer
+Viertelstunde endet sie von selbst.
+
+In der Unterhaltung erscheint ein schmaler Abspieler mit Knopf, Fortschritt
+und Länge – nicht das breite Standardfeld des Browsers, das in jedem Browser
+anders aussieht. Startet man eine zweite Aufnahme, hält die erste an.
+
+Aufgenommen wird in Opus (WebM); Safari kann das nicht und bekommt MP4. Die
+Länge wird beim Senden mitgeschickt, damit sie in der Blase steht, bevor der
+Ton geladen ist.
+
+Das Mikrofon gibt der Browser – wie den Standort – **nur in einem sicheren
+Kontext** frei: über HTTPS, also deine externe Adresse, oder lokal über
+localhost. Nach der Aufnahme wird es sofort wieder freigegeben.
+
 ## Die Heftklammer
 
 Im Eingabefeld stehen zwei Knöpfe: 🙂 für Emojis und 📎 für alles, was sich an

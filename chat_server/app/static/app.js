@@ -301,7 +301,9 @@
     if (m.poll) inner += abstimmungHtml(m.poll);
     if (m.event) inner += eventHtml(m.event);
     if (m.ort) inner += ortHtml(m.ort);
-    if (m.file && m.album && (m.file.mime || "").startsWith("image/")) {
+    if (m.file && m.sprachdauer) {
+      inner += sprachHtml(m.file, m.sprachdauer);
+    } else if (m.file && m.album && (m.file.mime || "").startsWith("image/")) {
       inner += `<div class="album" data-anzahl="1">${albumBildHtml(m)}</div>`;
     } else if (m.file) {
       inner += anhangHtml(m.file);
@@ -1882,6 +1884,186 @@
     feld.focus();
     feld.dispatchEvent(new Event("input"));
   }
+
+  // ---------- Sprachnachrichten ----------
+  // Aufgenommen wird mit dem, was der Browser selbst mitbringt. Opus in einem
+  // WebM-Behälter ist klein und überall zu Hause; Safari kann das nicht und
+  // bekommt MP4.
+  const TONFORMATE = ["audio/webm;codecs=opus", "audio/webm",
+                      "audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/ogg"];
+
+  function tonFormat() {
+    if (typeof MediaRecorder === "undefined") return null;
+    return TONFORMATE.find((f) => {
+      try {
+        return MediaRecorder.isTypeSupported(f);
+      } catch (err) {
+        return false;
+      }
+    }) || "";
+  }
+
+  let aufnahme = null;   // {recorder, spur, teile, seit, uhr}
+
+  const dauerText = (sekunden) => {
+    const s = Math.max(0, Math.round(sekunden));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+
+  function aufnahmeLeisteZeigen(an) {
+    $("aufnahme-leiste").hidden = !an;
+    $("composer").classList.toggle("aufnehmend", an);
+  }
+
+  async function aufnahmeStarten() {
+    if (!currentRoom) { toast("Öffne zuerst eine Unterhaltung."); return; }
+    if (aufnahme) return;
+    if (!sichererKontext()) {
+      toast("Das Mikrofon gibt der Browser nur über HTTPS frei – öffne den "
+            + "Chat über deine externe Adresse.");
+      return;
+    }
+    if (!navigator.mediaDevices || tonFormat() === null) {
+      toast("Dieser Browser kann keine Sprachnachrichten aufnehmen.");
+      return;
+    }
+    let spur;
+    try {
+      spur = await navigator.mediaDevices.getUserMedia({audio: true});
+    } catch (err) {
+      toast(err.name === "NotAllowedError"
+        ? "Du hast den Zugriff auf das Mikrofon abgelehnt."
+        : "Kein Mikrofon gefunden.");
+      return;
+    }
+    const format = tonFormat();
+    const recorder = new MediaRecorder(spur, format ? {mimeType: format} : {});
+    const teile = [];
+    recorder.addEventListener("dataavailable", (e) => {
+      if (e.data && e.data.size) teile.push(e.data);
+    });
+    aufnahme = {recorder, spur, teile, seit: Date.now(), abgebrochen: false};
+    recorder.addEventListener("stop", () => aufnahmeBeenden());
+    recorder.start();
+    aufnahmeLeisteZeigen(true);
+    $("btn-mikro").classList.add("laeuft");
+    $("aufnahme-zeit").textContent = "0:00";
+    aufnahme.uhr = setInterval(() => {
+      const s = (Date.now() - aufnahme.seit) / 1000;
+      $("aufnahme-zeit").textContent = dauerText(s);
+      // Eine Viertelstunde ist mehr als genug - danach ist es ein Vortrag
+      if (s > 900) aufnahmeStoppen();
+    }, 200);
+  }
+
+  function aufnahmeStoppen(abbrechen = false) {
+    if (!aufnahme) return;
+    aufnahme.abgebrochen = abbrechen;
+    clearInterval(aufnahme.uhr);
+    try {
+      aufnahme.recorder.stop();
+    } catch (err) {
+      aufnahmeBeenden();
+    }
+  }
+
+  async function aufnahmeBeenden() {
+    if (!aufnahme) return;
+    const {teile, spur, seit, abgebrochen, recorder} = aufnahme;
+    aufnahme = null;
+    aufnahmeLeisteZeigen(false);
+    $("btn-mikro").classList.remove("laeuft");
+    // Das Mikrofon wieder freigeben - sonst leuchtet die Anzeige weiter
+    spur.getTracks().forEach((t) => t.stop());
+    if (abgebrochen || !teile.length) return;
+    const sekunden = Math.max(1, Math.round((Date.now() - seit) / 1000));
+    const typ = recorder.mimeType || teile[0].type || "audio/webm";
+    const endung = typ.includes("mp4") ? "m4a" : typ.includes("ogg") ? "ogg" : "webm";
+    const blob = new Blob(teile, {type: typ.split(";")[0]});
+
+    const fd = new FormData();
+    fd.append("file", blob, `sprachnachricht.${endung}`);
+    const res = await api("/api/upload", {method: "POST", body: fd});
+    const daten = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(daten.error || "Die Aufnahme ging nicht durch."); return; }
+    if (!socket.connected) { toast("Keine Verbindung."); return; }
+    socket.timeout(8000).emit("send",
+      {room_id: currentRoom, body: "", file_id: daten.id, reply_to: replyTo,
+       sprachdauer: sekunden},
+      (fehler, antwort) => {
+        if (fehler || (antwort && antwort.ok === false)) {
+          toast("Die Sprachnachricht ließ sich nicht senden.");
+        }
+      });
+    cancelReply();
+  }
+
+  // Ein eigener Abspieler statt <audio controls>: der sieht in jedem Browser
+  // anders aus und ist in einer Sprechblase viel zu breit.
+  function sprachHtml(datei, sekunden) {
+    return `<div class="sprachnachricht" data-dauer="${sekunden || 0}">
+      <button class="sn-play" type="button" aria-label="Abspielen">▶</button>
+      <div class="sn-balken"><div class="sn-fortschritt"></div></div>
+      <span class="sn-zeit">${dauerText(sekunden || 0)}</span>
+      <audio preload="none" src="${BASE}/files/${datei.id}"></audio>
+    </div>`;
+  }
+
+  // Ein Tipp spielt ab, der nächste hält an. Läuft schon etwas anderes, hört
+  // das auf - zwei Stimmen gleichzeitig versteht niemand.
+  document.addEventListener("click", (e) => {
+    const knopf = e.target.closest(".sn-play");
+    if (!knopf) return;
+    const kasten = knopf.closest(".sprachnachricht");
+    const ton = kasten.querySelector("audio");
+    if (ton.paused) {
+      document.querySelectorAll(".sprachnachricht audio").forEach((a) => {
+        if (a !== ton) a.pause();
+      });
+      ton.play().catch(() => toast("Die Aufnahme ließ sich nicht abspielen."));
+    } else {
+      ton.pause();
+    }
+  });
+
+  document.addEventListener("play", (e) => {
+    const ton = e.target;
+    if (!ton.closest || !ton.closest(".sprachnachricht")) return;
+    ton.closest(".sprachnachricht").querySelector(".sn-play").textContent = "❚❚";
+  }, true);
+
+  ["pause", "ended"].forEach((art) =>
+    document.addEventListener(art, (e) => {
+      const kasten = e.target.closest && e.target.closest(".sprachnachricht");
+      if (!kasten) return;
+      kasten.querySelector(".sn-play").textContent = "▶";
+      if (art === "ended") {
+        kasten.querySelector(".sn-fortschritt").style.width = "0%";
+        kasten.querySelector(".sn-zeit").textContent =
+          dauerText(parseInt(kasten.dataset.dauer, 10) || 0);
+      }
+    }, true));
+
+  document.addEventListener("timeupdate", (e) => {
+    const kasten = e.target.closest && e.target.closest(".sprachnachricht");
+    if (!kasten) return;
+    const ton = e.target;
+    // Die aufgezeichnete Länge ist verlässlicher als ton.duration: bei einem
+    // WebM-Strom ohne Dauer im Kopf liefert der Browser dort Infinity.
+    const gesamt = Number.isFinite(ton.duration) && ton.duration > 0
+      ? ton.duration : (parseInt(kasten.dataset.dauer, 10) || 0);
+    if (gesamt) {
+      kasten.querySelector(".sn-fortschritt").style.width =
+        `${Math.min(100, ton.currentTime / gesamt * 100).toFixed(1)}%`;
+    }
+    kasten.querySelector(".sn-zeit").textContent = dauerText(ton.currentTime);
+  }, true);
+
+  $("btn-mikro").addEventListener("click", () => {
+    if (aufnahme) aufnahmeStoppen(); else aufnahmeStarten();
+  });
+  $("aufnahme-senden").addEventListener("click", () => aufnahmeStoppen());
+  $("aufnahme-weg").addEventListener("click", () => aufnahmeStoppen(true));
 
   // ---------- Anhang-Menue ----------
   // Fuenf Knoepfe nebeneinander liessen im Eingabefeld kaum Platz. Alles,

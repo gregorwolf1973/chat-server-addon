@@ -1,5 +1,15 @@
 # Änderungsverlauf
 
+## 0.23.0
+
+- **Sprachnachrichten**: 🎤 im Eingabefeld startet die Aufnahme, ein zweiter
+  Tipp schickt sie ab. Waehrenddessen laufen die Sekunden mit, *Verwerfen*
+  wirft sie weg
+- Ein eigener schmaler Abspieler mit Knopf, Fortschritt und Laenge statt des
+  breiten Standardfelds. Eine zweite Aufnahme haelt die erste an
+- Aufgenommen wird in Opus (WebM), Safari bekommt MP4. Das Mikrofon wird
+  danach sofort wieder freigegeben
+
 ## 0.22.0
 
 - **Standort, Abstimmung und Einladung stecken jetzt hinter der Heftklammer**

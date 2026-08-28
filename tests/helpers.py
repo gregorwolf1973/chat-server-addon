@@ -84,11 +84,13 @@ def verbindung(sitzung):
     return _verbindungen[sitzung]
 
 
-def senden_mit_antwort(sitzung, raum, body="", datei=None, album=None, ort=None):
+def senden_mit_antwort(sitzung, raum, body="", datei=None, album=None, ort=None,
+                       sprachdauer=None):
     """Wie senden(), gibt aber die Empfangsbestaetigung des Servers zurueck."""
     return verbindung(sitzung).call("send", {"room_id": raum, "body": body,
                                              "file_id": datei, "album": album,
-                                             "ort": ort}, timeout=8)
+                                             "ort": ort,
+                                             "sprachdauer": sprachdauer}, timeout=8)
 
 
 def senden(sitzung, raum, body="", datei=None, warten=1.0):

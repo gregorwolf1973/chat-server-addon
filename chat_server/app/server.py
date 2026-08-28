@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS messages (
     album TEXT,
     poll_id INTEGER,
     event_id INTEGER,
+    sprachdauer INTEGER,
     lat REAL,
     lon REAL,
     created_at INTEGER NOT NULL
@@ -285,6 +286,8 @@ def migrate(conn):
         conn.execute("ALTER TABLE messages ADD COLUMN poll_id INTEGER")
     if "event_id" not in cols:
         conn.execute("ALTER TABLE messages ADD COLUMN event_id INTEGER")
+    if "sprachdauer" not in cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN sprachdauer INTEGER")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "active" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
@@ -619,6 +622,7 @@ def msg_payload(row):
         "user_id": row["user_id"],
         "author": row["display_name"],
         "album": row["album"],
+        "sprachdauer": row["sprachdauer"],
         "ort": ({"lat": row["lat"], "lon": row["lon"]}
                 if row["lat"] is not None and row["lon"] is not None else None),
         "poll": (poll_payload(row["poll_id"], session.get("uid"))
@@ -2682,6 +2686,17 @@ def on_send(data):
             lat = lon = None
         if lat is None or not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
             lat = lon = None
+    # Sprachnachricht: die Laenge in Sekunden. Sie steht schon in der Blase,
+    # bevor der Ton geladen ist - sonst waere dort erst ein leerer Balken.
+    sprachdauer = None
+    try:
+        roh = data.get("sprachdauer")
+        if roh is not None:
+            sprachdauer = max(1, min(3600, int(float(roh))))
+    except (TypeError, ValueError):
+        sprachdauer = None
+    if sprachdauer is not None and file_id is None:
+        sprachdauer = None
     if not body and not file_id and lat is None:
         return {"ok": False, "error": "Die Nachricht ist leer."}
 
@@ -2717,8 +2732,9 @@ def on_send(data):
     now = int(time.time())
     cur = conn.execute(
         "INSERT INTO messages (room_id, user_id, body, file_id, reply_to, album,"
-        " lat, lon, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-        (room_id, uid, body[:8000], file_id, reply_to, album, lat, lon, now))
+        " lat, lon, sprachdauer, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (room_id, uid, body[:8000], file_id, reply_to, album, lat, lon,
+         sprachdauer, now))
     msg_id = cur.lastrowid
     conn.execute("UPDATE room_members SET last_read=? WHERE room_id=? AND user_id=?",
                  (msg_id, room_id, uid))
