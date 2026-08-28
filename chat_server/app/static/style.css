@@ -889,3 +889,38 @@ audio.abspieler { width: min(260px, 100%); }
   align-items: center;
   justify-content: center;
 }
+
+/* ---------- Standort ---------- */
+.ort { margin-bottom: 6px; }
+.ortskarte {
+  position: relative;
+  width: min(300px, 68vw);
+  aspect-ratio: 1.6;
+  background: #16232b;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ortskarte svg { width: 100%; height: 100%; display: block; }
+.ortskarte svg path,
+.ortskarte svg use { fill: #2e4a52; stroke: #46707a; stroke-width: 0.15; }
+.ortsnadel {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 4px rgba(226, 104, 107, 0.28);
+}
+.ortszeile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.ortsgrad { font-family: var(--mono); color: var(--muted); }
+.ortslink { color: var(--accent); }

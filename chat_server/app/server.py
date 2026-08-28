@@ -140,6 +140,8 @@ CREATE TABLE IF NOT EXISTS messages (
     reply_to INTEGER,
     deleted INTEGER NOT NULL DEFAULT 0,
     album TEXT,
+    lat REAL,
+    lon REAL,
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_msg_room ON messages(room_id, id);
@@ -203,6 +205,9 @@ def migrate(conn):
         conn.execute("ALTER TABLE messages ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
     if "album" not in cols:
         conn.execute("ALTER TABLE messages ADD COLUMN album TEXT")
+    for spalte in ("lat", "lon"):
+        if spalte not in cols:
+            conn.execute(f"ALTER TABLE messages ADD COLUMN {spalte} REAL")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "active" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
@@ -534,6 +539,8 @@ def msg_payload(row):
         "user_id": row["user_id"],
         "author": row["display_name"],
         "album": row["album"],
+        "ort": ({"lat": row["lat"], "lon": row["lon"]}
+                if row["lat"] is not None and row["lon"] is not None else None),
         "body": "" if deleted else row["body"],
         "at": row["created_at"],
         "deleted": deleted,
@@ -1760,7 +1767,17 @@ def on_send(data):
     album = (str(data.get("album") or "").strip() or None)
     if album and (len(album) > 40 or not album.replace("-", "").isalnum()):
         album = None
-    if not body and not file_id:
+    # Standort: nur plausible Werte uebernehmen
+    lat = lon = None
+    ort = data.get("ort")
+    if isinstance(ort, dict):
+        try:
+            lat, lon = float(ort.get("lat")), float(ort.get("lon"))
+        except (TypeError, ValueError):
+            lat = lon = None
+        if lat is None or not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+            lat = lon = None
+    if not body and not file_id and lat is None:
         return {"ok": False, "error": "Die Nachricht ist leer."}
 
     conn = raw_db()
@@ -1795,8 +1812,8 @@ def on_send(data):
     now = int(time.time())
     cur = conn.execute(
         "INSERT INTO messages (room_id, user_id, body, file_id, reply_to, album,"
-        " created_at) VALUES (?,?,?,?,?,?,?)",
-        (room_id, uid, body[:8000], file_id, reply_to, album, now))
+        " lat, lon, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (room_id, uid, body[:8000], file_id, reply_to, album, lat, lon, now))
     msg_id = cur.lastrowid
     conn.execute("UPDATE room_members SET last_read=? WHERE room_id=? AND user_id=?",
                  (msg_id, room_id, uid))

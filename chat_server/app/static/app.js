@@ -290,6 +290,7 @@
         + `<span class="q-author">${esc(m.reply.author)}</span>`
         + `<span class="q-text">${esc(m.reply.text)}</span></div>`;
     }
+    if (m.ort) inner += ortHtml(m.ort);
     if (m.file && m.album && (m.file.mime || "").startsWith("image/")) {
       inner += `<div class="album" data-anzahl="1">${albumBildHtml(m)}</div>`;
     } else if (m.file) {
@@ -532,6 +533,113 @@
     }
     balken.hidden = !!verbunden;
   }
+
+  // ---------- Standort ----------
+  // Die Weltkarte liegt als SVG im Add-on - fuer die Vorschau wird ein
+  // Ausschnitt um den Punkt gezeigt. Es wird nichts von fremden Servern
+  // nachgeladen; erst ein Tipp auf "In Karten öffnen" verlaesst das Haus.
+  const KARTE_BREITE = 1000, KARTE_HOEHE = 650;
+  const KARTE_OBEN = 83.0, KARTE_UNTEN = -60.0;
+
+  const yMerc = (lat) => {
+    const b = Math.max(Math.min(lat, 89.5), -89.5);
+    return Math.log(Math.tan(Math.PI / 4 + (b * Math.PI / 180) / 2));
+  };
+  const Y_OBEN = yMerc(KARTE_OBEN), Y_UNTEN = yMerc(KARTE_UNTEN);
+
+  function kartenPunkt(lat, lon) {
+    return {
+      x: (lon + 180) / 360 * KARTE_BREITE,
+      y: (Y_OBEN - yMerc(lat)) / (Y_OBEN - Y_UNTEN) * KARTE_HOEHE,
+    };
+  }
+
+  // Die Umrisse werden einmal geladen und als Symbol im Dokument abgelegt.
+  // Jede Karte verweist dann per <use> darauf - eine Referenz im selben
+  // Dokument, denn auf eine externe SVG-Datei laesst Chrome <use> nicht zu.
+  let weltkarteBereit = false;
+
+  async function weltkarteLaden() {
+    if (weltkarteBereit || document.getElementById("weltkarte-vorrat")) return;
+    try {
+      const res = await api("/static/weltkarte.svg");
+      if (!res.ok) return;
+      const pfad = (await res.text()).match(/ d="([^"]+)"/);
+      if (!pfad) return;
+      const vorrat = document.createElement("div");
+      vorrat.id = "weltkarte-vorrat";
+      vorrat.hidden = true;
+      vorrat.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">`
+        + `<symbol id="weltkarte" viewBox="0 0 ${KARTE_BREITE} ${KARTE_HOEHE}">`
+        + `<path d="${pfad[1]}"/></symbol></svg>`;
+      document.body.appendChild(vorrat);
+      weltkarteBereit = true;
+      // Karten, die vor dem Laden gezeichnet wurden, nachziehen
+      document.querySelectorAll(".ortskarte svg").forEach((svg) => {
+        if (!svg.querySelector("use")) {
+          svg.innerHTML = '<use href="#weltkarte"></use>';
+        }
+      });
+    } catch (err) { /* ohne Karte bleibt die Adresse trotzdem lesbar */ }
+  }
+
+  // Rund 20 Laengengrad Ausschnitt: genug Umriss, um die Gegend zu erkennen.
+  // Der genaue Punkt steht als Koordinate darunter.
+  function karteHtml(ort, weite = 56, klasse = "ortskarte") {
+    const p = kartenPunkt(ort.lat, ort.lon);
+    const hoehe = weite * 0.62;
+    const x = Math.max(0, Math.min(KARTE_BREITE - weite, p.x - weite / 2));
+    const y = Math.max(0, Math.min(KARTE_HOEHE - hoehe, p.y - hoehe / 2));
+    return `<div class="${klasse}">
+      <svg viewBox="${x} ${y} ${weite} ${hoehe}" preserveAspectRatio="xMidYMid slice"
+           xmlns="http://www.w3.org/2000/svg">`
+      + (weltkarteBereit ? '<use href="#weltkarte"></use>' : "")
+      + `</svg>
+      <span class="ortsnadel" style="left:${((p.x - x) / weite * 100).toFixed(2)}%;`
+      + ` top:${((p.y - y) / hoehe * 100).toFixed(2)}%"></span>
+    </div>`;
+  }
+
+  function ortHtml(ort) {
+    const grad = `${ort.lat.toFixed(5)}, ${ort.lon.toFixed(5)}`;
+    const ziel = `https://www.openstreetmap.org/?mlat=${ort.lat}&mlon=${ort.lon}#map=15/${ort.lat}/${ort.lon}`;
+    return `<div class="ort" data-lat="${ort.lat}" data-lon="${ort.lon}">
+      ${karteHtml(ort)}
+      <div class="ortszeile"><span class="ortsgrad">📍 ${grad}</span>
+        <a class="ortslink" href="${ziel}" target="_blank" rel="noopener noreferrer">In Karten öffnen</a></div>
+    </div>`;
+  }
+
+  $("btn-ort").addEventListener("click", () => {
+    if (!currentRoom) return;
+    if (!navigator.geolocation) {
+      toast("Dieser Browser kennt keinen Standort.");
+      return;
+    }
+    if (location.protocol !== "https:" && location.hostname !== "localhost") {
+      toast("Der Standort geht nur über HTTPS – öffne den Chat über deine "
+            + "externe Adresse.");
+      return;
+    }
+    toast("Standort wird bestimmt …");
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const ort = {lat: pos.coords.latitude, lon: pos.coords.longitude};
+      if (!socket.connected) { toast("Keine Verbindung."); return; }
+      socket.timeout(8000).emit("send",
+        {room_id: currentRoom, body: input.value.trim(), file_id: null,
+         reply_to: replyTo, ort},
+        (fehler, antwort) => {
+          if (fehler || (antwort && antwort.ok === false)) {
+            toast("Der Standort ließ sich nicht senden.");
+          }
+        });
+      input.value = "";
+      cancelReply();
+    }, (err) => {
+      toast(err.code === 1 ? "Du hast den Zugriff auf den Standort abgelehnt."
+                           : "Der Standort ließ sich nicht bestimmen.");
+    }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 60000});
+  });
 
   // ---------- Emoji ----------
   // Eine feste Auswahl statt einer Fremdbibliothek: das haelt das Add-on klein
@@ -1306,6 +1414,7 @@
     renderRooms();
   }
 
+  weltkarteLaden();
   loadState().then(() => {
     const wanted = parseInt(new URLSearchParams(location.search).get("room"), 10);
     if (wanted && roomById(wanted)) openRoom(wanted);

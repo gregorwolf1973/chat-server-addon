@@ -217,6 +217,22 @@ Die Uhrzeit sitzt unten rechts in der Sprechblase.
 Nachricht oder auf das Bild in den Angaben zur Unterhaltung zeigt es
 formatfüllend. Ein weiterer Tipp schließt die Ansicht.
 
+## Standort senden
+
+Der Knopf 📍 neben der Büroklammer schickt den eigenen Standort. In der
+Unterhaltung erscheint eine **Kartenvorschau** mit einer Nadel, darunter die
+Koordinaten und **In Karten öffnen**.
+
+Die Karte steckt als Umrissdatei im Add-on (102 KB, gemeinfreie Daten von
+Natural Earth). Sie zeigt Länder- und Küstenlinien – genug, um die Gegend zu
+erkennen, aber keine Straßen. **Es wird nichts von fremden Servern
+nachgeladen**; erst ein Tipp auf „In Karten öffnen“ ruft eine
+Kartenanwendung auf, und das ist dann eine bewusste Entscheidung.
+
+Der Browser gibt den Standort **nur über HTTPS** heraus – also über
+`external_url`, nicht über den Ingress im Heimnetz. Dort erscheint ein
+entsprechender Hinweis.
+
 ## Bilder und Dateien
 
 Der Knopf **Medien** unten links öffnet alles, was in deinen Unterhaltungen

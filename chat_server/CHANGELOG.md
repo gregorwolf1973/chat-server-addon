@@ -1,5 +1,16 @@
 # Änderungsverlauf
 
+## 0.14.0
+
+- **Standort senden**: Der Knopf 📍 schickt den eigenen Standort in die
+  Unterhaltung, mit **Kartenvorschau**, Koordinaten und einem Link, der die
+  Karten-App öffnet
+- Die Karte liegt als Umrissdatei **im Add-on** (102 KB, gemeinfreie Daten von
+  Natural Earth). Es wird nichts von fremden Servern nachgeladen – erst wer
+  auf „In Karten öffnen“ tippt, verlässt das Haus
+- Der Browser gibt den Standort nur über HTTPS heraus, also über die externe
+  Adresse. Über den Ingress sagt die App das jetzt statt stumm zu bleiben
+
 ## 0.13.0
 
 - **Mehrere Medien auf einmal löschen**: In der Übersicht schaltet

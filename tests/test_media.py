@@ -205,6 +205,23 @@ def main():
     e.pruefe(letzte["album"] is None,
              "eine Kennung mit Sonderzeichen wird verworfen")
 
+    e.abschnitt("Standort in einer Nachricht")
+    antwort = senden_mit_antwort(anna, raum_anna, "Bin hier",
+                                 ort={"lat": 36.5101, "lon": -4.8825})
+    e.pruefe(antwort and antwort.get("ok"), "eine Nachricht mit Ort wird angenommen")
+    letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
+    e.pruefe(letzte["ort"] and abs(letzte["ort"]["lat"] - 36.5101) < 0.0001,
+             f"die Koordinaten kommen zurueck: {letzte['ort']}")
+    antwort = senden_mit_antwort(anna, raum_anna, "",
+                                 ort={"lat": 200, "lon": 0})
+    e.pruefe(antwort and antwort.get("ok") is False,
+             "unmoegliche Koordinaten machen die Nachricht leer und damit ungueltig")
+    antwort = senden_mit_antwort(anna, raum_anna, "nur Text",
+                                 ort={"lat": "hier", "lon": "dort"})
+    e.pruefe(antwort and antwort.get("ok"), "unsinnige Werte kippen den Text nicht")
+    letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
+    e.pruefe(letzte["ort"] is None, "werden aber verworfen")
+
     e.abschnitt("Mehrere Medien auf einmal loeschen")
     eigene = []
     for n in ("s1.png", "s2.png", "s3.png"):
