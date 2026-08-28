@@ -1212,3 +1212,20 @@ audio.abspieler { width: min(260px, 100%); }
   border-color: var(--line) !important;
 }
 .leaflet-control-zoom a:hover { background: var(--surface-2) !important; }
+
+/* Einladungen auf der Karte */
+.karten-punkt.termin .karten-name {
+  background: rgba(242, 166, 90, 0.92);
+  color: #14202a;
+  font-weight: 600;
+}
+.karten-fahne.klein { font-size: 20px; width: 28px; text-align: center; }
+.karten-gruppe {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.karten-zeile.termin { cursor: pointer; }
+.karten-zeile.termin:hover { background: var(--surface-2); }

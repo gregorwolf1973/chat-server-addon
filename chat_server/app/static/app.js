@@ -763,16 +763,17 @@
 
   function uebersichtHtml(punkte) {
     if (!punkte.length) {
-      return '<div class="karte-leer">Niemand teilt gerade einen Standort.</div>';
+      return '<div class="karte-leer">Hier ist gerade nichts los – niemand '
+        + 'teilt seinen Standort, und keine Einladung hat einen Ort.</div>';
     }
     const a = ausschnittFuer(punkte);
     const nadeln = punkte.map((p) => {
       const k = kartenPunkt(p.lat, p.lon);
       const l = ((k.x - a.x) / a.weite * 100).toFixed(2);
       const t = ((k.y - a.y) / a.hoehe * 100).toFixed(2);
-      return `<span class="karten-punkt" style="left:${l}%;top:${t}%"
-                    title="${esc(p.name || "")}">
-        ${avatarHtml("u", p.user_id, p.name, p.avatar, "winzig")}
+      return `<span class="karten-punkt ${p.art === "termin" ? "termin" : ""}"
+                    style="left:${l}%;top:${t}%" title="${esc(p.name || "")}">
+        ${punktSymbolHtml(p)}
         <span class="karten-name">${esc(p.name || "")}</span></span>`;
     }).join("");
     return `<div class="grosskarte">
@@ -780,6 +781,14 @@
            preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">`
       + (weltkarteBereit ? '<use href="#weltkarte"></use>' : "")
       + `</svg>${nadeln}</div>`;
+  }
+
+  // Personen tragen ihr Profilbild, Einladungen eine Fahne - auf einen Blick
+  // unterscheidbar, auch wenn beides dicht beieinanderliegt.
+  function punktSymbolHtml(p) {
+    if (p.art === "termin") return '<span class="karten-fahne">📅</span>';
+    if (p.user_id) return avatarHtml("u", p.user_id, p.name, p.avatar, "winzig");
+    return '<span class="karten-fahne">📍</span>';
   }
 
   // ---------- Straßenkarte ----------
@@ -820,10 +829,8 @@
   function nadelSymbol(p) {
     return L.divIcon({
       className: "leaflet-eigen",
-      html: `<span class="karten-punkt fest">`
-        + (p.user_id
-           ? avatarHtml("u", p.user_id, p.name, p.avatar, "winzig")
-           : '<span class="karten-fahne">📍</span>')
+      html: `<span class="karten-punkt fest ${p.art === "termin" ? "termin" : ""}">`
+        + punktSymbolHtml(p)
         + (p.name ? `<span class="karten-name">${esc(p.name)}</span>` : "")
         + `</span>`,
       iconSize: null,
@@ -864,8 +871,13 @@
       tap: true,
     });
     L.tileLayer(KACHEL_URL, {maxZoom: 19, attribution: KACHEL_DANK}).addTo(karte);
-    const marken = punkte.map((p) =>
-      L.marker([p.lat, p.lon], {icon: nadelSymbol(p)}).addTo(karte));
+    const marken = punkte.map((p) => {
+      const marke = L.marker([p.lat, p.lon], {icon: nadelSymbol(p)}).addTo(karte);
+      if (p.event_id) {
+        marke.on("click", () => terminAnsicht(p.event_id));
+      }
+      return marke;
+    });
     if (punkte.length === 1) {
       karte.setView([punkte[0].lat, punkte[0].lon], 15);
     } else {
@@ -1003,49 +1015,90 @@
     pingPlanen();
   }
 
-  function kartenAnsicht() {
+  /**
+   * Was auf der Live-Karte steht: laufende Standortfreigaben und alle
+   * anstehenden Einladungen, bei denen ein Ort hinterlegt ist.
+   */
+  function kartenPunkte() {
     const jetzt = Math.floor(Date.now() / 1000);
-    const punkte = (state.live || []).filter((p) => p.bis_at > jetzt);
+    const personen = (state.live || [])
+      .filter((p) => p.bis_at > jetzt)
+      .map((p) => Object.assign({art: "person"}, p));
+    const termine = (state.termine || [])
+      .filter((ev) => ev.ort && !ev.abgesagt)
+      .map((ev) => ({art: "termin", event_id: ev.id, name: ev.titel,
+                     lat: ev.ort.lat, lon: ev.ort.lon,
+                     ort_text: ev.ort_text, beginnt_at: ev.beginnt_at,
+                     zusagen: (ev.wer.ja || []).length, meine: ev.meine}));
+    return {personen, termine, alle: personen.concat(termine)};
+  }
+
+  function kartenAnsicht() {
+    const {personen, termine, alle} = kartenPunkte();
+    const osm = (p) => `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${
+      p.lon}#map=15/${p.lat}/${p.lon}`;
     const root = modal(`<div class="karten-kopf"><h2>Live-Karte</h2>
       <button class="btn ghost klein" id="karte-teilen">Standort teilen</button>
       <span style="flex:1"></span>
       <button class="icon-btn" id="m-cancel">✕</button></div>
       <div id="karte-flaeche"></div>
-      <div class="karten-fuss">${punkte.length
-        ? punkte.map((p) => `<div class="karten-zeile">
+      <div class="karten-fuss">
+        ${personen.length ? `<div class="karten-gruppe">Wer teilt gerade</div>`
+          + personen.map((p) => `<div class="karten-zeile">
             ${avatarHtml("u", p.user_id, p.name, p.avatar, "klein")}
             <div><div class="kz-name">${esc(p.name)}${p.ich ? " (du)" : ""}</div>
               <div class="kz-sub">${esc(p.raum)} · ${restzeit(p.bis_at)}</div></div>
             <span style="flex:1"></span>
             <a class="ortslink" target="_blank" rel="noopener noreferrer"
-               href="https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${
-                 p.lon}#map=15/${p.lat}/${p.lon}">Öffnen</a>
+               href="${osm(p)}">Öffnen</a>
             ${p.ich ? `<button class="act del" data-stopp="${p.room_id}">Beenden</button>` : ""}
-          </div>`).join("")
-        : '<p class="hint">Sobald jemand seinen Standort teilt, erscheint er hier.</p>'}
-      </div>
-      <p class="hint">Die Karte zeigt grobe Umrisse – für Straßen tippe auf
-        „Öffnen“.</p>`);
+          </div>`).join("") : ""}
+        ${termine.length ? `<div class="karten-gruppe">Einladungen</div>`
+          + termine.map((t) => `<div class="karten-zeile termin"
+                                     data-termin="${t.event_id}">
+            <span class="karten-fahne klein">📅</span>
+            <div><div class="kz-name">${esc(t.name)}</div>
+              <div class="kz-sub">${terminZeit(t.beginnt_at)}${
+                t.ort_text ? ` · ${esc(t.ort_text)}` : ""} · ${
+                t.zusagen} ${t.zusagen === 1 ? "Zusage" : "Zusagen"}</div></div>
+            <span style="flex:1"></span>
+            <a class="ortslink" target="_blank" rel="noopener noreferrer"
+               href="${osm(t)}">Öffnen</a>
+          </div>`).join("") : ""}
+        ${alle.length ? "" : '<p class="hint">Sobald jemand seinen Standort '
+          + 'teilt oder eine Einladung einen Ort bekommt, erscheint sie hier.</p>'}
+      </div>`);
     root.querySelector(".modal").classList.add("wide");
-    karteZeichnen(root.querySelector("#karte-flaeche"), punkte);
+    karteZeichnen(root.querySelector("#karte-flaeche"), alle);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelector("#karte-teilen").addEventListener("click", liveDialog);
     root.querySelectorAll("[data-stopp]").forEach((b) =>
       b.addEventListener("click", () =>
         liveBeenden(parseInt(b.dataset.stopp, 10))));
+    root.querySelectorAll("[data-termin]").forEach((z) =>
+      z.addEventListener("click", (e) => {
+        if (e.target.closest("a")) return;
+        terminAnsicht(parseInt(z.dataset.termin, 10));
+      }));
   }
 
   function renderKarten() {
     const liste = $("karten-liste");
     if (!liste) return;
-    const jetzt = Math.floor(Date.now() / 1000);
-    const punkte = (state.live || []).filter((p) => p.bis_at > jetzt);
+    const {personen, termine} = kartenPunkte();
+    const punkte = personen;
+    const teile = [];
+    if (personen.length) {
+      teile.push(`${personen.length} ${personen.length === 1 ? "Freigabe" : "Freigaben"}`);
+    }
+    if (termine.length) {
+      teile.push(`${termine.length} ${termine.length === 1 ? "Einladung" : "Einladungen"}`);
+    }
     liste.innerHTML = `<div class="karten-eintrag" id="karte-oeffnen">
         <span class="karten-symbol">🗺️</span>
         <div><div class="ke-name">Live-Karte</div>
-          <div class="ke-sub">${punkte.length
-            ? `${punkte.length} ${punkte.length === 1 ? "Freigabe" : "Freigaben"} aktiv`
-            : "Niemand teilt gerade"}</div></div>
+          <div class="ke-sub">${teile.length ? teile.join(" · ")
+            : "Gerade nichts los"}</div></div>
       </div>`
       + punkte.map((p) => `<div class="karten-eintrag person" data-user="${p.user_id}">
           ${avatarHtml("u", p.user_id, p.name, p.avatar, "klein")}
@@ -1372,6 +1425,8 @@
     </div>`).join("");
     liste.querySelectorAll(".termin-zeile").forEach((el) =>
       el.addEventListener("click", () => terminAnsicht(parseInt(el.dataset.id, 10))));
+    // Die Zahl neben der Live-Karte zaehlt Einladungen mit
+    renderKarten();
   }
 
   async function terminAnsicht(eventId) {

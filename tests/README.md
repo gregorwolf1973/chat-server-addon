@@ -61,7 +61,7 @@ das durch Altbestände fehl.
 * Abstimmen, zurücknehmen, Einfach- und Mehrfachwahl.
 * Wer gestimmt hat, ist sichtbar; Antworten fremder Fragen werden abgewiesen.
 
-`test_termine.py` (72 Prüfungen)
+`test_termine.py` (76 Prüfungen)
 
 * Termin anlegen, mit Fehlerfällen; unbekannte Merkmale fallen weg.
 * Zusagen, ändern, zurücknehmen; Fremde sehen und beantworten nichts.
@@ -72,6 +72,8 @@ das durch Altbestände fehl.
   sehen ihn, und wer die Gruppe verlässt, teilt dort nicht weiter.
 * Stimmung: setzen, ersetzen, mitmachen, löschen – sichtbar nur für den
   eigenen Kreis.
+* Was die Live-Karte zieht: Termine mit Koordinaten bringen sie mit, solche
+  ohne bleiben ohne, abgesagte fallen aus der Liste.
 * Leaflet und seine Beigaben liegen im Add-on und bleiben klein.
 * Die Straßenkarte lässt sich abschalten; die Einstellung hängt am Konto,
   gilt also auch in einer neuen Sitzung, und betrifft niemanden sonst.

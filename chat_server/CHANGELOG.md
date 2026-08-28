@@ -1,5 +1,16 @@
 # Änderungsverlauf
 
+## 0.18.0
+
+- Die **Live-Karte zeigt jetzt auch die Einladungen** - jeden anstehenden
+  Termin mit hinterlegtem Ort. Personen tragen ihr Profilbild, Einladungen
+  eine 📅-Fahne
+- Ein Tipp auf eine Fahne oeffnet den Termin mit Beschreibung, Merkmalen und
+  Zusagen
+- Unter der Karte stehen beide Listen getrennt: *Wer teilt gerade* und
+  *Einladungen*. Die Seitenleiste zaehlt beides
+- Termine ohne Ort und abgesagte erscheinen nicht auf der Karte
+
 ## 0.17.0
 
 - **Straßenkarte** mit Leaflet (1.9.4, BSD-2-Clause, liegt im Add-on) in der

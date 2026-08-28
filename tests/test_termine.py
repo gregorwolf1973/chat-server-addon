@@ -231,6 +231,27 @@ def lauf():
     e.pruefe(len(anna.get(f"{BASE}/api/stimmung").json()) == 0,
              "danach ist die Pinnwand leer")
 
+    e.abschnitt("Was die Live-Karte aus der Terminliste zieht")
+    # Die Karte zeigt nur Termine mit Koordinaten und nur solche, die noch
+    # gelten. Beides entscheidet der Server, nicht die Oberflaeche.
+    mit_ort = admin.post(f"{BASE}/api/rooms/{raum}/event", json={
+        "titel": "Am See", "lat": 49.03, "lon": 8.36,
+        "beginnt_at": int(time.time()) + 86400}).json()["event_id"]
+    admin.post(f"{BASE}/api/rooms/{raum}/event", json={
+        "titel": "Ohne Ort", "beginnt_at": int(time.time()) + 86400})
+    liste = admin.get(f"{BASE}/api/events").json()
+    nach_titel = {x["titel"]: x for x in liste}
+    e.pruefe(nach_titel["Am See"]["ort"] is not None,
+             "ein Termin mit Koordinaten bringt sie mit")
+    e.pruefe(nach_titel["Ohne Ort"]["ort"] is None,
+             "einer ohne bleibt ohne - er kommt nicht auf die Karte")
+    e.pruefe("Mit Bild" in nach_titel, "Termine ohne Zeitpunkt stehen auch drin")
+
+    admin.delete(f"{BASE}/api/events/{mit_ort}")
+    titel = [x["titel"] for x in admin.get(f"{BASE}/api/events").json()]
+    e.pruefe("Am See" not in titel,
+             f"ein abgesagter faellt aus der Liste = {titel}")
+
     e.abschnitt("Leaflet liegt im Add-on")
     r = admin.get(f"{BASE}/static/leaflet/leaflet.js")
     e.pruefe(r.status_code == 200, f"die Bibliothek wird ausgeliefert = {r.status_code}")

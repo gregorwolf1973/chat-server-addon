@@ -286,6 +286,16 @@ Solange eine Freigabe läuft, steht sie mit Name, Unterhaltung und Restzeit im
 Abschnitt **Karten**. Ein Tipp öffnet die **Live-Karte** mit allen Punkten auf
 einem gemeinsamen Ausschnitt.
 
+Auf der Live-Karte stehen auch die **Einladungen**: jeder anstehende Termin,
+bei dem ein Ort hinterlegt ist. Personen tragen ihr Profilbild, Einladungen
+eine 📅-Fahne – so ist auf einen Blick klar, was was ist, auch wenn beides
+dicht beieinanderliegt. Ein Tipp auf eine Fahne öffnet den Termin mit
+Beschreibung, Merkmalen und Zusagen. Unter der Karte stehen beide Listen
+getrennt: *Wer teilt gerade* und *Einladungen*.
+
+Ein Termin ohne Ort erscheint nicht auf der Karte, ein abgesagter ebenso
+wenig.
+
 Solange du selbst teilst, schickt die Oberfläche alle zwei Minuten die neue
 Position. Ohne eigene Freigabe wird der Standort **gar nicht abgefragt**.
 
