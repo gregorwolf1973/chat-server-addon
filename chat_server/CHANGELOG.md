@@ -1,5 +1,18 @@
 # Änderungsverlauf
 
+## 0.22.0
+
+- **Standort, Abstimmung und Einladung stecken jetzt hinter der Heftklammer**
+  statt als eigene Knoepfe im Eingabefeld. Dazu kommt *Standort live teilen* -
+  bisher nur in der Seitenleiste zu finden
+- Das Eingabefeld hat dadurch spuerbar mehr Platz, auf dem Telefon rund
+  100 Pixel
+- Das Menue sitzt immer ueber dem Eingabefeld, auch wenn es beim Tippen
+  waechst. Ein Tipp daneben oder Esc schliesst es
+- Die Pruefung auf einen sicheren Kontext liess nur `localhost` durch und wies
+  `127.0.0.1` mit einem HTTPS-Hinweis ab, obwohl der Browser den Standort dort
+  sehr wohl herausgibt. Jetzt entscheidet `isSecureContext`
+
 ## 0.21.0
 
 - **Reiter in der Seitenleiste**, wie die Filterknoepfe bei WhatsApp:

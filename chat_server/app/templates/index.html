@@ -89,12 +89,17 @@
         <button class="icon-btn" id="reply-cancel" title="Antwort verwerfen">✕</button>
       </div>
 
+      <div class="anhang-menue" id="anhang-menue" hidden>
+        <button type="button" data-tat="datei"><span>📎</span>Datei oder Bild</button>
+        <button type="button" data-tat="ort"><span>📍</span>Standort senden</button>
+        <button type="button" data-tat="live"><span>🛰️</span>Standort live teilen</button>
+        <button type="button" data-tat="abstimmung"><span>📊</span>Abstimmung</button>
+        <button type="button" data-tat="event"><span>📅</span>Einladung</button>
+      </div>
+
       <div class="composer" id="composer" hidden>
         <button class="icon-btn" id="btn-emoji" title="Emoji">🙂</button>
-        <button class="icon-btn" id="btn-file" title="Datei anhängen">📎</button>
-        <button class="icon-btn" id="btn-ort" title="Standort senden">📍</button>
-        <button class="icon-btn" id="btn-abstimmung" title="Abstimmung">📊</button>
-        <button class="icon-btn" id="btn-event" title="Einladung">📅</button>
+        <button class="icon-btn" id="btn-anhang" title="Anhängen">📎</button>
         <input type="file" id="file-input" multiple hidden>
         <textarea id="input" rows="1" enterkeyhint="send"
                   placeholder="Nachricht schreiben…"></textarea>

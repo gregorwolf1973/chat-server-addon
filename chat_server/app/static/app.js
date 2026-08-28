@@ -45,6 +45,12 @@
   const fileSize = (b) => b < 1024 ? b + " B"
     : b < 1048576 ? (b / 1024).toFixed(0) + " KB" : (b / 1048576).toFixed(1) + " MB";
 
+  // Standort und Kamera geben Browser nur in einem "sicheren Kontext" heraus.
+  // Dazu zaehlt neben HTTPS auch localhost und 127.0.0.1 - deshalb die
+  // Browser-Auskunft statt einer eigenen Namensliste.
+  const sichererKontext = () =>
+    window.isSecureContext || location.protocol === "https:";
+
   // ---------- Profilbilder ----------
   // Ohne Bild zeigen wir die Initialen auf farbigem Grund. Die Farbe haengt
   // an der Kennung, bleibt also fuer dieselbe Person immer gleich.
@@ -630,7 +636,6 @@
     });
   }
 
-  $("btn-abstimmung").addEventListener("click", abstimmungDialog);
 
   // ---------- Standort ----------
   // Die Weltkarte liegt als SVG im Add-on - fuer die Vorschau wird ein
@@ -711,13 +716,13 @@
     </div>`;
   }
 
-  $("btn-ort").addEventListener("click", () => {
+  function ortSenden() {
     if (!currentRoom) return;
     if (!navigator.geolocation) {
       toast("Dieser Browser kennt keinen Standort.");
       return;
     }
-    if (location.protocol !== "https:" && location.hostname !== "localhost") {
+    if (!sichererKontext()) {
       toast("Der Standort geht nur über HTTPS – öffne den Chat über deine "
             + "externe Adresse.");
       return;
@@ -740,7 +745,7 @@
       toast(err.code === 1 ? "Du hast den Zugriff auf den Standort abgelehnt."
                            : "Der Standort ließ sich nicht bestimmen.");
     }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 60000});
-  });
+  }
 
   // ---------- Übersichtskarte ----------
   // Dieselben Umrisse wie bei der Ortsvorschau, aber der Ausschnitt umfasst
@@ -945,7 +950,7 @@
         fehler(new Error("Dieser Browser kennt keinen Standort."));
         return;
       }
-      if (location.protocol !== "https:" && location.hostname !== "localhost") {
+      if (!sichererKontext()) {
         fehler(new Error("Der Standort geht nur über HTTPS – öffne den Chat "
                          + "über deine externe Adresse."));
         return;
@@ -1809,7 +1814,6 @@
     });
   }
 
-  $("btn-event").addEventListener("click", () => terminDialog());
   $("btn-live").addEventListener("click", liveDialog);
   $("btn-stimmung").addEventListener("click", stimmungDialog);
 
@@ -1879,7 +1883,67 @@
     feld.dispatchEvent(new Event("input"));
   }
 
+  // ---------- Anhang-Menue ----------
+  // Fuenf Knoepfe nebeneinander liessen im Eingabefeld kaum Platz. Alles,
+  // was man an eine Unterhaltung haengen kann, steckt jetzt hinter der
+  // Heftklammer - so wie bei WhatsApp.
+  const TATEN = {
+    datei: () => $("file-input").click(),
+    ort: () => ortSenden(),
+    live: () => liveDialog(),
+    abstimmung: () => abstimmungDialog(),
+    event: () => terminDialog(),
+  };
+
+  let anhangOffen = false;
+
+  function anhangMenueZeigen(offen) {
+    anhangOffen = offen;
+    const menue = $("anhang-menue");
+    menue.hidden = !offen;
+    $("btn-anhang").classList.toggle("aktiv", offen);
+    if (offen) {
+      emojiSchliessen();
+      // Das Eingabefeld waechst beim Tippen mit - ein fester Abstand im
+      // Stilblatt wuerde das Menue frueher oder spaeter darauflegen.
+      menue.style.bottom = ($("composer").offsetHeight + 8) + "px";
+    }
+  }
+
+  $("btn-anhang").addEventListener("click", (e) => {
+    e.stopPropagation();
+    anhangMenueZeigen(!anhangOffen);
+  });
+
+  $("anhang-menue").addEventListener("click", (e) => {
+    const knopf = e.target.closest("[data-tat]");
+    if (!knopf) return;
+    anhangMenueZeigen(false);
+    const tat = TATEN[knopf.dataset.tat];
+    if (tat) tat();
+  });
+
+  // Danebentippen schliesst - sonst steht das Menue im Weg
+  document.addEventListener("click", (e) => {
+    if (!anhangOffen) return;
+    if (e.target.closest("#anhang-menue") || e.target.closest("#btn-anhang")) return;
+    anhangMenueZeigen(false);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && anhangOffen) anhangMenueZeigen(false);
+  });
+
+  function emojiSchliessen() {
+    if (!emojiOffen) return;
+    emojiOffen = false;
+    const feld = $("emoji-feld");
+    if (feld) feld.hidden = true;
+    $("btn-emoji").classList.remove("aktiv");
+  }
+
   $("btn-emoji").addEventListener("click", () => {
+    anhangMenueZeigen(false);
     const feld = emojiFeldAufbauen();
     emojiOffen = !emojiOffen;
     feld.hidden = !emojiOffen;
@@ -1887,7 +1951,6 @@
     if (!emojiOffen) $("input").focus();
   });
 
-  $("btn-file").addEventListener("click", () => $("file-input").click());
   $("file-input").addEventListener("change", async (e) => {
     const dateien = [...e.target.files];
     e.target.value = "";
@@ -2576,7 +2639,7 @@
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       return toast("Dieser Browser unterstützt keine Push-Benachrichtigungen.");
     }
-    if (location.protocol !== "https:" && location.hostname !== "localhost") {
+    if (!sichererKontext()) {
       return toast("Push braucht HTTPS – öffne den Chat über deine externe Adresse.");
     }
     const perm = await Notification.requestPermission();

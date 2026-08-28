@@ -247,6 +247,20 @@ Der Browser gibt den Standort **nur über HTTPS** heraus – also über
 `external_url`, nicht über den Ingress im Heimnetz. Dort erscheint ein
 entsprechender Hinweis.
 
+## Die Heftklammer
+
+Im Eingabefeld stehen zwei Knöpfe: 🙂 für Emojis und 📎 für alles, was sich an
+eine Unterhaltung hängen lässt:
+
+* **Datei oder Bild**
+* **Standort senden** – einmalig, als Nachricht
+* **Standort live teilen** – laufend, mit Ablaufzeit
+* **Abstimmung**
+* **Einladung**
+
+Ein Tipp daneben oder Esc schließt das Menü. Emoji-Auswahl und Menü sind nie
+gleichzeitig offen.
+
 ## Einladungen und Termine
 
 Der Knopf 📅 legt eine **Einladung** an: Titel, Zeitpunkt, Ort in Worten,
