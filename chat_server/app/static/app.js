@@ -228,7 +228,11 @@
   }
 
   // ---------- Socket ----------
-  const socket = io({path: BASE + "/socket.io", transports: ["websocket", "polling"]});
+  // Erst Polling, dann auf WebSocket hochstufen - das ist die Standardfolge
+  // von Socket.IO. Andersherum beantwortet der Werkzeug-Server die allererste
+  // Anfrage mit 500 ("write() before start_response"), fuellt das Add-on-Log
+  // mit Tracebacks und verzoegert jeden Verbindungsaufbau um einen Fehlversuch.
+  const socket = io({path: BASE + "/socket.io", transports: ["polling", "websocket"]});
 
   socket.on("connect_error", () => toast("Verbindung unterbrochen – versuche es erneut."));
 

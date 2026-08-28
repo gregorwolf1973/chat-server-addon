@@ -1,5 +1,13 @@
 # Änderungsverlauf
 
+## 0.3.1
+
+- Die Verbindung wird jetzt wie vorgesehen erst über Polling aufgebaut und
+  dann auf WebSocket hochgestuft. Der bisherige Direktversuch scheiterte am
+  eingebauten Server, schrieb bei jedem Verbindungsaufbau einen
+  `AssertionError: write() before start_response` ins Protokoll und kostete
+  einen Fehlversuch — die Verbindung läuft unverändert über WebSocket
+
 ## 0.3.0
 
 - **Benutzerverwaltung für Administratoren** unter **… → Benutzer verwalten**:
