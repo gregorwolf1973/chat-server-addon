@@ -78,14 +78,6 @@
         <button class="icon-btn" id="btn-invite" hidden>+ Person</button>
       </div>
 
-      <div class="klingel" id="klingel" hidden>
-        <span class="klingel-punkt"></span>
-        <span id="klingel-text"></span>
-        <span style="flex:1"></span>
-        <button class="btn ghost klein" id="klingel-ablehnen">Ablehnen</button>
-        <button class="btn klein" id="klingel-annehmen">Teilnehmen</button>
-      </div>
-
       <div class="messages" id="messages">
         <div class="empty">Wähle links eine Unterhaltung oder starte mit „+ Neu“ eine neue.</div>
       </div>
@@ -127,6 +119,16 @@
         <button class="send" id="btn-send">Senden</button>
       </div>
     </main>
+  </div>
+
+  <div class="anruf-ruf" id="anruf-ruf" hidden>
+    <span class="klingel-punkt"></span>
+    <div class="ar-text">
+      <div class="ar-titel" id="ruf-titel">Anruf</div>
+      <div class="ar-sub" id="ruf-sub"></div>
+    </div>
+    <button class="btn ghost klein" id="ruf-ablehnen">Ablehnen</button>
+    <button class="btn klein" id="ruf-annehmen">Annehmen</button>
   </div>
 
   <div class="anruf-fenster" id="anruf-fenster" hidden>

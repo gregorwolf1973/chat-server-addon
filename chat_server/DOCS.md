@@ -249,10 +249,22 @@ entsprechender Hinweis.
 
 ## Anrufe, Videoanrufe und Gruppenrunden
 
-Oben in der Unterhaltung stehen 📞 und 🎥. Ein Tipp startet den Anruf; alle
-anderen in der Unterhaltung sehen einen Balken *„Anruf läuft"* mit
-**Teilnehmen** und **Ablehnen**. Wer die App gerade nicht offen hat, bekommt
-eine Push-Nachricht.
+Oben in der Unterhaltung stehen 📞 und 🎥. Ein Tipp startet den Anruf.
+
+Bei allen anderen **klingelt es**: oben im Bild erscheint ein Balken mit
+Name, Unterhaltung und den Knöpfen **Annehmen** und **Ablehnen**, dazu ein
+Klingelton und – auf dem Telefon – ein Rütteln. Der Balken hängt **nicht** an
+der geöffneten Unterhaltung: Du siehst ihn, egal wo du gerade bist, und
+*Annehmen* springt in die richtige Unterhaltung. Wer die App gar nicht offen
+hat, bekommt zusätzlich eine Push-Nachricht.
+
+Nach 45 Sekunden hört das Klingeln von selbst auf; der Balken bleibt stehen,
+solange der Anruf läuft, damit du noch dazukommen kannst.
+
+Der Ton wird erzeugt, nicht aus einer Datei geladen. Browser lassen Ton erst
+zu, nachdem man die Seite einmal angefasst hat – deshalb öffnet der Chat den
+Tonkanal schon beim ersten Tippen. Wer die Seite frisch geladen und noch
+nichts angefasst hat, sieht den Balken, hört aber nichts.
 
 Es ist immer eine **Runde**, kein Klingeln zu zweit: Wer will, kommt dazu,
 wer geht, geht – der Anruf läuft weiter, bis der Letzte auflegt. Schaltet

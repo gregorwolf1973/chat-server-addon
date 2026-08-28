@@ -1449,15 +1449,35 @@ audio.abspieler { width: min(260px, 100%); }
 }
 
 /* ---------- Anrufe ---------- */
-.klingel {
+/* Der Anrufbalken haengt oben im Bild, nicht in einer Unterhaltung - sonst
+   sieht ihn nur, wer zufaellig den richtigen Chat offen hat. */
+.anruf-ruf {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 95;
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 9px 16px;
+  gap: 11px;
+  width: min(460px, calc(100vw - 24px));
+  padding: 11px 14px;
   background: var(--self);
-  border-bottom: 1px solid var(--line);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
   font-size: 13px;
 }
+.ar-text { flex: 1; min-width: 0; }
+.ar-titel { font-weight: 700; }
+.ar-sub {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.anruf-ruf .btn { flex: 0 0 auto; width: auto; }
 .klingel-punkt {
   width: 9px;
   height: 9px;

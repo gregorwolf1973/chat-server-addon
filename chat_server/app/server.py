@@ -241,6 +241,25 @@ CREATE TABLE IF NOT EXISTS stimmung_mit (
     created_at INTEGER NOT NULL,
     PRIMARY KEY (stimmung_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS tipps (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    art TEXT NOT NULL,
+    titel TEXT NOT NULL,
+    ort_text TEXT,
+    lat REAL,
+    lon REAL,
+    sterne INTEGER NOT NULL,
+    text TEXT,
+    file_id INTEGER,
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS tipp_marken (
+    tipp_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (tipp_id, user_id)
+);
 CREATE TABLE IF NOT EXISTS freundschaften (
     klein_id INTEGER NOT NULL,
     gross_id INTEGER NOT NULL,
@@ -1528,6 +1547,9 @@ def api_delete_user(user_id):
     conn.execute("DELETE FROM event_antworten WHERE user_id=?", (user_id,))
     conn.execute("DELETE FROM freundschaften WHERE klein_id=? OR gross_id=?",
                  (user_id, user_id))
+    conn.execute("DELETE FROM tipp_marken WHERE user_id=? OR tipp_id IN"
+                 " (SELECT id FROM tipps WHERE user_id=?)", (user_id, user_id))
+    conn.execute("DELETE FROM tipps WHERE user_id=?", (user_id,))
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
     conn.commit()
 
@@ -1610,6 +1632,12 @@ def api_file(file_id):
             "SELECT 1 FROM events e JOIN room_members rm ON rm.room_id=e.room_id"
             " WHERE e.file_id=? AND rm.user_id=?",
             (file_id, session["uid"])).fetchone()
+    if not ok:
+        # Und das Bild eines Tipps am Tipp - sichtbar fuer den Kreis
+        tipp = db().execute("SELECT user_id FROM tipps WHERE file_id=?",
+                            (file_id,)).fetchone()
+        if tipp and tipp["user_id"] in mein_kreis(session["uid"]) | {session["uid"]}:
+            ok = True
     if not ok and row["user_id"] != session["uid"]:
         abort(403)
     # safe_mime auch beim Ausliefern: Dateien aus aelteren Installationen
@@ -1842,6 +1870,240 @@ def api_get_poll(poll_id):
     if poll is None or not is_member(poll["room_id"], uid):
         abort(403)
     return jsonify(poll_payload(poll_id, uid))
+
+
+# --------------------------------------------------------------------------
+# Empfehlungen
+# --------------------------------------------------------------------------
+# Was war gut? Jeder schreibt seine eigene Empfehlung; es gibt bewusst keine
+# gemeinsame Bewertung, die sich mitteln liesse. Ein Tipp von jemandem, den
+# man kennt, ist mehr wert als ein Durchschnitt aus tausend Sternen.
+TIPP_ARTEN = {
+    "film": "🎬 Film",
+    "kino": "🍿 Kino",
+    "restaurant": "🍽 Restaurant",
+    "bar": "🍺 Bar",
+    "cafe": "☕ Café",
+    "hotel": "🛏 Hotel",
+    "ausflug": "🥾 Ausflug",
+    "musik": "🎵 Musik",
+    "buch": "📖 Buch",
+    "sonstiges": "✨ Sonstiges",
+}
+
+
+def tipp_payload(row, uid, conn=None):
+    conn = conn or db()
+    marken = conn.execute(
+        "SELECT m.user_id, u.display_name, u.avatar FROM tipp_marken m"
+        " JOIN users u ON u.id=m.user_id WHERE m.tipp_id=?",
+        (row["id"],)).fetchall()
+    return {
+        "id": row["id"],
+        "user_id": row["user_id"],
+        "name": row["display_name"],
+        "avatar": row["avatar"],
+        "art": row["art"],
+        "titel": row["titel"],
+        "ort_text": row["ort_text"] or "",
+        "ort": ({"lat": row["lat"], "lon": row["lon"]}
+                if row["lat"] is not None and row["lon"] is not None else None),
+        "sterne": row["sterne"],
+        "text": row["text"] or "",
+        "file_id": row["file_id"],
+        "created_at": row["created_at"],
+        "meiner": row["user_id"] == uid,
+        "gemerkt": [{"id": m["user_id"], "name": m["display_name"],
+                     "avatar": m["avatar"]} for m in marken],
+        "ich_merke": any(m["user_id"] == uid for m in marken),
+    }
+
+
+TIPP_QUERY = ("SELECT t.*, u.display_name, u.avatar FROM tipps t"
+              " JOIN users u ON u.id=t.user_id")
+
+
+@app.get("/api/tipps")
+@login_required
+def api_tipps():
+    """Empfehlungen aus meinem Kreis - meine eigenen immer dabei."""
+    uid = session["uid"]
+    conn = db()
+    erlaubt = mein_kreis(uid, conn) | {uid}
+    art = (request.args.get("art") or "").strip().lower()
+    rows = conn.execute(TIPP_QUERY + " ORDER BY t.created_at DESC LIMIT 300"
+                        ).fetchall()
+    raus = [tipp_payload(r, uid, conn) for r in rows
+            if r["user_id"] in erlaubt
+            and (not art or art == r["art"])]
+    return jsonify({"tipps": raus, "arten": TIPP_ARTEN})
+
+
+@app.post("/api/tipps")
+@login_required
+def api_tipp_anlegen():
+    uid = session["uid"]
+    data = request.get_json(force=True)
+    titel = (data.get("titel") or "").strip()
+    if not titel:
+        return jsonify({"error": "Es fehlt der Name."}), 400
+    art = (data.get("art") or "").strip().lower()
+    if art not in TIPP_ARTEN:
+        art = "sonstiges"
+    try:
+        sterne = int(data.get("sterne") or 0)
+    except (TypeError, ValueError):
+        sterne = 0
+    sterne = max(1, min(5, sterne)) if sterne else 0
+    if not sterne:
+        return jsonify({"error": "Wie viele Sterne gibst du?"}), 400
+    punkt = _koordinaten(data) if data.get("lat") is not None else None
+
+    conn = db()
+    file_id = data.get("file_id")
+    if file_id is not None:
+        try:
+            file_id = int(file_id)
+        except (TypeError, ValueError):
+            file_id = None
+        if file_id is not None and not conn.execute(
+                "SELECT 1 FROM files WHERE id=? AND user_id=?",
+                (file_id, uid)).fetchone():
+            file_id = None
+
+    now = int(time.time())
+    cur = conn.execute(
+        "INSERT INTO tipps (user_id, art, titel, ort_text, lat, lon, sterne,"
+        " text, file_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (uid, art, titel[:200], (data.get("ort_text") or "").strip()[:200],
+         punkt[0] if punkt else None, punkt[1] if punkt else None,
+         sterne, (data.get("text") or "").strip()[:2000], file_id, now))
+    conn.commit()
+    for ziel in mein_kreis(uid, conn):
+        socketio.emit("tipps_geaendert", {}, to=f"user:{ziel}")
+    row = conn.execute(TIPP_QUERY + " WHERE t.id=?", (cur.lastrowid,)).fetchone()
+    log.info("Nutzer %s hat einen Tipp angelegt (%s)", uid, art)
+    return jsonify(tipp_payload(row, uid, conn))
+
+
+@app.patch("/api/tipps/<int:tipp_id>")
+@login_required
+def api_tipp_aendern(tipp_id):
+    """Nur der eigene Tipp - fremde Empfehlungen gehoeren nicht mir."""
+    uid = session["uid"]
+    conn = db()
+    row = conn.execute("SELECT * FROM tipps WHERE id=?", (tipp_id,)).fetchone()
+    if row is None:
+        return jsonify({"error": "Den gibt es nicht."}), 404
+    if row["user_id"] != uid:
+        return jsonify({"error": "Das ist nicht dein Tipp."}), 403
+
+    data = request.get_json(force=True)
+    felder, werte = [], []
+    if "titel" in data:
+        titel = (data.get("titel") or "").strip()
+        if not titel:
+            return jsonify({"error": "Es fehlt der Name."}), 400
+        felder.append("titel=?")
+        werte.append(titel[:200])
+    if "art" in data:
+        art = (data.get("art") or "").strip().lower()
+        felder.append("art=?")
+        werte.append(art if art in TIPP_ARTEN else "sonstiges")
+    if "sterne" in data:
+        try:
+            sterne = max(1, min(5, int(data.get("sterne"))))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Die Bewertung ist unbrauchbar."}), 400
+        felder.append("sterne=?")
+        werte.append(sterne)
+    for name, grenze in (("ort_text", 200), ("text", 2000)):
+        if name in data:
+            felder.append(f"{name}=?")
+            werte.append((data.get(name) or "").strip()[:grenze])
+    if "lat" in data or "lon" in data:
+        if data.get("lat") is None or data.get("lon") is None:
+            felder += ["lat=?", "lon=?"]
+            werte += [None, None]
+        else:
+            punkt = _koordinaten(data)
+            if punkt is None:
+                return jsonify({"error": "Der Ort ist unbrauchbar."}), 400
+            felder += ["lat=?", "lon=?"]
+            werte += [punkt[0], punkt[1]]
+    altes_bild = None
+    if "file_id" in data:
+        roh = data.get("file_id")
+        neu_id = None
+        if roh is not None:
+            try:
+                neu_id = int(roh)
+            except (TypeError, ValueError):
+                neu_id = None
+            if neu_id is not None and not conn.execute(
+                    "SELECT 1 FROM files WHERE id=? AND user_id=?",
+                    (neu_id, uid)).fetchone():
+                neu_id = None
+        if neu_id != row["file_id"]:
+            altes_bild = row["file_id"]
+        felder.append("file_id=?")
+        werte.append(neu_id)
+
+    if felder:
+        werte.append(tipp_id)
+        conn.execute(f"UPDATE tipps SET {', '.join(felder)} WHERE id=?", werte)
+        conn.commit()
+        if altes_bild:
+            datei_aufraeumen(conn, altes_bild)
+        for ziel in mein_kreis(uid, conn):
+            socketio.emit("tipps_geaendert", {}, to=f"user:{ziel}")
+    row = conn.execute(TIPP_QUERY + " WHERE t.id=?", (tipp_id,)).fetchone()
+    return jsonify(tipp_payload(row, uid, conn))
+
+
+@app.post("/api/tipps/<int:tipp_id>/merken")
+@login_required
+def api_tipp_merken(tipp_id):
+    """Will ich auch - noch einmal tippen nimmt es zurueck."""
+    uid = session["uid"]
+    conn = db()
+    row = conn.execute(TIPP_QUERY + " WHERE t.id=?", (tipp_id,)).fetchone()
+    if row is None:
+        return jsonify({"error": "Den gibt es nicht."}), 404
+    if row["user_id"] != uid and row["user_id"] not in mein_kreis(uid, conn):
+        abort(403)
+    hatte = conn.execute("SELECT 1 FROM tipp_marken WHERE tipp_id=? AND user_id=?",
+                         (tipp_id, uid)).fetchone()
+    if hatte:
+        conn.execute("DELETE FROM tipp_marken WHERE tipp_id=? AND user_id=?",
+                     (tipp_id, uid))
+    else:
+        conn.execute("INSERT INTO tipp_marken (tipp_id, user_id, created_at)"
+                     " VALUES (?,?,?)", (tipp_id, uid, int(time.time())))
+    conn.commit()
+    socketio.emit("tipps_geaendert", {}, to=f"user:{row['user_id']}")
+    return jsonify(tipp_payload(row, uid, conn))
+
+
+@app.delete("/api/tipps/<int:tipp_id>")
+@login_required
+def api_tipp_loeschen(tipp_id):
+    uid = session["uid"]
+    conn = db()
+    row = conn.execute("SELECT user_id, file_id FROM tipps WHERE id=?",
+                       (tipp_id,)).fetchone()
+    if row is None:
+        return jsonify({"ok": True})
+    if row["user_id"] != uid and not current_user()["is_admin"]:
+        return jsonify({"error": "Das ist nicht dein Tipp."}), 403
+    conn.execute("DELETE FROM tipp_marken WHERE tipp_id=?", (tipp_id,))
+    conn.execute("DELETE FROM tipps WHERE id=?", (tipp_id,))
+    conn.commit()
+    if row["file_id"]:
+        datei_aufraeumen(conn, row["file_id"])
+    for ziel in mein_kreis(uid, conn):
+        socketio.emit("tipps_geaendert", {}, to=f"user:{ziel}")
+    return jsonify({"ok": True})
 
 
 # --------------------------------------------------------------------------
@@ -2488,6 +2750,9 @@ def datei_aufraeumen(conn, file_id):
     # Auch das Bild einer Einladung haelt die Datei fest, obwohl keine
     # Nachricht daran haengt.
     if conn.execute("SELECT 1 FROM events WHERE file_id=?",
+                    (file_id,)).fetchone():
+        return False
+    if conn.execute("SELECT 1 FROM tipps WHERE file_id=?",
                     (file_id,)).fetchone():
         return False
     row = conn.execute("SELECT stored_name FROM files WHERE id=?",

@@ -1,5 +1,16 @@
 # Änderungsverlauf
 
+## 0.25.1
+
+- **Es klingelt jetzt.** Bei einem Anruf gibt es einen Ton und auf dem Telefon
+  ein Ruetteln - vorher blieb es still, und ein lautloser Anruf ist leicht zu
+  uebersehen
+- Der Anrufbalken haengt nicht mehr an der geoeffneten Unterhaltung. Er
+  erscheint oben im Bild, egal wo man gerade ist, und *Annehmen* springt in
+  die richtige Unterhaltung
+- Nach 45 Sekunden hoert das Laeuten von selbst auf; der Balken bleibt, damit
+  man noch dazukommen kann
+
 ## 0.25.0
 
 - **Freunde**, gegenseitig: eine Anfrage wird erst durch die Zusage der

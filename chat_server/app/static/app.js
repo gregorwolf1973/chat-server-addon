@@ -2053,6 +2053,7 @@
   }
 
   async function anrufStarten(art) {
+    klingelnStoppen();
     if (!currentRoom) return;
     if (imAnruf()) { anrufFensterZeigen(true); return; }
     if (!sichererKontext()) {
@@ -2157,19 +2158,122 @@
     renderRooms();
   });
 
+  // ---------- Klingeln ----------
+  // Der Ton wird erzeugt, nicht geladen: das spart eine Datei im Add-on und
+  // klingt auf jedem Geraet gleich. Ein Browser laesst Ton allerdings erst
+  // zu, wenn man die Seite einmal angefasst hat - vorher bleibt es beim
+  // Balken und beim Ruettelfeedback.
+  let klingelUhr = null;
+  let klingelCtx = null;
+  let klingelSeit = 0;
+  // Nach dieser Zeit hoert es von selbst auf. Ein Anruf, den niemand
+  // annimmt, soll nicht endlos laeuten.
+  const KLINGEL_MAX_MS = 45000;
+
+  // Ton ist erst erlaubt, nachdem der Mensch die Seite einmal angefasst hat.
+  // Deshalb wird der Tonkanal beim ersten Tippen still geoeffnet - dann ist
+  // er bereit, wenn spaeter ein Anruf hereinkommt.
+  function tonkanalOeffnen() {
+    try {
+      if (!klingelCtx) klingelCtx = new AudioContext();
+      if (klingelCtx.state === "suspended") klingelCtx.resume();
+    } catch (err) { /* dann bleibt es beim Balken */ }
+  }
+  ["pointerdown", "keydown"].forEach((art) =>
+    document.addEventListener(art, tonkanalOeffnen, {once: true, capture: true}));
+
+  function tonSchlagen() {
+    try {
+      if (!klingelCtx) klingelCtx = new AudioContext();
+      if (klingelCtx.state === "suspended") klingelCtx.resume();
+      const t = klingelCtx.currentTime;
+      // Zwei kurze Toene, wie ein Telefon
+      [0, 0.42].forEach((versatz) => {
+        const o = klingelCtx.createOscillator();
+        const g = klingelCtx.createGain();
+        o.type = "sine";
+        o.frequency.value = 660;
+        g.gain.setValueAtTime(0, t + versatz);
+        g.gain.linearRampToValueAtTime(0.16, t + versatz + 0.03);
+        g.gain.linearRampToValueAtTime(0, t + versatz + 0.34);
+        o.connect(g);
+        g.connect(klingelCtx.destination);
+        o.start(t + versatz);
+        o.stop(t + versatz + 0.36);
+      });
+    } catch (err) { /* ohne Ton bleibt der Balken sichtbar */ }
+  }
+
+  function klingelnStarten() {
+    if (klingelUhr) return;
+    klingelSeit = Date.now();
+    const schlag = () => {
+      if (Date.now() - klingelSeit > KLINGEL_MAX_MS) { klingelnStoppen(); return; }
+      tonSchlagen();
+      if (navigator.vibrate) {
+        try { navigator.vibrate([320, 180, 320]); } catch (err) { /* egal */ }
+      }
+    };
+    schlag();
+    klingelUhr = setInterval(schlag, 2400);
+  }
+
+  function klingelnStoppen() {
+    if (klingelUhr) { clearInterval(klingelUhr); klingelUhr = null; }
+    if (navigator.vibrate) {
+      try { navigator.vibrate(0); } catch (err) { /* egal */ }
+    }
+  }
+
+  /** Der erste laufende Anruf in einer meiner Unterhaltungen, bei dem ich
+   *  nicht mitmache - unabhaengig davon, welcher Chat gerade offen ist. */
+  function eingehenderAnruf() {
+    if (imAnruf()) return null;
+    return (state.rooms || []).find((r) =>
+      r.anruf && r.anruf.wer && r.anruf.wer.length
+      && !r.anruf.wer.includes(ME)) || null;
+  }
+
+  let zuletztGeklingelt = null;
+
   function klingelZeigen() {
-    const balken = $("klingel");
-    const raum = currentRoom ? roomById(currentRoom) : null;
-    const laeuft = raum && raum.anruf && !imAnruf()
-      && raum.anruf.wer.some((u) => u !== ME);
-    balken.hidden = !laeuft;
-    if (!laeuft) return;
+    const balken = $("anruf-ruf");
+    const raum = eingehenderAnruf();
+    balken.hidden = !raum;
+    if (!raum) {
+      klingelnStoppen();
+      zuletztGeklingelt = null;
+      return;
+    }
     const namen = raum.anruf.wer
       .map((u) => (raum.members.find((m) => m.id === u) || {}).display_name)
       .filter(Boolean).join(", ");
-    $("klingel-text").textContent =
-      `${raum.anruf.art === "video" ? "Videoanruf" : "Anruf"} läuft – ${namen}`;
+    $("ruf-titel").textContent =
+      raum.anruf.art === "video" ? "Videoanruf" : "Anruf";
+    $("ruf-sub").textContent = `${raum.name} · ${namen}`;
+    // Nur bei einem neuen Anruf von vorn laeuten, nicht bei jeder Meldung
+    const kennung = `${raum.id}:${raum.anruf.seit}`;
+    if (zuletztGeklingelt !== kennung) {
+      zuletztGeklingelt = kennung;
+      klingelnStoppen();
+      klingelnStarten();
+    }
   }
+
+  $("ruf-annehmen").addEventListener("click", async () => {
+    const raum = eingehenderAnruf();
+    if (!raum) return;
+    klingelnStoppen();
+    if (currentRoom !== raum.id) await openRoom(raum.id);
+    anrufStarten(raum.anruf.art || "audio");
+  });
+
+  $("ruf-ablehnen").addEventListener("click", () => {
+    const raum = eingehenderAnruf();
+    klingelnStoppen();
+    $("anruf-ruf").hidden = true;
+    if (raum) socket.emit("anruf_ablehnen", {room_id: raum.id});
+  });
 
   function anrufFensterZeigen(an) {
     $("anruf-fenster").hidden = !an;
@@ -2259,14 +2363,6 @@
   $("btn-anruf").addEventListener("click", () => anrufStarten("audio"));
   $("btn-video").addEventListener("click", () => anrufStarten("video"));
   $("btn-anruf-auflegen").addEventListener("click", anrufBeenden);
-  $("klingel-annehmen").addEventListener("click", () => {
-    const raum = roomById(currentRoom);
-    anrufStarten(raum && raum.anruf ? raum.anruf.art : "audio");
-  });
-  $("klingel-ablehnen").addEventListener("click", () => {
-    socket.emit("anruf_ablehnen", {room_id: currentRoom});
-    $("klingel").hidden = true;
-  });
 
   $("btn-anruf-stumm").addEventListener("click", () => {
     if (!anruf.eigen) return;
