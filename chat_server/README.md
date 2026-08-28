@@ -46,35 +46,84 @@ Danach `external_url: https://chat.biker633.org` setzen und das Add-on neu start
 
 ## Nachrichten aus Home Assistant
 
-Das Add-on legt ein Konto „Home Assistant" an. Über `POST /api/notify` schreibt
-eine Automation in eine Gruppe oder direkt an eine Person. Das Token steht in der
-Option `api_token`; bleibt sie leer, wird beim ersten Start eines erzeugt und
-in `/data/api_token.txt` abgelegt (im Log steht nur der Pfad, nicht das Token).
+Das Add-on legt ein Konto „Home Assistant“ an. Über `POST /api/notify` schreibt
+eine Automation in eine Gruppe oder direkt an eine Person.
+
+Das **Token** findest du als Administrator unter **… → Einstellungen → Home
+Assistant** zum Kopieren. Alternativ setzt du die Add-on-Option `api_token`
+auf einen eigenen Wert – dann kennst du es ohnehin.
+
+In `secrets.yaml`:
 
 ```yaml
-# configuration.yaml
+chat_token: "Bearer DEIN-TOKEN"
+```
+
+Das `Bearer ` davor gehört mit hinein, es ist Teil des Kopfzeilenwerts.
+
+In `configuration.yaml` zwei Dienste – einer für den Alltag, einer für
+Dringendes:
+
+```yaml
 rest_command:
   chat_nachricht:
     url: "http://172.30.32.1:8099/api/notify"
     method: POST
     headers:
-      Authorization: !secret chat_token   # "Bearer <token>"
+      Authorization: !secret chat_token
       Content-Type: application/json
     payload: '{"room": "{{ room }}", "message": "{{ message }}"}'
+
+  chat_alarm:
+    url: "http://172.30.32.1:8099/api/notify"
+    method: POST
+    headers:
+      Authorization: !secret chat_token
+      Content-Type: application/json
+    payload: '{"room": "{{ room }}", "message": "{{ message }}", "always": true}'
 ```
+
+Die interne Adresse `172.30.32.1:8099` ist Absicht: So bleibt der Aufruf im
+Haus und hängt nicht am Tunnel.
+
+### In einer Automation
 
 ```yaml
-# Automation
-action:
-  - service: rest_command.chat_nachricht
+actions:
+  - action: rest_command.chat_nachricht
     data:
-      room: Familie          # Gruppenname oder Benutzername
-      message: "Waschmaschine ist fertig"
+      room: Familie          # Gruppenname, Benutzername oder Anzeigename
+      message: "Die Waschmaschine ist fertig"
 ```
 
-Ist `room` ein Benutzername, entsteht beim ersten Mal automatisch ein Direktchat
-mit „Home Assistant". Ist niemand online, geht die Nachricht zusätzlich als Push
-aufs Handy.
+**Häufige Stolperfalle:** Der Editor legt `data: {}` als Platzhalter an. Sobald
+eigene Felder dazukommen, müssen die geschweiften Klammern weg – sonst meldet
+er „bad indentation of a mapping entry“:
+
+```yaml
+data: {}                     # FALSCH, wenn darunter Felder folgen
+  room: "Familie"
+
+data:                        # RICHTIG
+  room: "Familie"
+```
+
+`metadata: {}` bleibt unverändert stehen, dort gehört nichts hinein. Ältere
+Automationen mit `service:` statt `action:` funktionieren weiterhin.
+
+### Wer eine Benachrichtigung bekommt
+
+Wer den Chat gerade offen hat, bekommt **keine** Benachrichtigung – die
+Nachricht steht dann nur im Verlauf. Für Meldungen, die niemand verpassen
+darf, nimmst du `chat_alarm` mit `"always": true`; dann klingelt es auch bei
+offener App.
+
+Die Antwort nennt unter `pushed`, an wie viele Geräte die Benachrichtigung
+ging. Steht dort `0`, obwohl eine erwartet wurde, hat der Empfänger entweder
+Push nicht eingeschaltet oder die App offen.
+
+Ist `room` ein Benutzername, entsteht beim ersten Mal automatisch ein
+Direktchat mit „Home Assistant“.
 
 ## Zugang beantragen
 
