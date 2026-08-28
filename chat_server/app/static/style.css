@@ -991,7 +991,8 @@ audio.abspieler { width: min(260px, 100%); }
   text-transform: uppercase;
   color: var(--muted);
 }
-.abschnitt-kopf span { flex: 1; }
+/* Nur der Titel dehnt sich - die Zahl daneben bleibt schmal */
+.abschnitt-kopf > span:first-child { flex: 1; }
 .abschnitt-leer { padding: 2px 16px 11px; font-size: 12px; color: var(--muted); }
 .mini-btn {
   background: transparent;
@@ -1259,3 +1260,26 @@ audio.abspieler { width: min(260px, 100%); }
 .ev-ortstand { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .ev-ortstand .hint { flex: 1; margin: 0; }
 .row.schmal { display: flex; gap: 6px; margin-top: 6px; }
+
+/* Drei Zeilen zeigen, der Rest scrollt */
+.scrollt {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+  /* Der angeschnittene Rand macht sichtbar, dass es weitergeht */
+  box-shadow: inset 0 -12px 12px -12px rgba(0, 0, 0, 0.55);
+}
+.scrollt::-webkit-scrollbar { width: 6px; }
+.scrollt::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+.kopf-zahl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 1px 7px;
+}

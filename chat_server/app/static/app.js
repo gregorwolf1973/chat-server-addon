@@ -1194,6 +1194,32 @@
       }));
   }
 
+  // Hoechstens drei Zeilen zeigen, der Rest ist scrollbar. Die Hoehe wird
+  // gemessen statt geraten: eine Stimmungsmeldung mit langem Text ist hoeher
+  // als eine kurze, ein fester Wert wuerde die dritte Zeile anschneiden.
+  const SICHTBARE_ZEILEN = 3;
+
+  function aufDreiBegrenzen(liste) {
+    if (!liste) return;
+    liste.style.maxHeight = "";
+    liste.classList.remove("scrollt");
+    const kinder = [...liste.children];
+    if (kinder.length <= SICHTBARE_ZEILEN) return;
+    const oben = kinder[0].getBoundingClientRect().top;
+    const unten = kinder[SICHTBARE_ZEILEN - 1].getBoundingClientRect().bottom;
+    const hoehe = Math.ceil(unten - oben);
+    // Im ausgeblendeten Abschnitt sind alle Rechtecke leer - dann lieber
+    // nichts setzen als eine Hoehe von null.
+    if (hoehe <= 0) return;
+    liste.style.maxHeight = hoehe + "px";
+    liste.classList.add("scrollt");
+  }
+
+  function kopfZahl(id, anzahl) {
+    const el = $(id);
+    if (el) el.textContent = anzahl > SICHTBARE_ZEILEN ? String(anzahl) : "";
+  }
+
   function renderKarten() {
     const liste = $("karten-liste");
     if (!liste) return;
@@ -1325,6 +1351,8 @@
         </div>
       </div>
     </div>`).join("");
+    kopfZahl("stimmung-zahl", alle.length);
+    aufDreiBegrenzen(liste);
     liste.querySelectorAll("[data-mit]").forEach((b) =>
       b.addEventListener("click", async () => {
         const res = await api(`/api/stimmung/${b.dataset.mit}/mit`, {method: "POST"});
@@ -1393,7 +1421,9 @@
     if (!res.ok) return;
     const ev = await res.json();
     if (kasten) kasten.outerHTML = eventHtml(ev);
-    renderTermine();
+    // Nachladen statt nur neu zeichnen: sagt jemand anders einen Termin ab,
+    // stuende er sonst weiter in meiner Seitenleiste.
+    terminLaden();
   }
 
   // Antworten und Absagen - überall dort, wo eine Terminkarte steht
@@ -1685,6 +1715,8 @@
         ev.meine ? ` · du: ${{ja: "dabei", nein: "abgesagt",
                               vielleicht: "vielleicht"}[ev.meine]}` : ""}</div>
     </div>`).join("");
+    kopfZahl("termin-zahl", alle.length);
+    aufDreiBegrenzen(liste);
     liste.querySelectorAll(".termin-zeile").forEach((el) =>
       el.addEventListener("click", () => terminAnsicht(parseInt(el.dataset.id, 10))));
     // Die Zahl neben der Live-Karte zaehlt Einladungen mit
@@ -2525,6 +2557,13 @@
   // Die Restzeiten laufen ab, ohne dass der Server etwas schickt. Einmal je
   // Minute neu zeichnen genuegt - abgelaufene Eintraege fallen dabei heraus.
   setInterval(() => { renderKarten(); renderStimmung(); }, 60000);
+
+  // Bei geaenderter Breite brechen die Texte anders um, die drei Zeilen sind
+  // dann anders hoch.
+  window.addEventListener("resize", () => {
+    aufDreiBegrenzen($("stimmung-liste"));
+    aufDreiBegrenzen($("termin-liste"));
+  });
 
   weltkarteLaden();
   terminLaden();

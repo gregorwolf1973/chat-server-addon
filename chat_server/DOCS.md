@@ -337,6 +337,14 @@ Servern nachgeladen**.
 
 Auch hier gilt: Der Browser gibt den Standort **nur über HTTPS** heraus.
 
+## Die Seitenleiste bleibt kurz
+
+**Stimmung** und **Termine** zeigen höchstens drei Zeilen; darüber hinaus
+lässt sich in der Liste scrollen. Neben der Überschrift steht dann, wie viele
+es insgesamt sind. Die Höhe des Fensters wird gemessen, nicht geraten – eine
+Stimmungsmeldung mit langem Text ist höher als eine kurze, ein fester Wert
+würde die dritte Zeile anschneiden.
+
 ## Straßenkarte oder Umrisse
 
 Es gibt zwei Karten im Chat, und der Unterschied ist Absicht:

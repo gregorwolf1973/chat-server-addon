@@ -1,5 +1,14 @@
 # Änderungsverlauf
 
+## 0.20.0
+
+- **Stimmung** und **Termine** zeigen in der Seitenleiste hoechstens drei
+  Zeilen, darueber hinaus wird gescrollt. Neben der Ueberschrift steht die
+  Gesamtzahl
+- Ein abgesagter Termin verschwand nicht aus der Seitenleiste, wenn jemand
+  anders ihn absagte: die Anzeige wurde aus dem alten Stand neu gezeichnet,
+  statt ihn nachzuladen
+
 ## 0.19.0
 
 - **Filter auf der Live-Karte**: nach Zeitraum (Heute, Morgen, 7 Tage, Alles)
