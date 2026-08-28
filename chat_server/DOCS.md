@@ -95,6 +95,21 @@ Am eigenen Konto steht nur **Passwort** zur Verfügung, und der letzte
 verbliebene Administrator lässt sich weder entmachten noch sperren – sonst
 könnte niemand mehr Konten verwalten.
 
+## Bilder und Dateien
+
+Der Knopf **Medien** unten links öffnet alles, was in deinen Unterhaltungen
+geteilt wurde – Bilder als Raster, Dateien als Liste, jeweils mit Absender,
+Unterhaltung und Zeitpunkt. Über die Auswahl oben lässt sich auf eine
+einzelne Unterhaltung einschränken.
+
+Sichtbar ist nur, was ohnehin sichtbar wäre: Medien aus Unterhaltungen, in
+denen du Mitglied bist.
+
+Beim Löschen verschwindet die Datei aus dem Verlauf **und vom Server** – die
+Bytes bleiben nicht liegen. Eigene Dateien darf jeder löschen, fremde nur ein
+Administrator. Dasselbe gilt, wenn du eine Nachricht mit Anhang löschst: der
+Anhang geht mit.
+
 ## Antworten und Löschen
 
 * Auf eine Sprechblase tippen blendet **Antworten** und **Löschen** ein.

@@ -1,5 +1,15 @@
 # Änderungsverlauf
 
+## 0.4.0
+
+- **Medienübersicht** über den Knopf **Medien**: alle Bilder und Dateien aus
+  den eigenen Unterhaltungen, als Raster und Liste, mit Absender, Unterhaltung
+  und Zeitpunkt – wahlweise über alle Chats oder auf einen eingeschränkt
+- Gelöschte Dateien verschwinden jetzt auch **von der Platte**. Bisher blieben
+  die Bytes in `/data/uploads` liegen, obwohl die Nachricht als gelöscht galt
+- Wer eine Nachricht mit Anhang löscht, löscht damit auch den Anhang
+- Eigene Dateien darf jeder entfernen, fremde nur ein Administrator
+
 ## 0.3.1
 
 - Die Verbindung wird jetzt wie vorgesehen erst über Polling aufgebaut und

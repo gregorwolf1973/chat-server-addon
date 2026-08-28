@@ -26,7 +26,9 @@ PYTHONPATH=tests .venv/bin/python tests/test_security.py
 kill %1
 ```
 
-Danach dasselbe für `tests/test_users.py`.
+Danach dasselbe für `tests/test_users.py` und `tests/test_media.py`.
+`test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
+dafür dasselbe `DATA_DIR` wie der Server.
 
 **Warum kein Skript, das beides hintereinander erledigt?** Weil der eingebaute
 Werkzeug-Server das nicht mitmacht. Die Reihen beenden sich hart – sonst
@@ -50,6 +52,14 @@ das durch Altbestände fehl.
 * `nosniff` und eine enge CSP auf der Datei-Route.
 * Fremde Datei-IDs lassen sich nicht an eigene Nachrichten hängen.
 * Die Pfade im PWA-Manifest lösen auf existierende Adressen auf.
+
+`test_media.py` (19 Prüfungen)
+
+* Sichtbar sind nur Medien aus Unterhaltungen, in denen man Mitglied ist.
+* Der Filter je Unterhaltung.
+* Eigene Dateien löschen, fremde nur als Administrator.
+* Gelöschte Dateien verschwinden auch von der Platte, und eine gelöschte
+  Nachricht nimmt ihren Anhang mit.
 
 `test_users.py` (35 Prüfungen)
 

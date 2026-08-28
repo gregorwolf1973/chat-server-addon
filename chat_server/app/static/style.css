@@ -441,3 +441,87 @@ button { cursor: pointer; }
   .urow { flex-direction: column; align-items: flex-start; }
 }
 .hint.inline { margin: 0; align-self: center; font-size: 11px; }
+
+/* ---------- Medienverwaltung ---------- */
+.modal.wide { max-width: 760px; }
+
+.media-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.media-head h2 { margin: 0; flex: 1; }
+.media-filter {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  max-width: 55%;
+}
+
+.media-body { max-height: 62vh; overflow-y: auto; }
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 8px;
+}
+.media-cell {
+  position: relative;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.media-cell img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+.media-cell figcaption {
+  padding: 5px 7px;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.media-del {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(14, 20, 22, 0.78);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.media-del:hover { background: var(--danger); }
+
+.media-files { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.media-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.media-row .file-link { flex: 1; min-width: 0; }
+.media-meta { font-size: 11px; color: var(--muted); }
+.media-row .act { position: static; opacity: 1; pointer-events: auto; }
+
+@media (max-width: 520px) {
+  .media-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  .media-filter { max-width: 100%; }
+}

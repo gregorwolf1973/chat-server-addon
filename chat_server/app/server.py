@@ -933,6 +933,110 @@ def api_file(file_id):
     return resp
 
 
+# --------------------------------------------------------------------------
+# Medien
+# --------------------------------------------------------------------------
+def datei_aufraeumen(conn, file_id):
+    """Datensatz und Blob entfernen, sofern keine Nachricht mehr daran haengt."""
+    noch_benutzt = conn.execute(
+        "SELECT 1 FROM messages WHERE file_id=?", (file_id,)).fetchone()
+    if noch_benutzt:
+        return False
+    row = conn.execute("SELECT stored_name FROM files WHERE id=?",
+                       (file_id,)).fetchone()
+    if row is None:
+        return False
+    conn.execute("DELETE FROM files WHERE id=?", (file_id,))
+    conn.commit()
+    pfad = os.path.join(UPLOAD_DIR, row["stored_name"])
+    try:
+        os.remove(pfad)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:  # noqa: BLE001
+        log.warning("Datei %s liess sich nicht entfernen: %s", pfad, exc)
+    return True
+
+
+MEDIA_QUERY = (
+    "SELECT f.id, f.orig_name, f.mime, f.size, f.user_id,"
+    " m.id AS msg_id, m.room_id, m.created_at AS at,"
+    " u.display_name AS author"
+    " FROM files f"
+    " JOIN messages m ON m.file_id=f.id"
+    " JOIN room_members rm ON rm.room_id=m.room_id AND rm.user_id=?"
+    " JOIN users u ON u.id=m.user_id"
+    " WHERE m.deleted=0")
+
+
+@app.get("/api/media")
+@login_required
+def api_media():
+    """Alle Dateien aus den Unterhaltungen, in denen ich Mitglied bin.
+
+    Der Raumname kommt nicht mit - den kennt die Oberflaeche bereits aus
+    /api/state, und fuer Direktchats haengt er ohnehin davon ab, wer fragt.
+    """
+    me = current_user()
+    raum = request.args.get("room", type=int)
+    grenze = min(request.args.get("limit", 300, type=int), 1000)
+    args = [me["id"]]
+    sql = MEDIA_QUERY
+    if raum:
+        sql += " AND m.room_id=?"
+        args.append(raum)
+    sql += " ORDER BY m.id DESC LIMIT ?"
+    args.append(grenze)
+    rows = db().execute(sql, args).fetchall()
+    return jsonify([{
+        "id": r["id"],
+        "name": r["orig_name"],
+        "mime": r["mime"],
+        "size": r["size"],
+        "room_id": r["room_id"],
+        "message_id": r["msg_id"],
+        "at": r["at"],
+        "author": r["author"],
+        "mine": r["user_id"] == me["id"],
+        "can_delete": bool(r["user_id"] == me["id"] or me["is_admin"]),
+    } for r in rows])
+
+
+@app.delete("/api/media/<int:file_id>")
+@login_required
+def api_delete_media(file_id):
+    """Datei entfernen - aus dem Verlauf und von der Platte.
+
+    Die zugehoerige Nachricht wird wie beim Loeschen einer Nachricht als
+    geloescht markiert, damit im Verlauf kein leerer Platz entsteht.
+    """
+    me = current_user()
+    conn = db()
+    row = conn.execute("SELECT * FROM files WHERE id=?", (file_id,)).fetchone()
+    if row is None:
+        return jsonify({"error": "Diese Datei gibt es nicht."}), 404
+
+    nachrichten = conn.execute(
+        "SELECT m.id, m.room_id FROM messages m"
+        " JOIN room_members rm ON rm.room_id=m.room_id AND rm.user_id=?"
+        " WHERE m.file_id=?", (me["id"], file_id)).fetchall()
+    if not nachrichten and row["user_id"] != me["id"]:
+        return jsonify({"error": "Diese Datei gibt es nicht."}), 404
+    if row["user_id"] != me["id"] and not me["is_admin"]:
+        return jsonify({"error": "Fremde Dateien darf nur ein Administrator "
+                                 "loeschen."}), 403
+
+    conn.execute("UPDATE messages SET deleted=1, body='', file_id=NULL"
+                 " WHERE file_id=?", (file_id,))
+    conn.commit()
+    datei_aufraeumen(conn, file_id)
+
+    for n in nachrichten:
+        socketio.emit("message_deleted", {"id": n["id"], "room_id": n["room_id"]},
+                      to=f"room:{n['room_id']}")
+    return jsonify({"ok": True})
+
+
 @app.post("/api/push/subscribe")
 @login_required
 def api_push_subscribe():
@@ -962,6 +1066,10 @@ def api_delete_message(msg_id):
     db().execute("UPDATE messages SET deleted=1, body='', file_id=NULL WHERE id=?",
                  (msg_id,))
     db().commit()
+    # Haengt an der Nachricht eine Datei und nutzt sie sonst niemand mehr,
+    # verschwindet sie mit - sonst blieben die Bytes fuer immer in /data liegen.
+    if row["file_id"]:
+        datei_aufraeumen(db(), row["file_id"])
     socketio.emit("message_deleted", {"id": msg_id, "room_id": row["room_id"]},
                   to=f"room:{row['room_id']}")
     return jsonify({"ok": True})

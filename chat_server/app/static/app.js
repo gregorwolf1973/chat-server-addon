@@ -553,6 +553,87 @@
     });
   }
 
+  // ---------- Medien ----------
+  let medienRaum = 0;  // 0 = alle Unterhaltungen
+
+  $("btn-media").addEventListener("click", () => {
+    medienRaum = currentRoom || 0;
+    medienDialog();
+  });
+
+  function medienDialog() {
+    const optionen = state.rooms
+      .map((r) => `<option value="${r.id}" ${r.id === medienRaum ? "selected" : ""}>${esc(r.name)}</option>`)
+      .join("");
+    const root = modal(`<div class="media-head">
+        <h2>Bilder und Dateien</h2>
+        <select id="md-room" class="media-filter">
+          <option value="0" ${medienRaum ? "" : "selected"}>Alle Unterhaltungen</option>
+          ${optionen}
+        </select>
+      </div>
+      <div id="md-body" class="media-body"><p class="hint">Wird geladen …</p></div>
+      <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
+    root.querySelector(".modal").classList.add("wide");
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelector("#md-room").addEventListener("change", (e) => {
+      medienRaum = parseInt(e.target.value, 10);
+      ladeMedien(root);
+    });
+    ladeMedien(root);
+  }
+
+  async function ladeMedien(root) {
+    const box = root.querySelector("#md-body");
+    const res = await api("/api/media" + (medienRaum ? `?room=${medienRaum}` : ""));
+    if (!res.ok) { box.innerHTML = '<p class="hint">Konnte nicht geladen werden.</p>'; return; }
+    const alle = await res.json();
+    if (!alle.length) {
+      box.innerHTML = '<p class="hint">Hier wurde noch nichts geteilt.</p>';
+      return;
+    }
+    const bilder = alle.filter((m) => (m.mime || "").startsWith("image/"));
+    const dateien = alle.filter((m) => !(m.mime || "").startsWith("image/"));
+    const raumName = (id) => roomById(id)?.name || "Unterhaltung";
+    const herkunft = (m) => `${esc(m.author)} · ${medienRaum ? "" : esc(raumName(m.room_id)) + " · "}${shortTime(m.at)}`;
+
+    box.innerHTML = `
+      ${bilder.length ? `<div class="media-grid">${bilder.map((m) => `
+        <figure class="media-cell" data-id="${m.id}">
+          <a href="${BASE}/files/${m.id}" target="_blank" rel="noopener">
+            <img src="${BASE}/files/${m.id}" alt="${esc(m.name)}" loading="lazy">
+          </a>
+          <figcaption>${herkunft(m)}</figcaption>
+          ${m.can_delete ? '<button class="media-del" data-act="del" title="Löschen">✕</button>' : ""}
+        </figure>`).join("")}</div>` : ""}
+      ${dateien.length ? `<div class="media-files">${dateien.map((m) => `
+        <div class="media-row" data-id="${m.id}">
+          <a class="file-link" href="${BASE}/files/${m.id}?dl=1">📄 <span>${esc(m.name)}</span>
+            <span class="fsize">${fileSize(m.size)}</span></a>
+          <span class="media-meta">${herkunft(m)}</span>
+          ${m.can_delete ? '<button class="act del" data-act="del">Löschen</button>' : ""}
+        </div>`).join("")}</div>` : ""}`;
+
+    box.querySelectorAll('[data-act="del"]').forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        const el = btn.closest("[data-id]");
+        const eintrag = alle.find((m) => m.id === parseInt(el.dataset.id, 10));
+        if (!confirm(`„${eintrag.name}“ endgültig löschen?\n\n`
+                     + "Die Datei verschwindet aus der Unterhaltung und wird vom "
+                     + "Server entfernt. Das lässt sich nicht rückgängig machen."))
+          return;
+        const res = await api(`/api/media/${eintrag.id}`, {method: "DELETE"});
+        if (!res.ok) {
+          const daten = await res.json().catch(() => ({}));
+          toast(daten.error || "Löschen fehlgeschlagen.");
+          return;
+        }
+        toast("Datei gelöscht.");
+        ladeMedien(root);
+        if (eintrag.room_id === currentRoom) openRoom(currentRoom);
+      }));
+  }
+
   // ---------- Push ----------
   const b64 = (s) => {
     const pad = "=".repeat((4 - (s.length % 4)) % 4);
