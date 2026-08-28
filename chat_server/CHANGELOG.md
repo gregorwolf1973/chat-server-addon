@@ -1,5 +1,14 @@
 # Änderungsverlauf
 
+## 0.29.0
+
+- **Muster statt Foto** als Hintergrund: Punkte, Karo, Wellen, Kreuze,
+  Blaetter oder Kritzel. Ein Foto hinter dem Text war unruhig
+- Das Muster **bleibt beim Blaettern stehen** - es sitzt auf der
+  Unterhaltung, nicht auf der scrollenden Nachrichtenliste
+- Es nimmt seine Farbe aus dem Aussehen und wird im Browser gezeichnet; auf
+  dem Pi liegt dafuer keine Datei mehr
+
 ## 0.28.1
 
 - **Bedienung am Telefon**: Schaltflaechen waren 13 bis 32 Pixel hoch, ein

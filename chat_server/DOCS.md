@@ -587,19 +587,22 @@ deine Daten aus, sondern nur, wie hell dein Bildschirm gerade sein soll.
 Die Helligkeit wird schon gesetzt, bevor die Seite gezeichnet wird; sonst
 blitzte beim Laden kurz die falsche auf.
 
-## Hintergrundbild
+## Hintergrundmuster
 
 In den Angaben zur Unterhaltung (Tipp auf das Bild oben) lässt sich ein
-**Hintergrundbild** wählen. Es gilt **nur für dich** – andere sehen ihren
-eigenen Hintergrund oder gar keinen. Das Bild wird vor dem Hochladen auf
-1440 Pixel verkleinert.
+**Muster** wählen: Punkte, Karo, Wellen, Kreuze, Blätter oder Kritzel – oder
+keins. Es gilt **nur für dich**; andere sehen ihr eigenes.
 
-Über dem Bild liegt ein Schleier, sonst wäre Text auf einem hellen Foto nicht
-mehr zu lesen; Sprechblasen und Tagestrenner bekommen dort einen festen
-Grund.
+Es ist ausdrücklich **kein Foto**, sondern ein gezeichnetes Muster – so wie
+bei WhatsApp. Es liegt still im Hintergrund, nimmt seine Farbe aus dem
+gewählten Aussehen und **wandert beim Blättern nicht mit**: Es sitzt auf der
+Unterhaltung, nicht auf der Liste der Nachrichten, die scrollt.
 
-Die frühere **Farbeinstellung je Unterhaltung ist entfallen** – das
-Hintergrundbild tritt an ihre Stelle.
+Auf dem Pi liegt dafür keine einzige Datei – das Muster wird im Browser
+gezeichnet.
+
+Die frühere **Farbeinstellung je Unterhaltung ist entfallen** – das Muster
+tritt an ihre Stelle.
 
 ## Bilder und Dateien
 

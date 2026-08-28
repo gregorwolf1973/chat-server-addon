@@ -2353,6 +2353,8 @@
     if (wert === "auto") document.documentElement.removeAttribute("data-thema");
     else document.documentElement.setAttribute("data-thema", wert);
     // Die Leiste des Browsers soll mitgehen
+    // Das Muster nimmt seine Farbe aus dem Aussehen - beim Wechseln neu zeichnen
+    if (currentRoom) hintergrundAnwenden(roomById(currentRoom));
     const marke = document.querySelector('meta[name="theme-color"]');
     if (marke) {
       marke.content = getComputedStyle(document.documentElement)
@@ -2360,71 +2362,94 @@
     }
   }
 
-  // ---------- Hintergrundbild ----------
-  // Es gilt nur fuer den, der es setzt - so wie vorher die Farbe. Ueber dem
-  // Bild liegt ein Schleier, sonst waeren Tagestrenner und heller Text auf
-  // einem hellen Foto nicht mehr zu lesen.
+  // ---------- Hintergrundmuster ----------
+  // Kein hochgeladenes Foto, sondern ein gezeichnetes Muster - so wie bei
+  // WhatsApp. Es liegt auf der Unterhaltung selbst, nicht auf der Liste der
+  // Nachrichten, und wandert deshalb beim Blaettern nicht mit.
+  const MUSTER = {
+    punkte: {name: "Punkte", kante: 26,
+      pfad: '<circle cx="13" cy="13" r="1.9"/>'},
+    karo: {name: "Karo", kante: 34,
+      pfad: '<path d="M17 3 L31 17 L17 31 L3 17 Z" fill="none"'
+            + ' stroke-width="1.4"/>'},
+    wellen: {name: "Wellen", kante: 40,
+      pfad: '<path d="M0 20 q10 -9 20 0 q10 9 20 0" fill="none"'
+            + ' stroke-width="1.5"/>'},
+    kreuze: {name: "Kreuze", kante: 28,
+      pfad: '<path d="M14 8 V20 M8 14 H20" stroke-width="1.6"/>'},
+    blaetter: {name: "Blätter", kante: 44,
+      pfad: '<path d="M22 10 q9 6 0 14 q-9 -8 0 -14 Z" fill="none"'
+            + ' stroke-width="1.3"/><path d="M22 12 V22" stroke-width="1"/>'},
+    kritzel: {name: "Kritzel", kante: 60,
+      pfad: '<circle cx="12" cy="14" r="4.5" fill="none" stroke-width="1.3"/>'
+            + '<path d="M34 10 l4 7 -8 0 Z" fill="none" stroke-width="1.3"/>'
+            + '<path d="M46 34 q5 -6 9 0" fill="none" stroke-width="1.3"/>'
+            + '<path d="M14 42 h11 M19.5 36.5 v11" stroke-width="1.3"/>'
+            + '<circle cx="46" cy="14" r="1.8"/>'
+            + '<path d="M30 46 q4 -5 8 0 q-4 6 -8 0 Z" fill="none"'
+            + ' stroke-width="1.2"/>'},
+  };
+
+  /** Das Muster als Bildadresse. Die Farbe kommt aus dem Aussehen, damit es
+   *  hell wie dunkel dezent bleibt. */
+  function musterBild(name) {
+    const m = MUSTER[name];
+    if (!m) return "";
+    const farbe = getComputedStyle(document.documentElement)
+      .getPropertyValue("--musterfarbe").trim() || "rgba(255,255,255,0.06)";
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${m.kante}"`
+      + ` height="${m.kante}" viewBox="0 0 ${m.kante} ${m.kante}">`
+      + `<g fill="${farbe}" stroke="${farbe}" stroke-linecap="round">`
+      + m.pfad + `</g></svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  }
+
   function hintergrundAnwenden(room) {
-    const box = $("messages");
-    if (!box) return;
-    if (room && room.hintergrund) {
-      const url = `${BASE}/hintergrund/${room.id}`
-        + `?v=${encodeURIComponent(room.hintergrund)}`;
-      box.style.backgroundImage =
-        `linear-gradient(var(--bg-schleier), var(--bg-schleier)), url("${url}")`;
-      box.classList.add("mit-bild");
+    // Das Muster sitzt auf der Unterhaltung, nicht auf der Nachrichtenliste -
+    // sonst wuerde es beim Blaettern mitwandern.
+    const flaeche = document.querySelector(".chat");
+    if (!flaeche) return;
+    const name = room && room.hintergrund;
+    if (name && MUSTER[name]) {
+      flaeche.style.backgroundImage = musterBild(name);
+      flaeche.style.backgroundRepeat = "repeat";
     } else {
-      box.style.backgroundImage = "";
-      box.classList.remove("mit-bild");
+      flaeche.style.backgroundImage = "";
     }
   }
 
-  /** Auf 1440 Pixel lange Kante bringen - ein Foto vom Telefon hat sonst
-   *  mehrere Megabyte, und der Pi soll das nicht lagern muessen. */
-  function hintergrundVerkleinern(datei, kante = 1440) {
-    return new Promise((fertig, fehler) => {
-      const bild = new Image();
-      bild.onload = () => {
-        const faktor = Math.min(1, kante / Math.max(bild.width, bild.height));
-        const leinwand = document.createElement("canvas");
-        leinwand.width = Math.round(bild.width * faktor);
-        leinwand.height = Math.round(bild.height * faktor);
-        leinwand.getContext("2d").drawImage(bild, 0, 0,
-                                            leinwand.width, leinwand.height);
-        URL.revokeObjectURL(bild.src);
-        leinwand.toBlob((b) => b ? fertig(b) : fehler(new Error("Bild fehlerhaft")),
-                        "image/jpeg", 0.82);
-      };
-      bild.onerror = () => fehler(new Error("Das ist kein lesbares Bild."));
-      bild.src = URL.createObjectURL(datei);
+  function musterWaehlen(room, root) {
+    const feld = root.querySelector("#hg-wahl");
+    if (!feld) return;
+    const knopf = (wert, text) =>
+      `<button class="muster ${(room.hintergrund || "") === wert ? "aktiv" : ""}"
+               type="button" data-muster="${wert}" title="${esc(text)}">${
+        wert ? `<span class="muster-probe" data-p="${wert}"></span>`
+             : '<span class="muster-leer">Keins</span>'}</button>`;
+    feld.innerHTML = knopf("", "Kein Muster")
+      + Object.entries(MUSTER).map(([k, m]) => knopf(k, m.name)).join("");
+    feld.querySelectorAll(".muster-probe").forEach((p) => {
+      p.style.backgroundImage = musterBild(p.dataset.p);
     });
+    feld.querySelectorAll("[data-muster]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const wert = b.dataset.muster;
+        const res = await api(`/api/rooms/${room.id}/hintergrund`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({muster: wert}),
+        });
+        if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
+        room.hintergrund = wert || null;
+        hintergrundAnwenden(room);
+        feld.querySelectorAll("[data-muster]").forEach((x) =>
+          x.classList.toggle("aktiv", x.dataset.muster === wert));
+      }));
   }
 
-  function hintergrundWaehlen(room, fertig) {
-    const feld = document.createElement("input");
-    feld.type = "file";
-    feld.accept = "image/*";
-    feld.addEventListener("change", async () => {
-      const datei = feld.files[0];
-      if (!datei) return;
-      try {
-        const klein = await hintergrundVerkleinern(datei);
-        const fd = new FormData();
-        fd.append("file", klein, "hintergrund.jpg");
-        const res = await api(`/api/rooms/${room.id}/hintergrund`,
-                              {method: "POST", body: fd});
-        const daten = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(daten.error || "Das Bild ging nicht durch."); return; }
-        room.hintergrund = daten.hintergrund;
-        hintergrundAnwenden(room);
-        toast("Hintergrund gesetzt.");
-        if (fertig) fertig();
-      } catch (err) {
-        toast(err.message);
-      }
-    });
-    feld.click();
-  }
+
+  /** Auf 1440 Pixel lange Kante bringen - ein Foto vom Telefon hat sonst
+   *  mehrere Megabyte, und der Pi soll das nicht lagern muessen. */
+
 
   // ---------- Freunde ----------
   // Gegenseitig: eine Anfrage wird erst durch die Zusage der Gegenseite zur
@@ -3243,13 +3268,9 @@
         ${room.avatar ? '<button class="btn ghost" id="a-weg">Bild entfernen</button>' : ""}
       </div>` : ""}
       <hr class="sep">
-      <h2>Hintergrundbild</h2>
-      <p class="hint">Gilt nur für dich – andere sehen ihren eigenen Hintergrund.</p>
-      <div class="row schmal">
-        <button class="btn ghost" id="hg-neu">Bild wählen</button>
-        <button class="btn ghost" id="hg-weg" ${room.hintergrund ? "" : "hidden"}
-          >Hintergrund entfernen</button>
-      </div>
+      <h2>Hintergrundmuster</h2>
+      <p class="hint">Gilt nur für dich – andere sehen ihr eigenes Muster.</p>
+      <div class="musterwahl" id="hg-wahl"></div>
       <hr class="sep">
       <div class="row schmal">
         <button class="btn ghost" id="r-leave">Chat löschen</button>
@@ -3291,18 +3312,7 @@
       raumVerlassen(room.id);
     });
 
-    root.querySelector("#hg-neu").addEventListener("click", () =>
-      hintergrundWaehlen(room, () => {
-        root.querySelector("#hg-weg").hidden = false;
-      }));
-    root.querySelector("#hg-weg").addEventListener("click", async () => {
-      const res = await api(`/api/rooms/${room.id}/hintergrund`, {method: "DELETE"});
-      if (!res.ok) { toast("Das ging nicht."); return; }
-      room.hintergrund = null;
-      hintergrundAnwenden(room);
-      root.querySelector("#hg-weg").hidden = true;
-      toast("Hintergrund entfernt.");
-    });
+    musterWaehlen(room, root);
 
     const neu = root.querySelector("#a-neu");
     if (neu) neu.addEventListener("click", () =>

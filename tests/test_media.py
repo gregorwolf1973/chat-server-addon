@@ -202,54 +202,42 @@ def main():
     letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
     e.pruefe(letzte["ort"] is None, "werden aber verworfen")
 
-    e.abschnitt("Hintergrundbild einer Unterhaltung")
-    import io as _io
-    def hg(sitzung, raum):
+    e.abschnitt("Hintergrundmuster einer Unterhaltung")
+    def muster(sitzung, raum, wert):
         return sitzung.post(f"{BASE}/api/rooms/{raum}/hintergrund",
-                            files={"file": ("hg.png", _io.BytesIO(PNG), "image/png")})
-    r = hg(anna, raum_anna)
-    e.pruefe(r.status_code == 200, f"Anna setzt eins = {r.status_code}")
-    name = r.json().get("hintergrund")
-    e.pruefe(bool(name), "und bekommt seine Kennung zurueck")
-    e.pruefe(anna.get(f"{BASE}/hintergrund/{raum_anna}").status_code == 200,
-             "sie kann es abrufen")
+                            json={"muster": wert})
+    r = muster(anna, raum_anna, "karo")
+    e.pruefe(r.status_code == 200 and r.json()["hintergrund"] == "karo",
+             f"Anna waehlt ein Muster = {r.status_code}")
     dieser = [x for x in anna.get(f"{BASE}/api/state").json()["rooms"]
               if x["id"] == raum_anna][0]
-    e.pruefe(dieser["hintergrund"] == name, "der Startzustand nennt es")
+    e.pruefe(dieser["hintergrund"] == "karo", "der Startzustand nennt es")
     e.pruefe("color" not in dieser, "eine Farbe gibt es nicht mehr")
 
-    # Das Bild gehoert der Person, nicht der Unterhaltung. Im Direktchat
-    # von Anna sitzt der Administrator.
-    e.pruefe(admin.get(f"{BASE}/hintergrund/{raum_anna}").status_code == 404,
-             "das andere Mitglied sieht ihren nicht")
+    # Es gehoert der Person, nicht der Unterhaltung
     anderer = [x for x in admin.get(f"{BASE}/api/state").json()["rooms"]
-               if x["id"] == raum_anna]
-    e.pruefe(anderer and anderer[0]["hintergrund"] is None,
-             "und bekommt ihn auch nicht im Startzustand")
-
-    r = hg(admin, raum_anna)
-    e.pruefe(r.status_code == 200, "er setzt seinen eigenen")
-    e.pruefe(admin.get(f"{BASE}/hintergrund/{raum_anna}").status_code == 200,
-             "und sieht ihn")
-    e.pruefe(anna.get(f"{BASE}/api/state").json()
-             and [x for x in anna.get(f"{BASE}/api/state").json()["rooms"]
-                  if x["id"] == raum_anna][0]["hintergrund"] == name,
+               if x["id"] == raum_anna][0]
+    e.pruefe(anderer["hintergrund"] is None,
+             "das andere Mitglied sieht seins, nicht ihres")
+    muster(admin, raum_anna, "punkte")
+    e.pruefe([x for x in admin.get(f"{BASE}/api/state").json()["rooms"]
+              if x["id"] == raum_anna][0]["hintergrund"] == "punkte",
+             "er waehlt sein eigenes")
+    e.pruefe([x for x in anna.get(f"{BASE}/api/state").json()["rooms"]
+              if x["id"] == raum_anna][0]["hintergrund"] == "karo",
              "Annas bleibt davon unberuehrt")
 
-    e.pruefe(anna.post(f"{BASE}/api/rooms/{raum_bert}/hintergrund",
-                       files={"file": ("hg.png", _io.BytesIO(PNG), "image/png")}
-                       ).status_code == 403,
+    e.pruefe(muster(anna, raum_anna, "regenbogen").status_code == 400,
+             "ein erfundenes Muster wird abgewiesen")
+    e.pruefe(muster(anna, raum_bert, "karo").status_code == 403,
              "in einer fremden Unterhaltung geht es nicht")
-    r = anna.post(f"{BASE}/api/rooms/{raum_anna}/hintergrund",
-                  files={"file": ("text.txt", _io.BytesIO(b"kein Bild"), "text/plain")})
-    e.pruefe(r.status_code == 400, f"und nur Bilder werden genommen = {r.status_code}")
+    r = muster(anna, raum_anna, "")
+    e.pruefe(r.status_code == 200 and r.json()["hintergrund"] is None,
+             "und es laesst sich wieder abwaehlen")
 
-    e.pruefe(anna.delete(f"{BASE}/api/rooms/{raum_anna}/hintergrund"
-                         ).status_code == 200, "entfernen geht")
+    # Es gibt keine Bilddatei mehr - das Muster wird gezeichnet
     e.pruefe(anna.get(f"{BASE}/hintergrund/{raum_anna}").status_code == 404,
-             "danach ist er fort")
-    e.pruefe(admin.get(f"{BASE}/hintergrund/{raum_anna}").status_code == 200,
-             "der des anderen bleibt stehen")
+             "die alte Bildadresse gibt es nicht mehr")
 
     e.abschnitt("Sprachnachrichten")
     ton = hochladen(anna, "sprachnachricht.webm", b"kein echter Ton, reicht hier",

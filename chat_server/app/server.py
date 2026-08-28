@@ -23,7 +23,6 @@ DATA_DIR = os.environ.get("DATA_DIR", "/data")
 DB_PATH = os.path.join(DATA_DIR, "chat.db")
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
 AVATAR_DIR = os.path.join(DATA_DIR, "avatars")
-BG_DIR = os.path.join(DATA_DIR, "hintergruende")
 VAPID_PATH = os.path.join(DATA_DIR, "vapid.json")
 SECRET_PATH = os.path.join(DATA_DIR, "secret.key")
 TOKEN_PATH = os.path.join(DATA_DIR, "api_token.txt")
@@ -312,6 +311,12 @@ GONE_USERNAME = "geloeschtes-konto"
 SYSTEM_USERS = (BOT_USERNAME, GONE_USERNAME)
 
 
+# Hintergrundmuster: kein hochgeladenes Bild, sondern eines aus einer festen
+# Liste. Es wird in der Oberflaeche gezeichnet, liegt also weder als Datei auf
+# dem Pi noch lenkt es vom Text ab.
+MUSTER = ("punkte", "karo", "wellen", "kreuze", "blaetter", "kritzel")
+
+
 def migrate(conn):
     """Fehlende Spalten aelterer Installationen nachziehen."""
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(messages)")}
@@ -351,6 +356,13 @@ def migrate(conn):
         conn.execute("ALTER TABLE room_members ADD COLUMN color TEXT")
     if "hintergrund" not in cols:
         conn.execute("ALTER TABLE room_members ADD COLUMN hintergrund TEXT")
+    else:
+        # Frueher stand hier der Dateiname eines hochgeladenen Bildes. Jetzt
+        # steht dort ein Mustername; alles andere ist wertlos.
+        marks = ",".join("?" * len(MUSTER))
+        conn.execute(f"UPDATE room_members SET hintergrund=NULL"
+                     f" WHERE hintergrund IS NOT NULL"
+                     f" AND hintergrund NOT IN ({marks})", MUSTER)
     conn.commit()
 
 
@@ -376,7 +388,6 @@ def load_api_token():
 def init_db():
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     os.makedirs(AVATAR_DIR, exist_ok=True)
-    os.makedirs(BG_DIR, exist_ok=True)
     conn = raw_db()
     conn.executescript(SCHEMA)
     conn.commit()
@@ -1262,10 +1273,6 @@ def raum_aufraeumen(conn, room_id):
     conn.execute("DELETE FROM events WHERE room_id=?", (room_id,))
     conn.execute("DELETE FROM live_orte WHERE room_id=?", (room_id,))
     conn.execute("DELETE FROM messages WHERE room_id=?", (room_id,))
-    for r in conn.execute(
-            "SELECT hintergrund FROM room_members WHERE room_id=?"
-            " AND hintergrund IS NOT NULL", (room_id,)).fetchall():
-        hintergrund_entfernen(r["hintergrund"])
     conn.execute("DELETE FROM room_members WHERE room_id=?", (room_id,))
     conn.execute("DELETE FROM rooms WHERE id=?", (room_id,))
     conn.commit()
@@ -1877,96 +1884,26 @@ def api_get_poll(poll_id):
 
 
 # --------------------------------------------------------------------------
-# Hintergrundbilder
+# Hintergrundmuster
 # --------------------------------------------------------------------------
-# Das Bild gilt nur fuer den, der es setzt - so wie vorher die Farbe. Jeder
-# mag anderes, und niemand soll es den anderen aufdraengen. Die Oberflaeche
-# verkleinert vorher auf 1440 Pixel; die Grenze hier faengt nur ab, wenn
-# jemand am Browser vorbei etwas Grosses schickt.
-MAX_HINTERGRUND_BYTES = 3 * 1024 * 1024
-
-
-def hintergrund_speichern(datei):
-    mime = safe_mime(datei.mimetype)
-    if mime not in IMAGE_MIMES:
-        return None, "Als Hintergrund geht nur ein Bild (PNG, JPEG, GIF oder WebP)."
-    name = secrets.token_hex(16)
-    pfad = os.path.join(BG_DIR, name)
-    datei.save(pfad)
-    if os.path.getsize(pfad) > MAX_HINTERGRUND_BYTES:
-        os.remove(pfad)
-        return None, "Das Bild ist zu gross."
-    return name, None
-
-
-def hintergrund_entfernen(name):
-    if not name:
-        return
-    try:
-        os.remove(os.path.join(BG_DIR, name))
-    except FileNotFoundError:
-        pass
-    except OSError as exc:  # noqa: BLE001
-        log.warning("Hintergrund %s liess sich nicht entfernen: %s", name, exc)
-
-
-@app.get("/hintergrund/<int:room_id>")
-@login_required
-def api_hintergrund(room_id):
-    """Mein Hintergrund fuer diese Unterhaltung - niemand sieht einen fremden."""
-    row = db().execute(
-        "SELECT hintergrund FROM room_members WHERE room_id=? AND user_id=?",
-        (room_id, session["uid"])).fetchone()
-    if row is None or not row["hintergrund"]:
-        abort(404)
-    pfad = os.path.join(BG_DIR, row["hintergrund"])
-    if not os.path.exists(pfad):
-        abort(404)
-    resp = send_file(pfad, mimetype="image/jpeg")
-    resp.headers["Cache-Control"] = "private, max-age=86400"
-    return resp
-
-
+# Kein hochgeladenes Bild, sondern ein Muster aus einer festen Liste. Es wird
+# in der Oberflaeche gezeichnet, liegt also weder als Datei auf dem Pi noch
+# lenkt es vom Text ab - so wie bei WhatsApp.
 @app.post("/api/rooms/<int:room_id>/hintergrund")
 @login_required
 def api_set_hintergrund(room_id):
+    """Muster waehlen - gilt nur fuer den, der es setzt."""
     uid = session["uid"]
     if not is_member(room_id, uid):
         abort(403)
-    datei = request.files.get("file")
-    if not datei or not datei.filename:
-        return jsonify({"error": "Kein Bild ausgewaehlt."}), 400
-    name, fehler = hintergrund_speichern(datei)
-    if fehler:
-        return jsonify({"error": fehler}), 400
+    muster = (request.get_json(force=True).get("muster") or "").strip().lower()
+    if muster and muster not in MUSTER:
+        return jsonify({"error": "Dieses Muster gibt es nicht."}), 400
     conn = db()
-    alt = conn.execute(
-        "SELECT hintergrund FROM room_members WHERE room_id=? AND user_id=?",
-        (room_id, uid)).fetchone()
     conn.execute("UPDATE room_members SET hintergrund=? WHERE room_id=? AND user_id=?",
-                 (name, room_id, uid))
+                 (muster or None, room_id, uid))
     conn.commit()
-    if alt:
-        hintergrund_entfernen(alt["hintergrund"])
-    return jsonify({"hintergrund": name})
-
-
-@app.delete("/api/rooms/<int:room_id>/hintergrund")
-@login_required
-def api_clear_hintergrund(room_id):
-    uid = session["uid"]
-    if not is_member(room_id, uid):
-        abort(403)
-    conn = db()
-    alt = conn.execute(
-        "SELECT hintergrund FROM room_members WHERE room_id=? AND user_id=?",
-        (room_id, uid)).fetchone()
-    conn.execute("UPDATE room_members SET hintergrund=NULL WHERE room_id=?"
-                 " AND user_id=?", (room_id, uid))
-    conn.commit()
-    if alt:
-        hintergrund_entfernen(alt["hintergrund"])
-    return jsonify({"ok": True, "hintergrund": None})
+    return jsonify({"ok": True, "hintergrund": muster or None})
 
 
 # --------------------------------------------------------------------------
