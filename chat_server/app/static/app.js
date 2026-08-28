@@ -1088,6 +1088,8 @@
 
   // ---------- Medien ----------
   let medienRaum = 0;  // 0 = alle Unterhaltungen
+  let auswahlModus = false;
+  const auswahl = new Set();
 
   // Zwei Zugaenge: aus der Seitenleiste ueber alle Unterhaltungen, aus dem
   // Chat nur diese eine. Auf dem Handy ist die Seitenleiste verdeckt, sobald
@@ -1114,15 +1116,75 @@
           ${optionen}
         </select>
       </div>
+      <div class="media-leiste">
+        <button class="act" id="md-auswahl">Auswählen</button>
+        <span id="md-zahl" class="hint inline"></span>
+        <span style="flex:1"></span>
+        <button class="act" id="md-alle" hidden>Alle</button>
+        <button class="act del" id="md-weg" hidden>Löschen</button>
+      </div>
       <div id="md-body" class="media-body"><p class="hint">Wird geladen …</p></div>
       <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
     root.querySelector(".modal").classList.add("wide");
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelector("#md-room").addEventListener("change", (e) => {
       medienRaum = parseInt(e.target.value, 10);
+      auswahl.clear();
       ladeMedien(root);
     });
+
+    root.querySelector("#md-auswahl").addEventListener("click", () => {
+      auswahlModus = !auswahlModus;
+      auswahl.clear();
+      auswahlAnzeigen(root);
+      ladeMedien(root);
+    });
+
+    root.querySelector("#md-alle").addEventListener("click", () => {
+      const kaesten = root.querySelectorAll("[data-id][data-loeschbar='1']");
+      const alleDrin = [...kaesten].every((k) =>
+        auswahl.has(parseInt(k.dataset.id, 10)));
+      kaesten.forEach((k) => {
+        const id = parseInt(k.dataset.id, 10);
+        if (alleDrin) auswahl.delete(id); else auswahl.add(id);
+        k.classList.toggle("gewaehlt", !alleDrin);
+      });
+      auswahlAnzeigen(root);
+    });
+
+    root.querySelector("#md-weg").addEventListener("click", async () => {
+      if (!auswahl.size) return;
+      if (!confirm(`${auswahl.size} ${auswahl.size === 1 ? "Datei" : "Dateien"} `
+                   + "endgültig löschen?\n\n"
+                   + "Sie verschwinden aus den Unterhaltungen und vom Server.")) return;
+      const res = await api("/api/media/delete", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ids: [...auswahl]}),
+      });
+      const daten = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(daten.error || "Löschen fehlgeschlagen."); return; }
+      toast(daten.abgelehnt
+        ? `${daten.geloescht} gelöscht, ${daten.abgelehnt} nicht erlaubt.`
+        : `${daten.geloescht} ${daten.geloescht === 1 ? "Datei" : "Dateien"} gelöscht.`);
+      auswahl.clear();
+      auswahlAnzeigen(root);
+      ladeMedien(root);
+      if (currentRoom) openRoom(currentRoom);
+    });
+
+    auswahlAnzeigen(root);
     ladeMedien(root);
+  }
+
+  function auswahlAnzeigen(root) {
+    const knopf = root.querySelector("#md-auswahl");
+    knopf.textContent = auswahlModus ? "Fertig" : "Auswählen";
+    knopf.classList.toggle("ok", auswahlModus);
+    root.querySelector("#md-alle").hidden = !auswahlModus;
+    root.querySelector("#md-weg").hidden = !auswahlModus || !auswahl.size;
+    root.querySelector("#md-zahl").textContent =
+      auswahlModus && auswahl.size ? `${auswahl.size} ausgewählt` : "";
+    root.querySelector("#md-body").classList.toggle("waehlbar", auswahlModus);
   }
 
   async function ladeMedien(root) {
@@ -1143,7 +1205,8 @@
 
     box.innerHTML = `
       ${bilder.length ? `<div class="media-grid">${bilder.map((m) => `
-        <figure class="media-cell" data-id="${m.id}">
+        <figure class="media-cell ${auswahl.has(m.id) ? "gewaehlt" : ""}"
+                data-id="${m.id}" data-loeschbar="${m.can_delete ? 1 : 0}">
           ${istVideo(m)
             ? `<video src="${BASE}/files/${m.id}" preload="metadata" controls
                       playsinline></video>`
@@ -1154,12 +1217,30 @@
           ${m.can_delete ? '<button class="media-del" data-act="del" title="Löschen">✕</button>' : ""}
         </figure>`).join("")}</div>` : ""}
       ${dateien.length ? `<div class="media-files">${dateien.map((m) => `
-        <div class="media-row" data-id="${m.id}">
+        <div class="media-row ${auswahl.has(m.id) ? "gewaehlt" : ""}"
+             data-id="${m.id}" data-loeschbar="${m.can_delete ? 1 : 0}">
           <a class="file-link" href="${BASE}/files/${m.id}?dl=1">📄 <span>${esc(m.name)}</span>
             <span class="fsize">${fileSize(m.size)}</span></a>
           <span class="media-meta">${herkunft(m)}</span>
           ${m.can_delete ? '<button class="act del" data-act="del">Löschen</button>' : ""}
         </div>`).join("")}</div>` : ""}`;
+
+    // Im Auswahlmodus markiert ein Klick die Kachel, statt sie zu oeffnen.
+    box.querySelectorAll("[data-id]").forEach((kasten) => {
+      kasten.addEventListener("click", (e) => {
+        if (!auswahlModus) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (kasten.dataset.loeschbar !== "1") {
+          toast("Fremde Dateien darf nur ein Administrator löschen.");
+          return;
+        }
+        const id = parseInt(kasten.dataset.id, 10);
+        if (auswahl.has(id)) auswahl.delete(id); else auswahl.add(id);
+        kasten.classList.toggle("gewaehlt", auswahl.has(id));
+        auswahlAnzeigen(root);
+      });
+    });
 
     box.querySelectorAll('[data-act="del"]').forEach((btn) =>
       btn.addEventListener("click", async () => {

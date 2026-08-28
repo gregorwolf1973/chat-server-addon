@@ -205,6 +205,40 @@ def main():
     e.pruefe(letzte["album"] is None,
              "eine Kennung mit Sonderzeichen wird verworfen")
 
+    e.abschnitt("Mehrere Medien auf einmal loeschen")
+    eigene = []
+    for n in ("s1.png", "s2.png", "s3.png"):
+        d = hochladen(anna, n, PNG, "image/png").json()
+        senden(anna, raum_anna, "", datei=d["id"])
+        eigene.append(d["id"])
+    fremd = hochladen(bert, "berts.png", PNG, "image/png").json()
+    senden(bert, raum_bert, "", datei=fremd["id"])
+    vorher = dateien_auf_platte()
+
+    r = anna.post(f"{BASE}/api/media/delete", json={"ids": []})
+    e.pruefe(r.status_code == 400, "eine leere Auswahl wird abgewiesen")
+
+    r = anna.post(f"{BASE}/api/media/delete", json={"ids": eigene[:2]})
+    e.pruefe(r.status_code == 200 and r.json()["geloescht"] == 2,
+             f"zwei eigene auf einmal: {r.json()}")
+    e.pruefe(anna.get(f"{BASE}/files/{eigene[0]}").status_code == 404,
+             "die erste ist fort")
+    if vorher is not None:
+        e.pruefe(dateien_auf_platte() == vorher - 2,
+                 "beide Dateien sind von der Platte weg")
+
+    r = anna.post(f"{BASE}/api/media/delete",
+                  json={"ids": [eigene[2], fremd["id"], 999999]})
+    daten = r.json()
+    e.pruefe(daten["geloescht"] == 1 and daten["abgelehnt"] == 2,
+             f"Fremdes und Unbekanntes werden uebersprungen: {daten}")
+    e.pruefe(bert.get(f"{BASE}/files/{fremd['id']}").status_code == 200,
+             "Berts Datei ist unversehrt")
+
+    r = admin.post(f"{BASE}/api/media/delete", json={"ids": [fremd["id"]]})
+    e.pruefe(r.json()["geloescht"] == 1,
+             "der Administrator darf auch fremde in einem Rutsch")
+
     e.abschnitt("Verlaesst der Letzte, verschwindet alles")
     zuzweit = admin.post(f"{BASE}/api/rooms",
                          json={"is_group": True, "name": "Zu zweit",

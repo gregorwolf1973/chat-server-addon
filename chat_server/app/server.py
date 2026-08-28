@@ -1472,35 +1472,71 @@ def api_media():
     } for r in rows])
 
 
-@app.delete("/api/media/<int:file_id>")
-@login_required
-def api_delete_media(file_id):
-    """Datei entfernen - aus dem Verlauf und von der Platte.
-
-    Die zugehoerige Nachricht wird wie beim Loeschen einer Nachricht als
-    geloescht markiert, damit im Verlauf kein leerer Platz entsteht.
-    """
-    me = current_user()
-    conn = db()
+def medium_loeschen(conn, me, file_id):
+    """Eine Datei entfernen. Gibt (erfolg, grund, betroffene_nachrichten)."""
     row = conn.execute("SELECT * FROM files WHERE id=?", (file_id,)).fetchone()
     if row is None:
-        return jsonify({"error": "Diese Datei gibt es nicht."}), 404
-
+        return False, "gibt es nicht", []
     nachrichten = conn.execute(
         "SELECT m.id, m.room_id FROM messages m"
         " JOIN room_members rm ON rm.room_id=m.room_id AND rm.user_id=?"
         " WHERE m.file_id=?", (me["id"], file_id)).fetchall()
     if not nachrichten and row["user_id"] != me["id"]:
-        return jsonify({"error": "Diese Datei gibt es nicht."}), 404
+        return False, "gibt es nicht", []
     if row["user_id"] != me["id"] and not me["is_admin"]:
-        return jsonify({"error": "Fremde Dateien darf nur ein Administrator "
-                                 "loeschen."}), 403
-
+        return False, "gehoert jemand anderem", []
     conn.execute("UPDATE messages SET deleted=1, body='', file_id=NULL"
                  " WHERE file_id=?", (file_id,))
     conn.commit()
     datei_aufraeumen(conn, file_id)
+    return True, None, [dict(n) for n in nachrichten]
 
+
+@app.post("/api/media/delete")
+@login_required
+def api_delete_media_mehrere():
+    """Mehrere Dateien auf einmal entfernen - einzeln waere zu umstaendlich."""
+    ids = request.get_json(force=True).get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "Es wurde nichts ausgewaehlt."}), 400
+    if len(ids) > 500:
+        return jsonify({"error": "Bitte nicht mehr als 500 auf einmal."}), 400
+    me = current_user()
+    conn = db()
+    geloescht, abgelehnt = 0, 0
+    raeume = {}
+    for roh in ids:
+        try:
+            file_id = int(roh)
+        except (TypeError, ValueError):
+            abgelehnt += 1
+            continue
+        erfolg, _grund, nachrichten = medium_loeschen(conn, me, file_id)
+        if erfolg:
+            geloescht += 1
+            for n in nachrichten:
+                raeume.setdefault(n["room_id"], []).append(n["id"])
+        else:
+            abgelehnt += 1
+
+    for room_id, msg_ids in raeume.items():
+        for msg_id in msg_ids:
+            socketio.emit("message_deleted", {"id": msg_id, "room_id": room_id},
+                          to=f"room:{room_id}")
+    log.info("%d Medien geloescht, %d abgelehnt", geloescht, abgelehnt)
+    return jsonify({"geloescht": geloescht, "abgelehnt": abgelehnt})
+
+
+@app.delete("/api/media/<int:file_id>")
+@login_required
+def api_delete_media(file_id):
+    """Datei entfernen - aus dem Verlauf und von der Platte."""
+    erfolg, grund, nachrichten = medium_loeschen(db(), current_user(), file_id)
+    if not erfolg:
+        if grund == "gibt es nicht":
+            return jsonify({"error": "Diese Datei gibt es nicht."}), 404
+        return jsonify({"error": "Fremde Dateien darf nur ein Administrator "
+                                 "loeschen."}), 403
     for n in nachrichten:
         socketio.emit("message_deleted", {"id": n["id"], "room_id": n["room_id"]},
                       to=f"room:{n['room_id']}")

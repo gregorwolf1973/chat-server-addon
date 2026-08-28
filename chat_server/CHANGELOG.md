@@ -1,5 +1,14 @@
 # Änderungsverlauf
 
+## 0.13.0
+
+- **Mehrere Medien auf einmal löschen**: In der Übersicht schaltet
+  **Auswählen** einen Auswahlmodus ein. Angetippte Kacheln bekommen einen
+  Haken, **Alle** markiert auf einen Schlag, **Löschen** entfernt die ganze
+  Auswahl – einzeln war das zu umständlich
+- Fremde Dateien lassen sich dabei nicht auswählen (außer als Administrator)
+  und werden beim Löschen übersprungen statt den ganzen Vorgang abzubrechen
+
 ## 0.12.0
 
 - **Schutz gegen Durchprobieren an der Anmeldung**: Nach acht Fehlversuchen

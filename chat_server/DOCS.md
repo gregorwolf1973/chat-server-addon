@@ -242,6 +242,11 @@ oben und zwei darunter, ab vier gleichmäßig. Jedes Bild bleibt dabei eine
 eigene Nachricht und lässt sich einzeln löschen. Der Fortschritt steht
 während des Hochladens am unteren Rand.
 
+**Mehrere auf einmal entfernen:** Der Knopf **Auswählen** über der Liste
+schaltet den Auswahlmodus ein. Angetippte Kacheln bekommen einen Haken,
+**Alle** markiert alles Sichtbare, **Löschen** entfernt die ganze Auswahl auf
+einmal. **Fertig** beendet den Modus.
+
 Beim Löschen verschwindet die Datei aus dem Verlauf **und vom Server** – die
 Bytes bleiben nicht liegen. Eigene Dateien darf jeder löschen, fremde nur ein
 Administrator. Dasselbe gilt, wenn du eine Nachricht mit Anhang löschst: der
