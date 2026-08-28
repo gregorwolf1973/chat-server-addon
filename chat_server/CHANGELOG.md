@@ -1,5 +1,11 @@
 # Änderungsverlauf
 
+## 0.15.1
+
+- Die Kartenvorschau beim Standort war leer. Die Umrisse lagen in einem
+  `<symbol>`, und ein Symbol skaliert sich in das einbindende Element hinein –
+  statt eines Ausschnitts wurde die ganze Welt in ein winziges Feld gequetscht
+
 ## 0.15.0
 
 - **Gruppenabstimmung**: Der Knopf 📊 legt eine Frage mit bis zu zwölf

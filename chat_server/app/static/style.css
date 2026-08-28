@@ -902,8 +902,10 @@ audio.abspieler { width: min(260px, 100%); }
   overflow: hidden;
 }
 .ortskarte svg { width: 100%; height: 100%; display: block; }
-.ortskarte svg path,
-.ortskarte svg use { fill: #2e4a52; stroke: #46707a; stroke-width: 0.15; }
+/* Die Fuellung muss am <use> haengen - der Pfad steckt in der Gruppe und
+   wird von dort geklont. */
+.ortskarte svg use { fill: #2e4a52; stroke: #46707a; stroke-width: 0.2; }
+#weltkarte-vorrat { position: absolute; width: 0; height: 0; overflow: hidden; }
 .ortsnadel {
   position: absolute;
   width: 13px;

@@ -659,9 +659,12 @@
       const vorrat = document.createElement("div");
       vorrat.id = "weltkarte-vorrat";
       vorrat.hidden = true;
+      // Bewusst <g> und nicht <symbol>: ein Symbol mit eigenem viewBox
+      // skaliert sich in das <use> hinein, wodurch die ganze Welt in das
+      // kleine Vorschaufeld gequetscht wuerde. Eine Gruppe behaelt ihre
+      // Koordinaten, und der viewBox der Vorschau schneidet den Ausschnitt.
       vorrat.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">`
-        + `<symbol id="weltkarte" viewBox="0 0 ${KARTE_BREITE} ${KARTE_HOEHE}">`
-        + `<path d="${pfad[1]}"/></symbol></svg>`;
+        + `<g id="weltkarte"><path d="${pfad[1]}"/></g></svg>`;
       document.body.appendChild(vorrat);
       weltkarteBereit = true;
       // Karten, die vor dem Laden gezeichnet wurden, nachziehen

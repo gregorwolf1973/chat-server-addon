@@ -87,6 +87,13 @@ def main():
     e.pruefe(all("?v=" in i["src"] for i in mf["icons"]),
              "die Symbole tragen eine Kennung, damit kein altes Bild haengen bleibt")
 
+    e.abschnitt("Die Weltkarte liegt im Add-on")
+    r = admin.get(f"{BASE}/static/weltkarte.svg")
+    e.pruefe(r.status_code == 200, f"sie wird ausgeliefert = {r.status_code}")
+    e.pruefe(' d="M' in r.text, "und enthaelt Umrisse")
+    e.pruefe(len(r.content) < 400 * 1024,
+             f"und bleibt klein genug fuer den Pi ({len(r.content) // 1024} KB)")
+
     e.abschnitt("Auch Skript und Gestaltung tragen eine Kennung")
     seite = admin.get(f"{BASE}/").text
     e.pruefe("app.js?v=" in seite and "style.css?v=" in seite,
