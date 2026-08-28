@@ -1,5 +1,10 @@
 # Änderungsverlauf
 
+## 0.24.3
+
+- Basis-Image von Alpine 3.19 auf 3.22 gehoben. 3.19 bekommt keine
+  Sicherheitsaktualisierungen mehr
+
 ## 0.24.2
 
 - Die **Medienuebersicht und die Live-Karte** waren auf 400 Pixel gequetscht,
