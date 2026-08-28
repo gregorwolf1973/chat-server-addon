@@ -1,5 +1,19 @@
 # Änderungsverlauf
 
+## 0.24.0
+
+- **Anrufe und Videoanrufe** ueber 📞 und 🎥 in der Unterhaltung, auch als
+  **Gruppenrunde** mit bis zu sechs Personen
+- Bild und Ton laufen **direkt von Geraet zu Geraet, nie ueber den Pi**. Der
+  Server sagt nur, wer mitmacht, und reicht die Aushandlung weiter
+- Klingelbalken mit *Teilnehmen* und *Ablehnen*; wer die App nicht offen hat,
+  bekommt eine Push-Nachricht. Mikrofon, Kamera und Auflegen im Anruf
+- Neue Optionen `stun_server`, `turn_server`, `turn_username`,
+  `turn_password`. Voreingestellt ist Googles STUN-Server; `aus` schaltet ihn
+  ab, dann sind Anrufe nur im Heimnetz moeglich
+- Wer eine Person zu einer Gruppe hinzufuegte, teilte das nur ihr mit - die
+  schon Anwesenden erfuhren nichts und sahen sie erst nach dem Neuladen
+
 ## 0.23.0
 
 - **Sprachnachrichten**: 🎤 im Eingabefeld startet die Aufnahme, ein zweiter

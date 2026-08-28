@@ -247,6 +247,47 @@ Der Browser gibt den Standort **nur über HTTPS** heraus – also über
 `external_url`, nicht über den Ingress im Heimnetz. Dort erscheint ein
 entsprechender Hinweis.
 
+## Anrufe, Videoanrufe und Gruppenrunden
+
+Oben in der Unterhaltung stehen 📞 und 🎥. Ein Tipp startet den Anruf; alle
+anderen in der Unterhaltung sehen einen Balken *„Anruf läuft"* mit
+**Teilnehmen** und **Ablehnen**. Wer die App gerade nicht offen hat, bekommt
+eine Push-Nachricht.
+
+Es ist immer eine **Runde**, kein Klingeln zu zweit: Wer will, kommt dazu,
+wer geht, geht – der Anruf läuft weiter, bis der Letzte auflegt. Schaltet
+jemand die Kamera zu, wird für alle ein Videoanruf daraus. Höchstens **sechs**
+Personen gleichzeitig.
+
+Im Anruf gibt es Mikrofon an/aus, Kamera an/aus und Auflegen. Ohne Bild zeigt
+die Kachel das Profilbild.
+
+**Bild und Ton laufen direkt von Gerät zu Gerät, nie über den Pi.** Der Server
+sagt nur, wer mitmacht, und reicht die Aushandlungsdaten weiter – er kann
+nichts mithören. Jeder spricht mit jedem einzeln; für eine Familienrunde ist
+das genau richtig und spart einen Medienserver. Bei sechs Leuten sendet jeder
+allerdings fünfmal sein eigenes Bild, das braucht eine ordentliche
+Upload-Leitung.
+
+### Anrufe von unterwegs
+
+Im Heimnetz finden sich die Geräte direkt. Von unterwegs kennt ein Gerät
+seine öffentliche Adresse nicht – dafür ist ein **STUN-Server** da. Er
+erfährt nur diese Adresse, **nie Bild oder Ton**.
+
+Voreingestellt ist Googles öffentlicher STUN-Server. Wer gar nichts nach
+draußen geben will, trägt in den Add-on-Optionen unter `stun_server` ein
+`aus` ein – dann funktionieren Anrufe im Heimnetz, aber nicht von unterwegs.
+
+Scheitert die Verbindung auch mit STUN – das kommt in manchen Mobilfunknetzen
+vor –, hilft nur ein **TURN-Server**, der die Daten weiterreicht. Einen
+brauchbaren kostenlosen gibt es nicht; er muss selbst betrieben werden
+(z. B. coturn). Die Zugangsdaten stehen dann unter `turn_server`,
+`turn_username` und `turn_password`.
+
+Mikrofon und Kamera gibt der Browser – wie den Standort – nur in einem
+sicheren Kontext frei: über HTTPS, also deine externe Adresse.
+
 ## Sprachnachrichten
 
 Rechts im Eingabefeld steht 🎤. Ein Tipp startet die Aufnahme, ein zweiter

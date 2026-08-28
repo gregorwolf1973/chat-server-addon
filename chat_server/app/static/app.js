@@ -189,6 +189,7 @@
     room.unread = 0;
     renderRooms();
     api(`/api/rooms/${id}/read`, {method: "POST"});
+    klingelZeigen();
     $("input").focus();
   }
 
@@ -1885,6 +1886,319 @@
     feld.dispatchEvent(new Event("input"));
   }
 
+  // ---------- Anrufe ----------
+  // Bild und Ton laufen direkt von Gerät zu Gerät, nie über den Pi. Jeder
+  // spricht mit jedem einzeln; für eine Familienrunde reicht das und spart
+  // einen Medienserver.
+  const anruf = {
+    room: null,        // laufender eigener Anruf
+    art: "audio",
+    eigen: null,       // eigener Medienstrom
+    peers: new Map(),  // user_id -> {pc, strom}
+    stumm: false,
+    kameraAus: false,
+    beginn: 0,
+    uhr: null,
+  };
+  let eisServer = null;
+
+  async function eisHolen() {
+    if (eisServer) return eisServer;
+    try {
+      const res = await api("/api/anruf/server");
+      eisServer = res.ok ? await res.json() : {iceServers: []};
+    } catch (err) {
+      eisServer = {iceServers: []};
+    }
+    return eisServer;
+  }
+
+  const imAnruf = () => anruf.room !== null;
+
+  function anrufDauer() {
+    const s = Math.max(0, Math.round((Date.now() - anruf.beginn) / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+
+  async function medienHolen(art) {
+    const wunsch = art === "video"
+      ? {audio: true, video: {width: {ideal: 640}, height: {ideal: 480}}}
+      : {audio: true, video: false};
+    return navigator.mediaDevices.getUserMedia(wunsch);
+  }
+
+  function peerAnlegen(uid) {
+    if (anruf.peers.has(uid)) return anruf.peers.get(uid);
+    const pc = new RTCPeerConnection({
+      iceServers: (eisServer && eisServer.iceServers) || [],
+    });
+    const eintrag = {pc, strom: new MediaStream()};
+    anruf.peers.set(uid, eintrag);
+
+    if (anruf.eigen) {
+      anruf.eigen.getTracks().forEach((spur) => pc.addTrack(spur, anruf.eigen));
+    }
+    pc.addEventListener("track", (e) => {
+      e.streams[0].getTracks().forEach((spur) => eintrag.strom.addTrack(spur));
+      anrufZeichnen();
+    });
+    pc.addEventListener("icecandidate", (e) => {
+      if (e.candidate) {
+        socket.emit("anruf_signal", {room_id: anruf.room, an: uid,
+                                     art: "eis", daten: e.candidate});
+      }
+    });
+    pc.addEventListener("connectionstatechange", () => {
+      if (["failed", "closed"].includes(pc.connectionState)) {
+        peerSchliessen(uid);
+        anrufZeichnen();
+      }
+    });
+    return eintrag;
+  }
+
+  function peerSchliessen(uid) {
+    const eintrag = anruf.peers.get(uid);
+    if (!eintrag) return;
+    try { eintrag.pc.close(); } catch (err) { /* war schon zu */ }
+    anruf.peers.delete(uid);
+  }
+
+  async function anrufStarten(art) {
+    if (!currentRoom) return;
+    if (imAnruf()) { anrufFensterZeigen(true); return; }
+    if (!sichererKontext()) {
+      toast("Mikrofon und Kamera gibt der Browser nur über HTTPS frei – öffne "
+            + "den Chat über deine externe Adresse.");
+      return;
+    }
+    if (!window.RTCPeerConnection || !navigator.mediaDevices) {
+      toast("Dieser Browser kann keine Anrufe.");
+      return;
+    }
+    await eisHolen();
+    try {
+      anruf.eigen = await medienHolen(art);
+    } catch (err) {
+      toast(err.name === "NotAllowedError"
+        ? "Du hast den Zugriff auf Mikrofon oder Kamera abgelehnt."
+        : "Mikrofon oder Kamera wurden nicht gefunden.");
+      return;
+    }
+    anruf.room = currentRoom;
+    anruf.art = art;
+    anruf.stumm = false;
+    anruf.kameraAus = false;
+    anruf.beginn = Date.now();
+    anrufFensterZeigen(true);
+
+    socket.timeout(8000).emit("anruf_beitreten", {room_id: anruf.room, art},
+      async (fehler, antwort) => {
+        if (fehler || !antwort || !antwort.ok) {
+          toast((antwort && antwort.error) || "Der Anruf kam nicht zustande.");
+          anrufBeenden();
+          return;
+        }
+        anruf.art = antwort.art || art;
+        // Die schon Anwesenden rufen mich an - ich warte auf ihr Angebot.
+        anrufZeichnen();
+      });
+    anruf.uhr = setInterval(() => {
+      const el = $("anruf-dauer");
+      if (el) el.textContent = anrufDauer();
+    }, 1000);
+  }
+
+  // Ein neuer kommt dazu: ich baue die Verbindung zu ihm auf
+  socket.on("anruf_neuer", async (d) => {
+    if (!imAnruf() || d.room_id !== anruf.room) return;
+    const {pc} = peerAnlegen(d.user_id);
+    const angebot = await pc.createOffer();
+    await pc.setLocalDescription(angebot);
+    socket.emit("anruf_signal", {room_id: anruf.room, an: d.user_id,
+                                 art: "angebot", daten: angebot});
+    anrufZeichnen();
+  });
+
+  socket.on("anruf_signal", async (d) => {
+    if (!imAnruf() || d.room_id !== anruf.room) return;
+    const {pc} = peerAnlegen(d.von);
+    try {
+      if (d.art === "angebot") {
+        await pc.setRemoteDescription(new RTCSessionDescription(d.daten));
+        const antwort = await pc.createAnswer();
+        await pc.setLocalDescription(antwort);
+        socket.emit("anruf_signal", {room_id: anruf.room, an: d.von,
+                                     art: "antwort", daten: antwort});
+      } else if (d.art === "antwort") {
+        await pc.setRemoteDescription(new RTCSessionDescription(d.daten));
+      } else if (d.art === "eis") {
+        await pc.addIceCandidate(new RTCIceCandidate(d.daten));
+      }
+    } catch (err) {
+      // Eine verspätete Wegbeschreibung ist kein Grund, das Gespräch
+      // abzubrechen - sie gehört dann zu einer schon geschlossenen Leitung.
+      console.warn("Anruf-Signal nicht verwertbar:", err);
+    }
+    anrufZeichnen();
+  });
+
+  socket.on("anruf_weg", (d) => {
+    if (d.room_id !== anruf.room) return;
+    peerSchliessen(d.user_id);
+    anrufZeichnen();
+  });
+
+  socket.on("anruf_abgelehnt", (d) => {
+    if (d.room_id !== anruf.room) return;
+    const raum = roomById(d.room_id);
+    const wer = raum && raum.members.find((m) => m.id === d.user_id);
+    toast(`${wer ? wer.display_name : "Jemand"} hat abgelehnt.`);
+  });
+
+  // Der Stand eines Anrufs geht an alle im Raum - auch an die, die nicht
+  // mitmachen. Daraus wird der Klingelbalken.
+  socket.on("anruf_stand", (d) => {
+    const raum = roomById(d.room_id);
+    if (raum) raum.anruf = (d.wer && d.wer.length) ? d : null;
+    if (imAnruf() && d.room_id === anruf.room) {
+      if (!d.wer || !d.wer.length) anrufBeenden();
+      else anrufZeichnen();
+    }
+    klingelZeigen();
+    renderRooms();
+  });
+
+  function klingelZeigen() {
+    const balken = $("klingel");
+    const raum = currentRoom ? roomById(currentRoom) : null;
+    const laeuft = raum && raum.anruf && !imAnruf()
+      && raum.anruf.wer.some((u) => u !== ME);
+    balken.hidden = !laeuft;
+    if (!laeuft) return;
+    const namen = raum.anruf.wer
+      .map((u) => (raum.members.find((m) => m.id === u) || {}).display_name)
+      .filter(Boolean).join(", ");
+    $("klingel-text").textContent =
+      `${raum.anruf.art === "video" ? "Videoanruf" : "Anruf"} läuft – ${namen}`;
+  }
+
+  function anrufFensterZeigen(an) {
+    $("anruf-fenster").hidden = !an;
+    if (an) anrufZeichnen();
+  }
+
+  // Wer waehrend eines laufenden Anrufs zur Gruppe kam, steht noch nicht in
+  // der Mitgliederliste dieses Geraets. Die allgemeine Nutzerliste kennt ihn
+  // trotzdem - besser der richtige Name als drei Punkte.
+  function anrufPerson(raum, uid) {
+    return (raum && raum.members.find((m) => m.id === uid))
+      || (state.users || []).find((u) => u.id === uid)
+      || {id: uid, display_name: "…"};
+  }
+
+  function kachelHtml(uid, eigen) {
+    const raum = roomById(anruf.room);
+    const person = eigen
+      ? {id: ME, display_name: state.me ? state.me.name : "Ich",
+         avatar: state.me ? state.me.avatar : null}
+      : anrufPerson(raum, uid);
+    return `<div class="anruf-kachel" data-wer="${uid}">
+      <video autoplay playsinline ${eigen ? "muted" : ""}></video>
+      <div class="ak-ersatz">${avatarHtml("u", person.id, person.display_name,
+                                          person.avatar, "riesig")}</div>
+      <div class="ak-name">${esc(person.display_name)}${eigen ? " (du)" : ""}</div>
+    </div>`;
+  }
+
+  function anrufZeichnen() {
+    if (!imAnruf()) return;
+    const feld = $("anruf-kacheln");
+    const gewuenscht = [ME, ...anruf.peers.keys()];
+    const vorhanden = [...feld.querySelectorAll(".anruf-kachel")]
+      .map((k) => parseInt(k.dataset.wer, 10));
+    // Nur neu bauen, wenn sich die Runde geändert hat - sonst würde jedes
+    // Signal das laufende Bild zurücksetzen.
+    if (gewuenscht.length !== vorhanden.length
+        || gewuenscht.some((u, i) => u !== vorhanden[i])) {
+      feld.innerHTML = gewuenscht
+        .map((u) => kachelHtml(u, u === ME)).join("");
+      feld.dataset.anzahl = String(gewuenscht.length);
+    }
+    feld.querySelectorAll(".anruf-kachel").forEach((kachel) => {
+      const uid = parseInt(kachel.dataset.wer, 10);
+      const video = kachel.querySelector("video");
+      const strom = uid === ME ? anruf.eigen
+                               : (anruf.peers.get(uid) || {}).strom;
+      if (strom && video.srcObject !== strom) video.srcObject = strom;
+      const hatBild = strom && strom.getVideoTracks().some((s) => s.enabled);
+      kachel.classList.toggle("ohne-bild", !hatBild);
+      if (uid !== ME) {
+        // Der Name kann nachtraeglich bekannt werden - dann soll er auch
+        // ohne Neuaufbau der Kacheln erscheinen.
+        const person = anrufPerson(roomById(anruf.room), uid);
+        const feld = kachel.querySelector(".ak-name");
+        if (feld.textContent !== person.display_name) {
+          feld.textContent = person.display_name;
+        }
+      }
+    });
+    $("anruf-titel").textContent =
+      anruf.art === "video" ? "Videoanruf" : "Anruf";
+    $("btn-anruf-stumm").classList.toggle("aus", anruf.stumm);
+    $("btn-anruf-stumm").textContent = anruf.stumm ? "🔇" : "🎤";
+    const kamera = $("btn-anruf-kamera");
+    kamera.hidden = anruf.art !== "video";
+    kamera.classList.toggle("aus", anruf.kameraAus);
+    kamera.textContent = anruf.kameraAus ? "🚫" : "📷";
+  }
+
+  function anrufBeenden() {
+    if (!imAnruf()) return;
+    const room = anruf.room;
+    clearInterval(anruf.uhr);
+    anruf.uhr = null;
+    [...anruf.peers.keys()].forEach(peerSchliessen);
+    if (anruf.eigen) anruf.eigen.getTracks().forEach((s) => s.stop());
+    anruf.eigen = null;
+    anruf.room = null;
+    anrufFensterZeigen(false);
+    $("anruf-kacheln").innerHTML = "";
+    socket.emit("anruf_verlassen", {room_id: room});
+    klingelZeigen();
+  }
+
+  $("btn-anruf").addEventListener("click", () => anrufStarten("audio"));
+  $("btn-video").addEventListener("click", () => anrufStarten("video"));
+  $("btn-anruf-auflegen").addEventListener("click", anrufBeenden);
+  $("klingel-annehmen").addEventListener("click", () => {
+    const raum = roomById(currentRoom);
+    anrufStarten(raum && raum.anruf ? raum.anruf.art : "audio");
+  });
+  $("klingel-ablehnen").addEventListener("click", () => {
+    socket.emit("anruf_ablehnen", {room_id: currentRoom});
+    $("klingel").hidden = true;
+  });
+
+  $("btn-anruf-stumm").addEventListener("click", () => {
+    if (!anruf.eigen) return;
+    anruf.stumm = !anruf.stumm;
+    anruf.eigen.getAudioTracks().forEach((s) => { s.enabled = !anruf.stumm; });
+    anrufZeichnen();
+  });
+
+  $("btn-anruf-kamera").addEventListener("click", () => {
+    if (!anruf.eigen) return;
+    anruf.kameraAus = !anruf.kameraAus;
+    anruf.eigen.getVideoTracks().forEach((s) => { s.enabled = !anruf.kameraAus; });
+    anrufZeichnen();
+  });
+
+  // Wer das Fenster schliesst, soll nicht als stumme Kachel stehen bleiben
+  window.addEventListener("beforeunload", () => {
+    if (imAnruf()) socket.emit("anruf_verlassen", {room_id: anruf.room});
+  });
+
   // ---------- Sprachnachrichten ----------
   // Aufgenommen wird mit dem, was der Browser selbst mitbringt. Opus in einem
   // WebM-Behälter ist klein und überall zu Hause; Safari kann das nicht und
@@ -2857,6 +3171,8 @@
     renderKarten();
     renderStimmung();
     pingPlanen();
+    if (imAnruf()) anrufZeichnen();
+    klingelZeigen();
   }
 
   // Die Restzeiten laufen ab, ohne dass der Server etwas schickt. Einmal je

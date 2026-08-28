@@ -28,7 +28,8 @@ kill %1
 
 Danach dasselbe für `tests/test_users.py`, `tests/test_media.py`,
 `tests/test_register.py`, `tests/test_avatars.py`, `tests/test_notify.py`,
-`tests/test_login.py`, `tests/test_polls.py` und `tests/test_termine.py`.
+`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py` und
+`tests/test_anrufe.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
 
@@ -57,6 +58,16 @@ das durch Altbestände fehl.
 
 * Sprachnachrichten: Länge kommt zurück, wird gedeckelt, und ohne Aufnahme
   oder bei Unfug verworfen.
+
+`test_anrufe.py` (33 Prüfungen)
+
+* Die Vermittlungsserver werden ausgeliefert, aber nicht ohne Anmeldung.
+* Anruf beginnen, dazukommen, ablehnen, verlassen – und wer die Verbindung
+  verliert, fällt heraus.
+* Aushandlungsdaten gehen nur zwischen Beteiligten und kommen unverändert an;
+  Aussenstehende können niemandem etwas schicken.
+* Schaltet jemand die Kamera zu, gilt das für den ganzen Anruf.
+* Wer neu in die Gruppe kommt, wird den schon Anwesenden gemeldet.
 
 `test_polls.py` (22 Prüfungen)
 

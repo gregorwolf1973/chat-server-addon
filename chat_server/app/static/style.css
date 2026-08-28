@@ -1438,3 +1438,106 @@ audio.abspieler { width: min(260px, 100%); }
   min-width: 34px;
   text-align: right;
 }
+
+/* ---------- Anrufe ---------- */
+.klingel {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px;
+  background: var(--self);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.klingel-punkt {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulsen 1.1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .klingel-punkt { animation: none; } }
+
+.anruf-fenster {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: #0b1012;
+  display: flex;
+  flex-direction: column;
+}
+.anruf-kopf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  color: var(--text);
+  font-weight: 600;
+}
+.anruf-dauer {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-weight: 400;
+}
+.anruf-kacheln {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+  padding: 0 12px;
+  grid-template-columns: 1fr;
+  align-content: center;
+  min-height: 0;
+}
+/* Ab zwei Personen nebeneinander, ab fuenf in drei Spalten - so bleiben die
+   Kacheln auch auf dem Telefon gross genug, um jemanden zu erkennen. */
+.anruf-kacheln[data-anzahl="2"],
+.anruf-kacheln[data-anzahl="3"],
+.anruf-kacheln[data-anzahl="4"] { grid-template-columns: repeat(2, 1fr); }
+.anruf-kacheln[data-anzahl="5"],
+.anruf-kacheln[data-anzahl="6"] { grid-template-columns: repeat(3, 1fr); }
+.anruf-kachel {
+  position: relative;
+  background: var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.anruf-kachel video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.anruf-kachel.ohne-bild video { display: none; }
+.ak-ersatz { display: none; }
+.anruf-kachel.ohne-bild .ak-ersatz { display: block; }
+.ak-name {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  background: rgba(11, 16, 18, 0.72);
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+.anruf-leiste {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  padding: 18px 12px calc(18px + env(safe-area-inset-bottom));
+}
+.anruf-knopf {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 20px;
+  cursor: pointer;
+}
+.anruf-knopf.aus { background: var(--surface); color: var(--muted); }
+.anruf-knopf.auflegen { background: var(--danger); border-color: var(--danger); }

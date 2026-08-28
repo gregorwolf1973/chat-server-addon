@@ -37,6 +37,19 @@ def _opt(name):
 EXTERNAL_URL = _opt("EXTERNAL_URL").rstrip("/")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "info").upper()
 ALLOW_REGISTRATION = _opt("ALLOW_REGISTRATION").lower() not in ("false", "0", "off")
+# Fuer Anrufe von unterwegs muss ein Geraet seine oeffentliche Adresse
+# kennen. Das leistet ein STUN-Server; er erfaehrt nur diese Adresse, nie
+# Bild oder Ton. Wer gar nichts nach draussen geben will, traegt hier nichts
+# ein - dann funktionieren Anrufe im Heimnetz, aber nicht von unterwegs.
+STUN_SERVER = _opt("STUN_SERVER") or "stun:stun.l.google.com:19302"
+if STUN_SERVER.lower() in ("aus", "off", "none", "-"):
+    STUN_SERVER = ""
+# Scheitert auch das - etwa in Mobilfunknetzen mit strenger Abschottung -,
+# hilft nur ein TURN-Server, der die Daten weiterreicht. Er muss selbst
+# betrieben werden; einen brauchbaren kostenlosen gibt es nicht.
+TURN_SERVER = _opt("TURN_SERVER")
+TURN_BENUTZER = _opt("TURN_USERNAME")
+TURN_PASSWORT = _opt("TURN_PASSWORD")
 
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO),
                     format="%(asctime)s %(levelname)s %(message)s")
@@ -578,6 +591,7 @@ def room_payload(room, uid, conn=None):
         "members": [dict(m) for m in members],
         "online": online,
         "unread": unread,
+        "anruf": anruf_stand(room["id"]),
         "last": {
             "text": ("Nachricht geloescht" if last["deleted"]
                      else (last["body"] or ("Datei" if last["file_id"] else ""))) if last else "",
@@ -1276,6 +1290,10 @@ def api_add_member(room_id):
     conn.commit()
     join_user_sockets(new_id, room_id)
     socketio.emit("room_added", room_payload(room, new_id, conn), to=f"user:{new_id}")
+    # Auch die schon Anwesenden muessen es erfahren - sonst fehlt der Neue in
+    # ihrer Mitgliederliste, bis sie die Seite neu laden.
+    socketio.emit("room_changed", {"id": room_id}, to=f"room:{room_id}")
+    log.info("Nutzer %s wurde zu Raum %s hinzugefuegt", new_id, room_id)
     return jsonify({"ok": True})
 
 
@@ -2611,6 +2629,206 @@ def too_large(_e):
 # --------------------------------------------------------------------------
 # Socket.IO
 # --------------------------------------------------------------------------
+# --------------------------------------------------------------------------
+# Anrufe
+# --------------------------------------------------------------------------
+# Der Server vermittelt nur: er sagt, wer mitmacht, und reicht die
+# Aushandlungsdaten weiter. Bild und Ton laufen direkt zwischen den Geraeten,
+# nie ueber den Pi - das haelt ihn frei und die Gespraeche unter uns.
+#
+# Jeder spricht mit jedem einzeln (Mesh). Fuer eine Familienrunde ist das
+# genau richtig und braucht keinen Medienserver; ab etwa fuenf Leuten wird
+# die eigene Leitung dabei allerdings eng, deshalb die Obergrenze.
+ANRUF_MAX = 6
+ANRUFE = {}
+ANRUF_LOCK = threading.Lock()
+
+
+def anruf_stand(room_id):
+    """Wer gerade in diesem Raum telefoniert - oder None."""
+    with ANRUF_LOCK:
+        anruf = ANRUFE.get(room_id)
+        if not anruf or not anruf["wer"]:
+            return None
+        return {"room_id": room_id, "art": anruf["art"],
+                "seit": anruf["seit"], "wer": sorted(anruf["wer"])}
+
+
+def anruf_melden(room_id):
+    stand = anruf_stand(room_id)
+    socketio.emit("anruf_stand", stand or {"room_id": room_id, "wer": []},
+                  to=f"room:{room_id}")
+
+
+def anruf_verlassen(room_id, uid, grund="verlassen"):
+    with ANRUF_LOCK:
+        anruf = ANRUFE.get(room_id)
+        if not anruf or uid not in anruf["wer"]:
+            return False
+        anruf["wer"].discard(uid)
+        if not anruf["wer"]:
+            ANRUFE.pop(room_id, None)
+    socketio.emit("anruf_weg", {"room_id": room_id, "user_id": uid,
+                                "grund": grund}, to=f"room:{room_id}")
+    anruf_melden(room_id)
+    log.info("Nutzer %s hat den Anruf in Raum %s verlassen (%s)",
+             uid, room_id, grund)
+    return True
+
+
+@app.get("/api/anruf/server")
+@login_required
+def api_ice_server():
+    """Welche Vermittlungsserver der Browser fuer Anrufe nutzen soll.
+
+    Im Heimnetz braucht es keinen: die Geraete finden sich direkt. Von
+    unterwegs kennt ein Geraet seine oeffentliche Adresse nicht - dafuer ist
+    ein STUN-Server da. Er sieht nur diese Adresse, nie Bild oder Ton.
+    """
+    server = []
+    if STUN_SERVER:
+        server.append({"urls": STUN_SERVER})
+    if TURN_SERVER:
+        eintrag = {"urls": TURN_SERVER}
+        if TURN_BENUTZER:
+            eintrag["username"] = TURN_BENUTZER
+            eintrag["credential"] = TURN_PASSWORT
+        server.append(eintrag)
+    return jsonify({"iceServers": server, "max": ANRUF_MAX,
+                    "stun": bool(STUN_SERVER), "turn": bool(TURN_SERVER)})
+
+
+def _anruf_raum_pruefen(room_id, uid):
+    conn = raw_db()
+    treffer = conn.execute(
+        "SELECT 1 FROM room_members m JOIN users u ON u.id=m.user_id"
+        " WHERE m.room_id=? AND m.user_id=? AND u.active=1",
+        (room_id, uid)).fetchone()
+    conn.close()
+    return treffer is not None
+
+
+def _anruf_klingeln(room_id, uid):
+    """Wer gerade nicht zusieht, bekommt eine Benachrichtigung."""
+    conn = raw_db()
+    mitglieder = [r["user_id"] for r in conn.execute(
+        "SELECT user_id FROM room_members WHERE room_id=?", (room_id,)).fetchall()]
+    rufer = conn.execute("SELECT display_name FROM users WHERE id=?",
+                         (uid,)).fetchone()
+    conn.close()
+    with ONLINE_LOCK:
+        abwesend = [m for m in mitglieder if m != uid and m not in ONLINE]
+    ziel = f"{EXTERNAL_URL}/?room={room_id}" if EXTERNAL_URL else f"?room={room_id}"
+    push_to_users(abwesend, "Anruf",
+                  f"{rufer['display_name'] if rufer else 'Jemand'} ruft an", ziel)
+
+
+@socketio.on("anruf_beitreten")
+def on_anruf_beitreten(data):
+    """Anruf beginnen oder einem laufenden beitreten."""
+    uid = session.get("uid")
+    if not uid:
+        return {"ok": False, "error": "Du bist nicht mehr angemeldet."}
+    try:
+        room_id = int(data.get("room_id"))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "Unbekannte Unterhaltung."}
+    if not _anruf_raum_pruefen(room_id, uid):
+        return {"ok": False, "error": "Du gehoerst nicht zu dieser Unterhaltung."}
+    art = "video" if data.get("art") == "video" else "audio"
+
+    with ANRUF_LOCK:
+        anruf = ANRUFE.get(room_id)
+        neu = anruf is None
+        if neu:
+            anruf = {"art": art, "seit": int(time.time()), "wer": set()}
+            ANRUFE[room_id] = anruf
+        elif art == "video":
+            # Schaltet jemand die Kamera zu, wird aus dem Telefonat ein
+            # Videoanruf - fuer alle sichtbar.
+            anruf["art"] = "video"
+        if uid in anruf["wer"]:
+            return {"ok": True, "art": anruf["art"],
+                    "bestehende": sorted(anruf["wer"] - {uid})}
+        if len(anruf["wer"]) >= ANRUF_MAX:
+            if neu:
+                ANRUFE.pop(room_id, None)
+            return {"ok": False,
+                    "error": f"An einem Anruf koennen hoechstens {ANRUF_MAX}"
+                             " Personen teilnehmen."}
+        bestehende = sorted(anruf["wer"])
+        anruf["wer"].add(uid)
+        laufende_art = anruf["art"]
+
+    # Die schon Anwesenden bauen die Verbindung zum Neuen auf. So ruft immer
+    # genau eine Seite an, und beide kommen sich nicht ins Gehege.
+    for anderer in bestehende:
+        socketio.emit("anruf_neuer", {"room_id": room_id, "user_id": uid},
+                      to=f"user:{anderer}")
+    anruf_melden(room_id)
+    if neu:
+        log.info("Nutzer %s startet einen %s-Anruf in Raum %s", uid, art, room_id)
+        _anruf_klingeln(room_id, uid)
+    return {"ok": True, "art": laufende_art, "bestehende": bestehende}
+
+
+@socketio.on("anruf_verlassen")
+def on_anruf_verlassen(data):
+    uid = session.get("uid")
+    if not uid:
+        return {"ok": False}
+    try:
+        room_id = int(data.get("room_id"))
+    except (TypeError, ValueError):
+        return {"ok": False}
+    anruf_verlassen(room_id, uid)
+    return {"ok": True}
+
+
+@socketio.on("anruf_ablehnen")
+def on_anruf_ablehnen(data):
+    """Nicht abnehmen - die anderen sollen es trotzdem erfahren."""
+    uid = session.get("uid")
+    if not uid:
+        return {"ok": False}
+    try:
+        room_id = int(data.get("room_id"))
+    except (TypeError, ValueError):
+        return {"ok": False}
+    if _anruf_raum_pruefen(room_id, uid):
+        socketio.emit("anruf_abgelehnt", {"room_id": room_id, "user_id": uid},
+                      to=f"room:{room_id}")
+    return {"ok": True}
+
+
+@socketio.on("anruf_signal")
+def on_anruf_signal(data):
+    """Angebot, Antwort und Wegbeschreibungen weiterreichen.
+
+    Der Inhalt wird nicht angefasst - der Server ist hier nur Briefkasten.
+    Geprueft wird aber, dass beide im selben Anruf sitzen; sonst koennte
+    jemand Fremden Datenpakete zuschicken.
+    """
+    uid = session.get("uid")
+    if not uid:
+        return {"ok": False}
+    try:
+        room_id = int(data.get("room_id"))
+        an = int(data.get("an"))
+    except (TypeError, ValueError):
+        return {"ok": False}
+    with ANRUF_LOCK:
+        anruf = ANRUFE.get(room_id)
+        drin = bool(anruf) and uid in anruf["wer"] and an in anruf["wer"]
+    if not drin:
+        return {"ok": False, "error": "Ihr seid nicht im selben Anruf."}
+    socketio.emit("anruf_signal", {"room_id": room_id, "von": uid,
+                                   "art": data.get("art"),
+                                   "daten": data.get("daten")},
+                  to=f"user:{an}")
+    return {"ok": True}
+
+
 @socketio.on("connect")
 def on_connect():
     uid = session.get("uid")
@@ -2648,6 +2866,11 @@ def on_disconnect():
         if gone:
             ONLINE.pop(uid, None)
     if gone:
+        # Wer die Seite schliesst, soll nicht als stumme Kachel stehen bleiben
+        with ANRUF_LOCK:
+            raeume = [r for r, a in ANRUFE.items() if uid in a["wer"]]
+        for room_id in raeume:
+            anruf_verlassen(room_id, uid, "Verbindung verloren")
         socketio.emit("presence", {"user_id": uid, "online": False})
 
 

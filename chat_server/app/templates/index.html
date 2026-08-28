@@ -71,8 +71,18 @@
           <div class="sub" id="room-sub"></div>
         </div>
         <span style="flex:1"></span>
+        <button class="icon-btn" id="btn-anruf" title="Anrufen">📞</button>
+        <button class="icon-btn" id="btn-video" title="Videoanruf">🎥</button>
         <button class="icon-btn" id="btn-room-media" title="Bilder und Dateien dieser Unterhaltung">Medien</button>
         <button class="icon-btn" id="btn-invite" hidden>+ Person</button>
+      </div>
+
+      <div class="klingel" id="klingel" hidden>
+        <span class="klingel-punkt"></span>
+        <span id="klingel-text"></span>
+        <span style="flex:1"></span>
+        <button class="btn ghost klein" id="klingel-ablehnen">Ablehnen</button>
+        <button class="btn klein" id="klingel-annehmen">Teilnehmen</button>
       </div>
 
       <div class="messages" id="messages">
@@ -116,6 +126,20 @@
         <button class="send" id="btn-send">Senden</button>
       </div>
     </main>
+  </div>
+
+  <div class="anruf-fenster" id="anruf-fenster" hidden>
+    <div class="anruf-kopf">
+      <span id="anruf-titel">Anruf</span>
+      <span class="anruf-dauer" id="anruf-dauer">0:00</span>
+    </div>
+    <div class="anruf-kacheln" id="anruf-kacheln"></div>
+    <div class="anruf-leiste">
+      <button class="anruf-knopf" id="btn-anruf-stumm" title="Mikrofon">🎤</button>
+      <button class="anruf-knopf" id="btn-anruf-kamera" title="Kamera" hidden>📷</button>
+      <button class="anruf-knopf auflegen" id="btn-anruf-auflegen"
+              title="Auflegen">📵</button>
+    </div>
   </div>
 
   <div id="modal-root"></div>

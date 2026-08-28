@@ -6,6 +6,10 @@ export EXTERNAL_URL="$(bashio::config 'external_url')"
 export API_TOKEN="$(bashio::config 'api_token')"
 export MAX_UPLOAD_MB="$(bashio::config 'max_upload_mb')"
 export ALLOW_REGISTRATION="$(bashio::config 'allow_registration')"
+export STUN_SERVER="$(bashio::config 'stun_server')"
+export TURN_SERVER="$(bashio::config 'turn_server')"
+export TURN_USERNAME="$(bashio::config 'turn_username')"
+export TURN_PASSWORD="$(bashio::config 'turn_password')"
 export LOG_LEVEL="$(bashio::config 'log_level')"
 
 mkdir -p /data/uploads
