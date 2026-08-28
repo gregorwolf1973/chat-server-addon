@@ -211,8 +211,8 @@
     // Achtung: keine Zeilenumbrueche zwischen den Elementen. Sie werden zu
     // Textknoten und erzeugen in der Sprechblase eine leere Zeile.
     if (m.deleted) {
-      inner += `<div class="bubble"><span class="gone-text">Nachricht gelöscht</span>`
-        + `<div class="meta">${timeOf(m.at)}</div></div>`;
+      inner += `<div class="bubble nur-anhang"><span class="gone-text">Nachricht gelöscht</span>`
+        + `<div class="inhalt"><span class="meta">${timeOf(m.at)}</span></div></div>`;
       wrap.innerHTML = inner;
       box.appendChild(wrap);
       return;
@@ -235,9 +235,12 @@
     const canDelete = m.user_id === ME || IS_ADMIN;
     // Ohne Text reserviert die Blase keinen Platz fuer die Uhrzeit - sie
     // haengt dann unter dem Bild oder der Datei.
+    // Text und Uhrzeit stecken in einem eigenen Block. Waere die Zeit an der
+    // Sprechblase verankert, rutschte sie beim Aufklappen der Aktionen mit
+    // nach unten und landete neben den Knoepfen.
     inner += `<div class="bubble${m.body ? "" : " nur-anhang"}">${quoteHtml}${fileHtml}`
-      + `<span class="text">${esc(m.body)}</span>`
-      + `<span class="meta">${timeOf(m.at)}</span>`
+      + `<div class="inhalt"><span class="text">${esc(m.body)}</span>`
+      + `<span class="meta">${timeOf(m.at)}</span></div>`
       + `<div class="actions"><button class="act" data-act="reply">Antworten</button>`
       + (canDelete ? '<button class="act del" data-act="delete">Löschen</button>' : "")
       + `</div></div>`;

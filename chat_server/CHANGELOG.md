@@ -1,5 +1,11 @@
 # Änderungsverlauf
 
+## 0.6.2
+
+- Die Uhrzeit bleibt beim Antippen einer Nachricht an ihrem Platz. Sie hing an
+  der Sprechblase und rutschte beim Aufklappen von „Antworten“ und
+  „Löschen“ nach unten zu den Knöpfen – jetzt hängt sie am Text
+
 ## 0.6.1
 
 - **Der Sende-Knopf funktioniert wieder.** Er reichte sein Klick-Ereignis als

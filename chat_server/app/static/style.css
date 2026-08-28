@@ -216,11 +216,13 @@ button { cursor: pointer; }
 /* Die Uhrzeit sitzt wie bei WhatsApp fest unten rechts. Damit der Text sie
    nicht beruehrt, laesst er am Ende Platz frei - ein Float wuerde bei langem
    Text entweder ankleben oder in eine neue Zeile rutschen. */
-.bubble { position: relative; }
+/* Die Zeit haengt am Textblock, nicht an der Sprechblase - sonst wandert sie
+   beim Aufklappen der Aktionen nach unten zu den Knoepfen. */
+.bubble .inhalt { position: relative; }
 .bubble .meta {
   position: absolute;
-  right: 12px;
-  bottom: 7px;
+  right: 0;
+  bottom: 0;
   font-family: var(--mono);
   font-size: 10px;
   color: var(--muted);
@@ -238,7 +240,7 @@ button { cursor: pointer; }
   position: static;
   display: block;
   text-align: right;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 .bubble .actions { clear: both; }
 .bubble img { max-width: 100%; border-radius: 6px; display: block; margin-bottom: 6px; }
