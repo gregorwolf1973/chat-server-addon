@@ -1,5 +1,17 @@
 # Änderungsverlauf
 
+## 0.12.0
+
+- **Schutz gegen Durchprobieren an der Anmeldung**: Nach acht Fehlversuchen
+  ist ein Konto für eine Viertelstunde gesperrt. Die Grenze je Absender liegt
+  bewusst höher (40) – hinter Tunnel und Reverse Proxy haben alle dieselbe
+  Adresse, eine strenge Grenze würde sonst die ganze Familie aussperren,
+  sobald jemand ein einzelnes Konto angreift
+- Gebremste Versuche stehen mit Kontonamen im Add-on-Protokoll
+- **Hochgeladene Dateien bleiben aus dem Backup**: `/data/uploads` kann viele
+  Gigabyte umfassen. Datenbank, Schlüssel und Profilbilder sind weiterhin
+  enthalten
+
 ## 0.11.0
 
 - **Mehrere Bilder auf einmal erscheinen als Album** in einer Sprechblase mit

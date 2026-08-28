@@ -265,6 +265,21 @@ Anhang geht mit.
 * Der eingebaute Werkzeug-Server ist für eine Handvoll Nutzer ausreichend. Bei
   spürbarer Last wäre gunicorn mit gevent-websocket der nächste Schritt.
 
+## Sicherheit und Sicherungen
+
+Die Anmeldung ist gegen Durchprobieren gebremst: Nach **acht Fehlversuchen**
+ist ein Konto eine Viertelstunde gesperrt – auch mit richtigem Passwort. Je
+Absender greift eine weit höhere Grenze, weil hinter Tunnel und Reverse
+Proxy alle dieselbe Adresse haben; sonst sperrte ein Angriff auf ein
+einzelnes Konto gleich alle aus. Gebremste Versuche stehen im
+Add-on-Protokoll.
+
+Hochgeladene Dateien unter `/data/uploads` sind vom Backup **ausgenommen** –
+bei 99 MB je Datei würde jedes Vollbackup sonst schnell unhandlich.
+Datenbank, Schlüssel und Profilbilder werden weiterhin gesichert. Wer die
+geteilten Dateien mitsichern will, kopiert das Verzeichnis von Hand oder
+entfernt `backup_exclude` aus `config.yaml`.
+
 ## Grenzen
 
 * Transportverschlüsselung über TLS, **keine** Ende-zu-Ende-Verschlüsselung.

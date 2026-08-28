@@ -74,8 +74,17 @@ app = Flask(__name__)
 app.secret_key = load_secret()
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["PERMANENT_SESSION_LIFETIME"] = 60 * 60 * 24 * 90
 
+# Bewusst KEIN SESSION_COOKIE_SECURE und keine Einschraenkung von
+# cors_allowed_origins: Das Add-on ist ueber zwei Wege zugleich erreichbar -
+# per TLS ueber die externe Adresse und per http ueber den Ingress von Home
+# Assistant. Ein Secure-Cookie wuerde die Anmeldung im Heimnetz unmoeglich
+# machen, und der Ursprung unter Ingress ist die Adresse der
+# Home-Assistant-Oberflaeche, die hier niemand kennt. Gegen fremde Seiten
+# schuetzt SameSite=Lax: das Cookie verlaesst den Browser bei Aufrufen von
+# dritter Seite gar nicht erst.
 socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*",
                     max_http_buffer_size=MAX_UPLOAD_MB * 1024 * 1024)
 
@@ -653,11 +662,65 @@ def benachrichtige_admins(conn, name):
                   f"{name} moechte Zugang zum Chat", ziel)
 
 
+# Die Anmeldeseite ist ueber den Tunnel oeffentlich erreichbar. Ohne Bremse
+# koennte jemand in Ruhe Passwoerter durchprobieren. Gezaehlt wird nach
+# Absender *und* nach Kontoname - sonst hilft es nichts, wenn die Versuche
+# von wechselnden Adressen kommen.
+VERSUCHE = {}
+VERSUCHE_LOCK = threading.Lock()
+SPERRE_SEKUNDEN = 900
+# Je Konto streng: acht Fehlgriffe reichen niemandem, der sein Passwort kennt.
+MAX_JE_KONTO = 8
+# Je Absender grosszuegig: hinter Tunnel und Reverse Proxy koennen alle
+# dieselbe Adresse haben - eine strenge Grenze wuerde die ganze Familie
+# aussperren, sobald jemand ein einzelnes Konto angreift.
+MAX_JE_ADRESSE = 40
+
+
+def _absender():
+    weiter = request.headers.get("X-Forwarded-For", "")
+    return (weiter.split(",")[0].strip() if weiter
+            else (request.remote_addr or "?"))
+
+
+def gesperrt(schluessel, grenze):
+    """Sind fuer diesen Schluessel zu viele Fehlversuche aufgelaufen?"""
+    jetzt = time.time()
+    with VERSUCHE_LOCK:
+        for k in [k for k, v in VERSUCHE.items()
+                  if all(jetzt - z >= SPERRE_SEKUNDEN for z in v)]:
+            VERSUCHE.pop(k, None)
+        frisch = [z for z in VERSUCHE.get(schluessel, [])
+                  if jetzt - z < SPERRE_SEKUNDEN]
+        VERSUCHE[schluessel] = frisch
+        return len(frisch) >= grenze
+
+
+def fehlversuch(*schluessel):
+    jetzt = time.time()
+    with VERSUCHE_LOCK:
+        for k in schluessel:
+            VERSUCHE.setdefault(k, []).append(jetzt)
+
+
+def versuche_vergessen(*schluessel):
+    with VERSUCHE_LOCK:
+        for k in schluessel:
+            VERSUCHE.pop(k, None)
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login_page():
     if request.method == "POST":
         username = (request.form.get("username") or "").strip().lower()
         password = request.form.get("password") or ""
+        adresse, konto = f"ip:{_absender()}", f"konto:{username}"
+        if gesperrt(konto, MAX_JE_KONTO) or gesperrt(adresse, MAX_JE_ADRESSE):
+            log.warning("Anmeldung gebremst: zu viele Fehlversuche fuer '%s'",
+                        username or "(leer)")
+            return render_template(
+                "login.html",
+                error="Zu viele Fehlversuche. Bitte warte eine Viertelstunde."), 429
         # Neue Konten werden klein gespeichert, das Konto aus admin_user aber
         # so, wie es in der Option steht - deshalb hier unabhaengig von der
         # Schreibweise suchen.
@@ -671,11 +734,14 @@ def login_page():
             return render_template(
                 "login.html", error="Dieses Konto ist gesperrt. Wende dich an einen Administrator.")
         if row and check_password_hash(row["pw_hash"], password):
+            versuche_vergessen(adresse, konto)
             session.permanent = True
             session["uid"] = row["id"]
             session["pwv"] = row["pw_version"]
             return redirect(url_for("index"))
-        return render_template("login.html", error="Benutzername oder Passwort stimmt nicht.")
+        fehlversuch(adresse, konto)
+        return render_template("login.html",
+                               error="Benutzername oder Passwort stimmt nicht.")
     if session.get("uid"):
         return redirect(url_for("index"))
     return render_template("login.html", error=None)
