@@ -28,8 +28,8 @@ kill %1
 
 Danach dasselbe für `tests/test_users.py`, `tests/test_media.py`,
 `tests/test_register.py`, `tests/test_avatars.py`, `tests/test_notify.py`,
-`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py`, `tests/test_anrufe.py` und
-`tests/test_freunde.py`.
+`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py`, `tests/test_anrufe.py`, `tests/test_freunde.py` und
+`tests/test_tipps.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
 
@@ -79,6 +79,17 @@ das durch Altbestände fehl.
   gemeinsame Unterhaltung, ein Fremder nicht.
 * Eine gemeinsame Unterhaltung genügt weiterhin auch ohne Freundschaft.
 * Ein gelöschtes Konto nimmt seine Freundschaften mit.
+
+`test_tipps.py` (35 Prüfungen)
+
+* Anlegen mit Fehlerfällen; unbekannte Art wird zu „sonstiges", zu viele
+  Sterne werden gedeckelt.
+* Sichtbar nur im eigenen Kreis – Freundschaft *oder* gemeinsame
+  Unterhaltung genügt, sonst nichts.
+* Merken und zurücknehmen; ändern und löschen nur durch den Verfasser.
+* Bild anhängen und austauschen, das abgelöste wird aufgeräumt; eine fremde
+  Datei kommt nicht hinein.
+* Ein gelöschtes Konto nimmt seine Empfehlungen mit.
 
 `test_polls.py` (22 Prüfungen)
 

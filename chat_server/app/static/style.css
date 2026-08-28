@@ -1592,3 +1592,32 @@ audio.abspieler { width: min(260px, 100%); }
 .fr-zeile .mini-btn { flex: 0 0 auto; }
 /* Wartet eine Anfrage, faellt der Knopf ins Auge */
 .icon-btn.wartet { color: var(--accent); border-color: var(--accent); }
+
+/* ---------- Empfehlungen ---------- */
+.tipp { padding: 9px 16px 11px; border-bottom: 1px solid var(--line); }
+.tipp:last-child { border-bottom: none; }
+.tp-kopf { display: flex; align-items: center; gap: 8px; }
+.tp-art { font-size: 11px; color: var(--muted); }
+.tp-titel { font-size: 14px; font-weight: 600; margin-top: 2px; }
+.tp-ort { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.tp-text {
+  font-size: 12.5px;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.tp-fuss { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+.tp-von { font-size: 11px; color: var(--muted); }
+.sterne { font-size: 12px; color: var(--accent); letter-spacing: 1px; }
+.sterne .leer { color: var(--line); }
+.stern-wahl { display: flex; gap: 4px; }
+.stern {
+  background: transparent;
+  border: none;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--line);
+  cursor: pointer;
+  padding: 0 2px;
+}
+.stern.an { color: var(--accent); }

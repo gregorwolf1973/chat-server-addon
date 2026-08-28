@@ -477,6 +477,27 @@ nicht am Gerät – sie gilt also auch auf dem Telefon.
 Fehlt die Bibliothek oder kommt sie nicht durch, bleibt die Umrisskarte
 stehen und ein Hinweis sagt, warum.
 
+## Empfehlungen
+
+Der Reiter **Tipps** sammelt, was gut war: Film, Kino, Restaurant, Bar, Café,
+Hotel, Ausflug, Musik, Buch oder Sonstiges – mit Namen, ein bis fünf Sternen,
+Ort, Text und Bild. Den Ort kannst du wie bei einer Einladung auf der Karte
+antippen.
+
+Jeder schreibt **seine eigene** Empfehlung. Es gibt bewusst keine gemeinsame
+Note, die sich mitteln ließe: Ein Tipp von jemandem, den du kennst, ist mehr
+wert als ein Durchschnitt aus tausend Sternen.
+
+**Merken** heißt „will ich auch" – der Verfasser sieht, wie viele es sich
+vorgemerkt haben. Ändern und löschen darf nur, wer die Empfehlung geschrieben
+hat (und der Administrator kann löschen).
+
+Sichtbar sind Empfehlungen für deinen Kreis – Freunde und alle, mit denen du
+eine Unterhaltung teilst. Oben lässt sich nach Art filtern; angeboten werden
+nur Arten, die auch vorkommen.
+
+Wird ein Konto gelöscht, verschwinden seine Empfehlungen mit.
+
 ## Freunde
 
 Unten links öffnet **Freunde** die Liste aller Konten auf diesem Server. Eine

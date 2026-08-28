@@ -1208,7 +1208,7 @@
   // Immer nur ein Abschnitt auf einmal, wie die Filterknöpfe bei WhatsApp.
   // Die Wahl bleibt am Gerät: sie sagt nichts über die eigenen Daten aus,
   // sondern nur, worauf man an diesem Bildschirm gerade schaut.
-  const REITER = ["chats", "karten", "stimmung", "termine", "zugesagt"];
+  const REITER = ["chats", "karten", "stimmung", "termine", "zugesagt", "tipps"];
   let aktiverReiter = "chats";
   try {
     const gemerkt = localStorage.getItem("chat-reiter");
@@ -1247,6 +1247,7 @@
           (state.stimmung || []).filter((s) => s.bis_at > jetzt).length);
     setze("zahl-termine", (state.termine || []).length);
     setze("zahl-zugesagt", zugesagteTermine().length);
+    setze("zahl-tipps", (state.tipps || []).length);
   }
 
   const zugesagteTermine = () =>
@@ -1885,6 +1886,242 @@
     feld.focus();
     feld.dispatchEvent(new Event("input"));
   }
+
+  // ---------- Empfehlungen ----------
+  // Jeder schreibt seine eigene; es gibt bewusst keine gemeinsame Note, die
+  // sich mitteln liesse. Ein Tipp von jemandem, den man kennt, ist mehr wert
+  // als ein Durchschnitt aus tausend Sternen.
+  const TIPP_ARTEN = {
+    film: "🎬 Film", kino: "🍿 Kino", restaurant: "🍽 Restaurant",
+    bar: "🍺 Bar", cafe: "☕ Café", hotel: "🛏 Hotel",
+    ausflug: "🥾 Ausflug", musik: "🎵 Musik", buch: "📖 Buch",
+    sonstiges: "✨ Sonstiges",
+  };
+  let tippFilter = "";
+
+  const sterneHtml = (n) =>
+    `<span class="sterne" title="${n} von 5">${"★".repeat(n)}`
+    + `<span class="leer">${"★".repeat(5 - n)}</span></span>`;
+
+  async function tippsLaden() {
+    const res = await api("/api/tipps");
+    if (!res.ok) return;
+    const d = await res.json();
+    state.tipps = d.tipps || [];
+    renderTipps();
+  }
+
+  function renderTipps() {
+    const liste = $("tipp-liste");
+    if (!liste) return;
+    const alle = state.tipps || [];
+    const gezeigt = tippFilter ? alle.filter((t) => t.art === tippFilter) : alle;
+    // Nur Arten anbieten, die auch vorkommen
+    const vorhanden = [...new Set(alle.map((t) => t.art))]
+      .filter((a) => TIPP_ARTEN[a]);
+    $("tipp-filter").innerHTML = vorhanden.length > 1
+      ? `<button class="mini-btn ${tippFilter ? "" : "an"}" data-art="">Alle</button>`
+        + vorhanden.map((a) =>
+            `<button class="mini-btn ${tippFilter === a ? "an" : ""}"
+                     data-art="${a}">${esc(TIPP_ARTEN[a])}</button>`).join("")
+      : "";
+    $("tipp-filter").querySelectorAll("[data-art]").forEach((b) =>
+      b.addEventListener("click", () => { tippFilter = b.dataset.art; renderTipps(); }));
+
+    if (!gezeigt.length) {
+      liste.innerHTML = `<div class="abschnitt-leer">${alle.length
+        ? "Zu diesem Filter gibt es nichts."
+        : "Noch keine Empfehlung. Sag, was gut war."}</div>`;
+      return;
+    }
+    liste.innerHTML = gezeigt.map((t) => `<div class="tipp" data-id="${t.id}">
+      <div class="tp-kopf">
+        <span class="tp-art">${esc(TIPP_ARTEN[t.art] || t.art)}</span>
+        ${sterneHtml(t.sterne)}
+      </div>
+      <div class="tp-titel">${esc(t.titel)}</div>
+      ${t.ort_text ? `<div class="tp-ort">📍 ${esc(t.ort_text)}</div>` : ""}
+      ${t.text ? `<div class="tp-text">${esc(t.text)}</div>` : ""}
+      <div class="tp-fuss">
+        ${avatarHtml("u", t.user_id, t.name, t.avatar, "winzig")}
+        <span class="tp-von">${esc(t.name)}${t.meiner ? " (du)" : ""}</span>
+        <span style="flex:1"></span>
+        <button class="mini-btn ${t.ich_merke ? "an" : ""}" data-merken="${t.id}"
+          >${t.ich_merke ? "Gemerkt" : "Merken"}${
+            t.gemerkt.length ? ` · ${t.gemerkt.length}` : ""}</button>
+        ${t.meiner ? `<button class="mini-btn" data-bearbeiten="${t.id}">Ändern</button>`
+                   : ""}
+      </div>
+    </div>`).join("");
+
+    reiterZahlen();
+    liste.querySelectorAll("[data-merken]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const res = await api(`/api/tipps/${b.dataset.merken}/merken`,
+                              {method: "POST"});
+        if (!res.ok) { toast("Das ging nicht."); return; }
+        await tippsLaden();
+      }));
+    liste.querySelectorAll("[data-bearbeiten]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const t = (state.tipps || []).find(
+          (x) => x.id === parseInt(b.dataset.bearbeiten, 10));
+        if (t) tippDialog(t);
+      }));
+  }
+
+  function tippDialog(vorhanden) {
+    const aendern = !!vorhanden;
+    let ort = aendern && vorhanden.ort
+      ? {lat: vorhanden.ort.lat, lon: vorhanden.ort.lon} : null;
+    let bildDatei = null;
+    let bildId = aendern ? vorhanden.file_id : null;
+    let sterne = aendern ? vorhanden.sterne : 0;
+
+    const root = modal(`<h2>${aendern ? "Empfehlung ändern" : "Empfehlung"}</h2>
+      <div class="field"><label for="tp-art">Was ist es?</label>
+        <select id="tp-art">${Object.entries(TIPP_ARTEN).map(([k, txt]) =>
+          `<option value="${k}" ${aendern && vorhanden.art === k ? "selected" : ""}
+            >${txt}</option>`).join("")}</select></div>
+      <div class="field"><label for="tp-titel">Name</label>
+        <input id="tp-titel" autocomplete="off" placeholder="Ristorante Bella"
+               value="${aendern ? esc(vorhanden.titel) : ""}"></div>
+      <div class="field"><label>Wie war es?</label>
+        <div class="stern-wahl" id="tp-sterne">${[1, 2, 3, 4, 5].map((n) =>
+          `<button type="button" class="stern ${n <= sterne ? "an" : ""}"
+                   data-n="${n}">★</button>`).join("")}</div></div>
+      <div class="field"><label for="tp-ort">Wo</label>
+        <input id="tp-ort" autocomplete="off" placeholder="Hauptstraße 4"
+               value="${aendern ? esc(vorhanden.ort_text) : ""}">
+        <div class="row schmal">
+          <button class="btn ghost klein" type="button" id="tp-karte">Auf der Karte wählen</button>
+          <button class="btn ghost klein" type="button" id="tp-hier">Aktueller Ort</button>
+        </div>
+        <div class="ortswahl" id="tp-kartenwahl" hidden></div>
+        <div class="ev-ortstand"><span class="hint" id="tp-ortstand"></span>
+          <button class="mini-btn" type="button" id="tp-ort-weg" hidden>Ort entfernen</button></div>
+      </div>
+      <div class="field"><label for="tp-text">Was sollte man wissen?</label>
+        <textarea id="tp-text" rows="3">${aendern ? esc(vorhanden.text) : ""}</textarea></div>
+      <div class="field"><label>Bild</label>
+        <div class="row schmal">
+          <button class="btn ghost klein" type="button" id="tp-bild">Bild wählen</button>
+          <button class="btn ghost klein" type="button" id="tp-bild-weg"
+                  ${bildId ? "" : "hidden"}>Bild entfernen</button></div>
+        <span class="hint" id="tp-bild-name">${bildId ? "Ein Bild ist hinterlegt." : ""}</span></div>
+      <div class="row">${aendern
+        ? '<button class="btn ghost" id="tp-weg">Löschen</button>'
+        : '<button class="btn ghost" id="m-cancel">Abbrechen</button>'}
+      <button class="btn" id="tp-ok">${aendern ? "Speichern" : "Empfehlen"}</button></div>`);
+    root.querySelector(".modal").classList.add("hoch");
+    const abbruch = root.querySelector("#m-cancel");
+    if (abbruch) abbruch.addEventListener("click", closeModal);
+
+    root.querySelectorAll(".stern").forEach((b) =>
+      b.addEventListener("click", () => {
+        sterne = parseInt(b.dataset.n, 10);
+        root.querySelectorAll(".stern").forEach((x) =>
+          x.classList.toggle("an", parseInt(x.dataset.n, 10) <= sterne));
+      }));
+
+    const stand = root.querySelector("#tp-ortstand");
+    const wegKnopf = root.querySelector("#tp-ort-weg");
+    const ortAnzeigen = () => {
+      stand.textContent = ort
+        ? `Ort gesetzt: ${ort.lat.toFixed(5)}, ${ort.lon.toFixed(5)}`
+        : "Noch kein Punkt auf der Karte.";
+      wegKnopf.hidden = !ort;
+    };
+    ortAnzeigen();
+    wegKnopf.addEventListener("click", () => {
+      ort = null; ortAnzeigen();
+      root.querySelector("#tp-kartenwahl").hidden = true;
+    });
+    root.querySelector("#tp-karte").addEventListener("click", () => {
+      const box = root.querySelector("#tp-kartenwahl");
+      if (!box.hidden) { box.hidden = true; return; }
+      box.hidden = false;
+      ortsWaehler(box, ort, (neu) => { ort = neu; ortAnzeigen(); });
+    });
+    root.querySelector("#tp-hier").addEventListener("click", async () => {
+      stand.textContent = "Standort wird bestimmt …";
+      try {
+        const gefunden = await standortHolen();
+        ort = {lat: gefunden.lat, lon: gefunden.lon};
+        ortAnzeigen();
+      } catch (err) { stand.textContent = err.message; }
+    });
+
+    root.querySelector("#tp-bild").addEventListener("click", () => {
+      const feld = document.createElement("input");
+      feld.type = "file";
+      feld.accept = "image/*";
+      feld.addEventListener("change", () => {
+        bildDatei = feld.files[0] || null;
+        root.querySelector("#tp-bild-name").textContent =
+          bildDatei ? bildDatei.name : "";
+        root.querySelector("#tp-bild-weg").hidden = !bildDatei && !bildId;
+      });
+      feld.click();
+    });
+    root.querySelector("#tp-bild-weg").addEventListener("click", () => {
+      bildDatei = null; bildId = null;
+      root.querySelector("#tp-bild-name").textContent = "Kein Bild.";
+      root.querySelector("#tp-bild-weg").hidden = true;
+    });
+
+    const weg = root.querySelector("#tp-weg");
+    if (weg) weg.addEventListener("click", async () => {
+      if (!confirm("Diese Empfehlung löschen?")) return;
+      const res = await api(`/api/tipps/${vorhanden.id}`, {method: "DELETE"});
+      if (!res.ok) { toast("Das ging nicht."); return; }
+      closeModal();
+      await tippsLaden();
+    });
+
+    root.querySelector("#tp-ok").addEventListener("click", async () => {
+      const titel = root.querySelector("#tp-titel").value.trim();
+      if (!titel) { toast("Es fehlt der Name."); return; }
+      if (!sterne) { toast("Wie viele Sterne gibst du?"); return; }
+      const knopf = root.querySelector("#tp-ok");
+      knopf.disabled = true;
+      try {
+        if (bildDatei) {
+          const fd = new FormData();
+          fd.append("file", bildDatei);
+          const hoch = await api("/api/upload", {method: "POST", body: fd});
+          const daten = await hoch.json().catch(() => ({}));
+          if (!hoch.ok) { toast(daten.error || "Das Bild ging nicht durch."); return; }
+          bildId = daten.id;
+        }
+        const nutzlast = {
+          art: root.querySelector("#tp-art").value,
+          titel, sterne,
+          ort_text: root.querySelector("#tp-ort").value.trim(),
+          text: root.querySelector("#tp-text").value.trim(),
+          file_id: bildId,
+          lat: ort ? ort.lat : null,
+          lon: ort ? ort.lon : null,
+        };
+        const res = aendern
+          ? await api(`/api/tipps/${vorhanden.id}`, {method: "PATCH",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify(nutzlast)})
+          : await api("/api/tipps", {method: "POST",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify(nutzlast)});
+        const daten = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
+        closeModal();
+        await tippsLaden();
+      } finally {
+        knopf.disabled = false;
+      }
+    });
+  }
+
+  socket.on("tipps_geaendert", () => tippsLaden());
+  $("btn-tipp").addEventListener("click", () => tippDialog());
 
   // ---------- Freunde ----------
   // Gegenseitig: eine Anfrage wird erst durch die Zusage der Gegenseite zur
@@ -3373,6 +3610,7 @@
 
   weltkarteLaden();
   terminLaden();
+  tippsLaden();
   loadState().then(() => {
     const wanted = parseInt(new URLSearchParams(location.search).get("room"), 10);
     if (wanted && roomById(wanted)) openRoom(wanted);

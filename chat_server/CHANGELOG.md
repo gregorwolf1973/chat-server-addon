@@ -1,5 +1,17 @@
 # Änderungsverlauf
 
+## 0.26.0
+
+- **Empfehlungen** im neuen Reiter *Tipps*: Film, Kino, Restaurant, Bar,
+  Café, Hotel, Ausflug, Musik, Buch - mit Namen, ein bis fuenf Sternen, Ort
+  (auf der Karte antippbar), Text und Bild
+- **Merken** heisst „will ich auch"; der Verfasser sieht, wie viele es sich
+  vorgemerkt haben
+- Sichtbar im eigenen Kreis - Freunde und alle, mit denen man eine
+  Unterhaltung teilt. Filter nach Art, aber nur fuer Arten, die vorkommen
+- Aendern darf nur der Verfasser; ein geloeschtes Konto nimmt seine
+  Empfehlungen mit
+
 ## 0.25.1
 
 - **Es klingelt jetzt.** Bei einem Anruf gibt es einen Ton und auf dem Telefon
