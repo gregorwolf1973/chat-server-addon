@@ -715,3 +715,33 @@ audio.abspieler { width: min(260px, 100%); }
   font-size: 12px;
 }
 .token-zeile .btn { width: auto; flex: 0 0 auto; padding: 9px 14px; }
+
+/* ---------- Bild in groß ---------- */
+.modal.bildschau {
+  background: transparent;
+  border: none;
+  padding: 0;
+  width: min(560px, 92vw);
+  max-height: 92vh;
+  text-align: center;
+  cursor: zoom-out;
+}
+.gross-bild {
+  width: 100%;
+  max-height: 74vh;
+  object-fit: contain;
+  border-radius: var(--radius);
+  display: block;
+}
+.gross-ersatz { display: flex; justify-content: center; padding: 24px 0; }
+.gross-ersatz .avatar { width: 140px; height: 140px; font-size: 46px; }
+.gross-name {
+  margin: 12px 0 0;
+  font-weight: 600;
+  color: var(--text);
+}
+.modal.bildschau .hint { margin-top: 4px; }
+
+.msg > .avatar { cursor: pointer; }
+.avatar-vorschau { cursor: zoom-in; }
+.btn.ghost.del { color: var(--danger); border-color: var(--danger); }

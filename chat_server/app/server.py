@@ -832,6 +832,60 @@ def api_create_room():
     return jsonify({"id": room_id})
 
 
+def raum_aufraeumen(conn, room_id):
+    """Raum mitsamt Nachrichten, Anhaengen und Bild entfernen."""
+    dateien = [r["file_id"] for r in conn.execute(
+        "SELECT DISTINCT file_id FROM messages WHERE room_id=? AND file_id IS NOT NULL",
+        (room_id,)).fetchall()]
+    raum = conn.execute("SELECT avatar FROM rooms WHERE id=?", (room_id,)).fetchone()
+    conn.execute("DELETE FROM messages WHERE room_id=?", (room_id,))
+    conn.execute("DELETE FROM room_members WHERE room_id=?", (room_id,))
+    conn.execute("DELETE FROM rooms WHERE id=?", (room_id,))
+    conn.commit()
+    for file_id in dateien:
+        datei_aufraeumen(conn, file_id)
+    if raum and raum["avatar"]:
+        avatar_entfernen(raum["avatar"])
+
+
+@app.post("/api/rooms/<int:room_id>/leave")
+@login_required
+def api_leave_room(room_id):
+    """Die Unterhaltung fuer mich beenden - andere behalten sie."""
+    uid = session["uid"]
+    if not is_member(room_id, uid):
+        abort(403)
+    conn = db()
+    conn.execute("DELETE FROM room_members WHERE room_id=? AND user_id=?",
+                 (room_id, uid))
+    conn.commit()
+    # Bleibt niemand ausser dem Bot uebrig, kann der Raum ganz weg
+    rest = conn.execute(
+        "SELECT COUNT(*) c FROM room_members m JOIN users u ON u.id=m.user_id"
+        " WHERE m.room_id=? AND u.username<>?", (room_id, BOT_USERNAME)).fetchone()["c"]
+    if rest == 0:
+        raum_aufraeumen(conn, room_id)
+        socketio.emit("room_removed", {"id": room_id})
+    else:
+        socketio.emit("room_removed", {"id": room_id}, to=f"user:{uid}")
+        socketio.emit("room_changed", {"id": room_id}, to=f"room:{room_id}")
+    log.info("Nutzer %s hat Raum %s verlassen", uid, room_id)
+    return jsonify({"ok": True, "geloescht": rest == 0})
+
+
+@app.delete("/api/rooms/<int:room_id>")
+@admin_required
+def api_delete_room(room_id):
+    """Die Unterhaltung fuer alle entfernen - samt Nachrichten und Anhaengen."""
+    conn = db()
+    if conn.execute("SELECT 1 FROM rooms WHERE id=?", (room_id,)).fetchone() is None:
+        return jsonify({"error": "Diese Unterhaltung gibt es nicht."}), 404
+    raum_aufraeumen(conn, room_id)
+    socketio.emit("room_removed", {"id": room_id})
+    log.info("Raum %s wurde vollstaendig geloescht", room_id)
+    return jsonify({"ok": True})
+
+
 @app.post("/api/rooms/<int:room_id>/members")
 @login_required
 def api_add_member(room_id):

@@ -1,5 +1,16 @@
 # Änderungsverlauf
 
+## 0.9.0
+
+- **Unterhaltungen löschen**: In den Angaben zur Unterhaltung (Tipp auf den
+  Namen oben) gibt es **Chat löschen** – das entfernt sie nur bei dir, alle
+  anderen behalten sie. Bleibt danach niemand mehr übrig, verschwindet sie
+  samt Nachrichten und Anhängen
+- Administratoren können mit **Für alle löschen** eine Unterhaltung
+  endgültig entfernen, einschließlich der Dateien auf der Platte
+- **Profilbilder in groß**: Ein Tipp auf das runde Bild neben einer Nachricht
+  oder in den Angaben zur Unterhaltung zeigt es formatfüllend
+
 ## 0.8.0
 
 - **Benachrichtigung erzwingen:** `POST /api/notify` nimmt jetzt

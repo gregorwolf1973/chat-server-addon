@@ -137,10 +137,21 @@ entfällt beides, dort ist ohnehin klar, wer schreibt.
 
 Die Uhrzeit sitzt unten rechts in der Sprechblase.
 
-**Farbe je Unterhaltung:** Ein Tipp auf den Namen oben in der Kopfzeile
-öffnet die Angaben zur Unterhaltung. Dort lässt sich aus neun Tönen wählen,
-in welcher Farbe die eigenen Sprechblasen erscheinen. Die Wahl gilt nur für
-dich – alle anderen behalten ihre.
+**Angaben zur Unterhaltung:** Ein Tipp auf den Namen oben in der Kopfzeile
+öffnet sie. Dort findest du:
+
+* das Gruppenbild (bei Gruppen änderbar von jedem Mitglied),
+* die **Farbe** der eigenen Sprechblasen – neun Töne zur Auswahl. Die Wahl
+  gilt nur für dich, alle anderen behalten ihre,
+* **Chat löschen** – entfernt die Unterhaltung nur bei dir. Die anderen
+  behalten sie samt Verlauf. Bleibt danach niemand mehr übrig, verschwindet
+  sie ganz,
+* **Für alle löschen** (nur Administratoren) – entfernt sie endgültig,
+  mitsamt Nachrichten und Anhängen, auch von der Platte.
+
+**Profilbilder groß ansehen:** Ein Tipp auf das runde Bild neben einer
+Nachricht oder auf das Bild in den Angaben zur Unterhaltung zeigt es
+formatfüllend. Ein weiterer Tipp schließt die Ansicht.
 
 ## Bilder und Dateien
 

@@ -30,6 +30,7 @@ def main():
                                               "display_name": name.capitalize(),
                                               "password": "start123"})
     anna, _ = anmelden("anna", "start123")
+    anna_id = eigene_id(anna)
     bert, _ = anmelden("bert", "start123")
 
     raum_anna = anna.post(f"{BASE}/api/rooms",
@@ -138,6 +139,47 @@ def main():
     r = anna.post(f"{BASE}/api/rooms/{raum_anna}/color", json={"color": ""})
     e.pruefe(r.status_code == 200 and r.json()["color"] is None,
              "zuruecksetzen auf Standard")
+
+    e.abschnitt("Unterhaltung bei sich loeschen")
+    eigener = anna.post(f"{BASE}/api/rooms",
+                        json={"is_group": True, "name": "Nur kurz",
+                              "members": [admin_id]}).json()["id"]
+    senden(anna, eigener, "steht hier drin")
+    r = anna.post(f"{BASE}/api/rooms/{eigener}/leave")
+    e.pruefe(r.status_code == 200, f"verlassen = {r.status_code}")
+    e.pruefe(not any(x["id"] == eigener
+                     for x in anna.get(f"{BASE}/api/state").json()["rooms"]),
+             "aus Annas Liste verschwunden")
+    e.pruefe(any(x["id"] == eigener
+                 for x in admin.get(f"{BASE}/api/state").json()["rooms"]),
+             "der Administrator behaelt sie")
+    e.pruefe(any(m["body"] == "steht hier drin"
+                 for m in admin.get(f"{BASE}/api/rooms/{eigener}/messages").json()),
+             "und sieht den Verlauf weiterhin")
+    e.pruefe(anna.get(f"{BASE}/api/rooms/{eigener}/messages").status_code == 403,
+             "Anna kommt nicht mehr an den Verlauf")
+
+    e.abschnitt("Unterhaltung fuer alle loeschen")
+    gemeinsam = admin.post(f"{BASE}/api/rooms",
+                           json={"is_group": True, "name": "Weg damit",
+                                 "members": [anna_id]}).json()["id"]
+    bild = hochladen(anna, "anhang.png", PNG, "image/png").json()
+    senden(anna, gemeinsam, "", datei=bild["id"])
+    vorher = dateien_auf_platte()
+    e.pruefe(anna.delete(f"{BASE}/api/rooms/{gemeinsam}").status_code == 403,
+             "ein gewoehnliches Konto darf das nicht")
+    e.pruefe(admin.delete(f"{BASE}/api/rooms/{gemeinsam}").status_code == 200,
+             "der Administrator schon")
+    e.pruefe(not any(x["id"] == gemeinsam
+                     for x in anna.get(f"{BASE}/api/state").json()["rooms"]),
+             "sie ist bei allen fort")
+    e.pruefe(anna.get(f"{BASE}/files/{bild['id']}").status_code == 404,
+             "der Anhang ist nicht mehr abrufbar")
+    if vorher is not None:
+        e.pruefe(dateien_auf_platte() == vorher - 1,
+                 "und die Bytes sind von der Platte weg")
+    e.pruefe(admin.delete(f"{BASE}/api/rooms/{gemeinsam}").status_code == 404,
+             "ein zweites Loeschen meldet sauber 404")
 
     verbindungen_schliessen()
     return e.bilanz()

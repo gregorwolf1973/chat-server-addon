@@ -401,6 +401,8 @@
   // Konten geaendert oder entfernt - Namen und Auswahllisten nachziehen.
   socket.on("user_changed", () => loadState());
   socket.on("avatar_changed", () => loadState());
+  socket.on("room_removed", (d) => raumVerlassen(d.id));
+  socket.on("room_changed", () => loadState());
   socket.on("user_pending", (u) => {
     if (IS_ADMIN) toast(`Neuer Zugangsantrag von ${u.display_name}.`);
   });
@@ -547,6 +549,32 @@
       "--self", (room && room.color) || "#1f4a48");
   }
 
+  // Ein Tipp auf ein Profilbild zeigt es formatfuellend.
+  function bildGross(kind, id, name, avatar) {
+    const root = modal(avatar
+      ? `<img class="gross-bild" src="${BASE}/avatars/${kind}/${id}`
+        + `?v=${encodeURIComponent(avatar)}" alt="${esc(name)}">`
+        + `<p class="gross-name">${esc(name)}</p>`
+      : `<div class="gross-ersatz">${avatarHtml(kind, id, name, null, "riesig")}</div>`
+        + `<p class="gross-name">${esc(name)}</p>`
+        + '<p class="hint">Für diesen Eintrag gibt es kein Bild.</p>');
+    root.querySelector(".modal").classList.add("bildschau");
+    root.querySelector(".modal").addEventListener("click", closeModal);
+  }
+
+  // Profilbilder neben Nachrichten
+  $("messages").addEventListener("click", (e) => {
+    const bild = e.target.closest(".msg > .avatar");
+    if (!bild) return;
+    const msg = bild.closest(".msg");
+    const room = roomById(currentRoom);
+    const id = parseInt(msg.dataset.id, 10);
+    const person = room && room.members.find((x) =>
+      x.display_name === msg.querySelector(".author")?.textContent);
+    if (person) bildGross("u", person.id, person.display_name, person.avatar);
+    void id;
+  }, true);
+
   // Auf Bild oder Namen in der Kopfzeile tippen: Angaben zur Unterhaltung.
   function chatInfo() {
     const room = roomById(currentRoom);
@@ -564,8 +592,46 @@
         <button class="farbe ${(room.color || "") === f.wert ? "aktiv" : ""}"
                 data-wert="${f.wert}" title="${f.name}"
                 style="background:${f.wert || "var(--surface-2)"}"></button>`).join("")}</div>
+      <hr class="sep">
+      <div class="row schmal">
+        <button class="btn ghost" id="r-leave">Chat löschen</button>
+        ${IS_ADMIN ? '<button class="btn ghost del" id="r-kill">Für alle löschen</button>' : ""}
+      </div>
+      <p class="hint">„Chat löschen" entfernt die Unterhaltung nur bei dir.
+        ${IS_ADMIN ? "„Für alle löschen\" entfernt sie mitsamt Nachrichten und Anhängen bei allen." : ""}</p>
       <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelector(".avatar-vorschau").addEventListener("click", () => {
+      if (room.is_group) return bildGross("r", room.id, room.name, room.avatar);
+      const other = room.members.find((x) => x.id !== ME) || room.members[0];
+      if (other) bildGross("u", other.id, other.display_name, other.avatar);
+    });
+
+    root.querySelector("#r-leave").addEventListener("click", async () => {
+      if (!confirm(`Unterhaltung „${room.name}“ bei dir löschen?
+
+`
+                   + "Die anderen behalten sie. Du siehst den Verlauf danach "
+                   + "nicht mehr.")) return;
+      const res = await api(`/api/rooms/${room.id}/leave`, {method: "POST"});
+      if (!res.ok) { toast("Das hat nicht geklappt."); return; }
+      toast("Unterhaltung gelöscht.");
+      closeModal();
+      raumVerlassen(room.id);
+    });
+    const kill = root.querySelector("#r-kill");
+    if (kill) kill.addEventListener("click", async () => {
+      if (!confirm(`Unterhaltung „${room.name}“ für ALLE löschen?
+
+`
+                   + "Nachrichten und Anhänge werden endgültig entfernt. "
+                   + "Das lässt sich nicht rückgängig machen.")) return;
+      const res = await api(`/api/rooms/${room.id}`, {method: "DELETE"});
+      if (!res.ok) { toast("Das hat nicht geklappt."); return; }
+      toast("Unterhaltung für alle gelöscht.");
+      closeModal();
+      raumVerlassen(room.id);
+    });
 
     root.querySelectorAll(".farbe").forEach((knopf) =>
       knopf.addEventListener("click", async () => {
@@ -600,6 +666,20 @@
 
   $("room-avatar").addEventListener("click", chatInfo);
   $("room-title").addEventListener("click", chatInfo);
+
+  function raumVerlassen(id) {
+    state.rooms = state.rooms.filter((r) => r.id !== id);
+    if (currentRoom === id) {
+      currentRoom = null;
+      $("app").classList.remove("room-open");
+      $("chat-header").hidden = true;
+      $("composer").hidden = true;
+      $("messages").innerHTML =
+        '<div class="empty">Wähle links eine Unterhaltung.</div>';
+    }
+    renderRooms();
+    loadState();
+  }
 
   $("btn-back").addEventListener("click", () => {
     $("app").classList.remove("room-open");
