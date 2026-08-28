@@ -560,6 +560,23 @@ Je Person gilt immer nur **eine** Meldung – eine neue ersetzt die alte, sonst
 stünde die Pinnwand nach einer Woche voller alter Launen. Abgelaufene
 Meldungen verschwinden von selbst.
 
+## Am Telefon
+
+Alle Schaltflächen sind auf Berührungsgeräten mindestens **44 Pixel** hoch –
+darunter trifft ein Finger nicht mehr verlässlich. Das gilt nur dort: mit der
+Maus bleibt die Oberfläche kompakt.
+
+Zwei Anpassungen fallen auf:
+
+* Auf dem Telefon ist der **Emoji-Knopf ausgeblendet**. Die Tastatur bringt
+  ihre eigenen Emojis mit, und der Platz gehört dem Textfeld.
+* Unter 350 Pixeln Breite werden **Beschriftungen zu Zeichen** – „Medien"
+  wird 🖼, „Senden" wird ➤. Der Name steht weiter als Titel am Knopf.
+
+Die Reiterleiste braucht mit fünf Einträgen zwei Zeilen (rund 100 Pixel). Das
+ist der Preis dafür, dass jeder Reiter mit dem Finger zu treffen ist und
+keiner außerhalb des Bildes liegt.
+
 ## Aussehen
 
 In den Einstellungen unter **Aussehen** wählst du **Wie das Gerät**, **Hell**

@@ -1748,3 +1748,112 @@ audio.abspieler { width: min(260px, 100%); }
   color: var(--accent);
   white-space: nowrap;
 }
+
+/* ---------- Bedienung mit dem Finger ----------
+   Gemessen waren die Schaltflaechen 13 bis 32 Pixel hoch. Ein Finger trifft
+   verlaesslich erst ab etwa 44 Pixeln - das ist der Wert, den Apple und
+   Google seit Jahren nennen. Der Block greift auf Telefonen und Tablets
+   (grober Zeiger) sowie auf schmalen Fenstern; mit der Maus bleibt es
+   kompakt, dort trifft man auch 21 Pixel. */
+@media (pointer: coarse), (max-width: 720px) {
+  .mini-btn {
+    min-height: 44px;
+    padding: 0 15px;
+    font-size: 13px;
+  }
+  .act {
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+  .ev-kat, .ev-antwort, .st-emoji, .stern {
+    min-height: 44px;
+  }
+  .ev-antwort { font-size: 13px; }
+  .stern { font-size: 30px; padding: 0 6px; }
+
+  .icon-btn {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn, .btn.klein, .send {
+    min-height: 44px;
+  }
+  .btn.klein { padding: 0 14px; }
+
+  /* Reiter etwas flacher als 44: fuenf Stueck in zwei Zeilen wuerden sonst
+     ein Viertel des Bildschirms fuellen. 40 trifft sich immer noch gut. */
+  .reiter-knopf { min-height: 40px; padding: 0 13px; }
+
+  .field input, .modal input, .modal select, .login-card input {
+    min-height: 44px;
+  }
+  /* Ein Haekchen von 13 Pixeln trifft niemand */
+  .check input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+  }
+  .check { gap: 12px; min-height: 44px; }
+
+  /* Zeilen in Listen: genug Hoehe und Abstand, damit man nicht die
+     Nachbarzeile erwischt */
+  .room { padding: 14px 16px; }
+  .karten-eintrag, .stimmung-zeile, .termin-zeile, .fr-zeile, .karten-zeile {
+    min-height: 56px;
+  }
+  .termin-zeile, .karten-eintrag { padding: 11px 16px; }
+  .tipp { padding: 12px 16px 14px; }
+
+  /* Die Auswahl im Anhang-Menue */
+  .anhang-menue button { min-height: 48px; }
+
+  /* Auf dem Telefon bringt die Tastatur ihre eigenen Emojis mit - der
+     eigene Waehler ist dort doppelt gemoppelt und nimmt dem Textfeld den
+     Platz, den es dringender braucht. */
+  #btn-emoji { display: none; }
+
+  .composer { gap: 6px; padding: 10px 12px; }
+  #input { min-height: 44px; }
+
+  /* Anrufe: die Knoepfe sind schon gross, aber der Abstand war knapp */
+  .anruf-leiste { gap: 20px; }
+
+  /* Leaflet liefert seine Zoomknoepfe mit 30 Pixeln aus */
+  .leaflet-control-zoom a {
+    width: 44px !important;
+    height: 44px !important;
+    line-height: 44px !important;
+    font-size: 20px !important;
+  }
+  /* "Oeffnen" neben einem Ort war ein 20 Pixel hoher Textlink */
+  .ortslink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 10px;
+  }
+
+  /* Der Weg zwischen Anmeldung und Registrierung ist auf dem Telefon ein
+     einzelner Textverweis - der darf kein 16 Pixel hoher Strich sein. */
+  .login-card .hint a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 4px;
+  }
+}
+
+/* Auf sehr schmalen Geraeten weichen Beschriftungen dem Platz. Der Titel
+   bleibt am Knopf, damit die Bedeutung nicht verloren geht. Die Grenze liegt
+   bei 350 Pixeln: auf den ueblichen 360 bis 412 passen die Woerter noch, und
+   ein Wort ist verstaendlicher als ein Zeichen. */
+.kurz { display: none; }
+@media (max-width: 350px) {
+  .lang { display: none; }
+  .kurz { display: inline; font-size: 17px; line-height: 1; }
+  .chat-header { gap: 6px; padding: 10px 12px; }
+  .chat-header .sub { display: none; }
+}

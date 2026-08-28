@@ -1,5 +1,17 @@
 # Änderungsverlauf
 
+## 0.28.1
+
+- **Bedienung am Telefon**: Schaltflaechen waren 13 bis 32 Pixel hoch, ein
+  Finger trifft verlaesslich erst ab 44. Auf Beruehrungsgeraeten sind jetzt
+  alle Bedienelemente mindestens 44 Pixel; mit der Maus bleibt es kompakt
+- Das Haekchen in den Einstellungen war **13 x 13 Pixel** gross
+- Der **Emoji-Knopf** ist auf dem Telefon ausgeblendet - die Tastatur bringt
+  eigene mit, und das Textfeld gewinnt dadurch die Haelfte an Platz
+- Unter 350 Pixeln Breite werden Beschriftungen zu Zeichen, damit die
+  Kopfzeile nicht ueber den Rand laeuft
+- Die Zoomknoepfe der Karte und die "Oeffnen"-Verweise waren 30 bzw. 20 Pixel
+
 ## 0.28.0
 
 - **Empfehlungen nach Entfernung filtern**: 5 km, 25 km, 100 km oder Ueberall,

@@ -87,8 +87,10 @@
         <span style="flex:1"></span>
         <button class="icon-btn" id="btn-anruf" title="Anrufen">📞</button>
         <button class="icon-btn" id="btn-video" title="Videoanruf">🎥</button>
-        <button class="icon-btn" id="btn-room-media" title="Bilder und Dateien dieser Unterhaltung">Medien</button>
-        <button class="icon-btn" id="btn-invite" hidden>+ Person</button>
+        <button class="icon-btn" id="btn-room-media" title="Bilder und Dateien dieser Unterhaltung"><span
+          class="lang">Medien</span><span class="kurz" aria-hidden="true">🖼</span></button>
+        <button class="icon-btn" id="btn-invite" title="Person hinzufügen" hidden><span
+          class="lang">+ Person</span><span class="kurz" aria-hidden="true">＋</span></button>
       </div>
 
       <div class="messages" id="messages">
@@ -129,7 +131,8 @@
         <textarea id="input" rows="1" enterkeyhint="send"
                   placeholder="Nachricht schreiben…"></textarea>
         <button class="icon-btn" id="btn-mikro" title="Sprachnachricht">🎤</button>
-        <button class="send" id="btn-send">Senden</button>
+        <button class="send" id="btn-send"><span class="lang">Senden</span><span
+          class="kurz" aria-hidden="true">➤</span></button>
       </div>
     </main>
   </div>
