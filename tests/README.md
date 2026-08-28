@@ -55,6 +55,8 @@ das durch Altbestände fehl.
 * `nosniff` und eine enge CSP auf der Datei-Route.
 * Fremde Datei-IDs lassen sich nicht an eigene Nachrichten hängen.
 * Die Pfade im PWA-Manifest lösen auf existierende Adressen auf.
+* Das Stilblatt setzt `[hidden]` ausdrücklich durch – ohne diese Regel
+  überstimmt jedes eigene `display` das Attribut.
 
 * Sprachnachrichten: Länge kommt zurück, wird gedeckelt, und ohne Aufnahme
   oder bei Unfug verworfen.

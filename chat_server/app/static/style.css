@@ -15,6 +15,13 @@
 
 * { box-sizing: border-box; }
 
+/* Das hidden-Attribut muss staerker sein als jedes display der Bausteine.
+   Der Browser setzt dafuer [hidden] { display: none }, aber jede eigene
+   Regel mit display: flex schlaegt das - sie kommt aus dem Stilblatt der
+   Seite und gewinnt gegen die Voreinstellung des Browsers. Deshalb hier
+   ausdruecklich, und deshalb mit !important. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   height: 100%;

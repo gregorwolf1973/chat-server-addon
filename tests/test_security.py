@@ -87,6 +87,16 @@ def main():
     e.pruefe(all("?v=" in i["src"] for i in mf["icons"]),
              "die Symbole tragen eine Kennung, damit kein altes Bild haengen bleibt")
 
+    e.abschnitt("Verstecktes bleibt versteckt")
+    # Ohne diese Regel ueberstimmt jedes eigene display das hidden-Attribut.
+    # Das Anhang-Menue liess sich deshalb nicht schliessen, und das
+    # Anruffenster haette bildschirmfuellend ueber allem gelegen.
+    css = admin.get(f"{BASE}/static/style.css")
+    e.pruefe(css.status_code == 200, f"das Stilblatt wird ausgeliefert = {css.status_code}")
+    ohne_leer = "".join(css.text.split())
+    e.pruefe("[hidden]{display:none!important" in ohne_leer,
+             "und setzt hidden ausdruecklich durch")
+
     e.abschnitt("Die Weltkarte liegt im Add-on")
     r = admin.get(f"{BASE}/static/weltkarte.svg")
     e.pruefe(r.status_code == 200, f"sie wird ausgeliefert = {r.status_code}")

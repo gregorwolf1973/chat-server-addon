@@ -1,5 +1,15 @@
 # Änderungsverlauf
 
+## 0.24.1
+
+- **Das Menue hinter der Heftklammer liess sich nicht schliessen.** Im
+  Stilblatt fehlte eine Regel fuer `[hidden]`; jedes eigene `display: flex`
+  hat das Attribut ueberstimmt, weil eine Regel der Seite gegen die
+  Voreinstellung des Browsers gewinnt
+- Dasselbe betraf die Aufnahmeleiste, den Klingelbalken, die Antwortleiste -
+  und das Anruffenster, das bildschirmfuellend ueber allem gelegen haette
+- Eine Pruefung wacht jetzt darueber, dass die Regel bleibt
+
 ## 0.24.0
 
 - **Anrufe und Videoanrufe** ueber 📞 und 🎥 in der Unterhaltung, auch als
