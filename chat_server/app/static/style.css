@@ -11,6 +11,76 @@
   --radius: 10px;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Toene, die frueher verstreut im Stilblatt standen. Erst als Namen
+     lassen sie sich fuer ein helles Aussehen austauschen. */
+  --auf-akzent: #14202a;
+  --tief: #0b1012;
+  --kartengrund: #16232b;
+  --kartenland: #2e4a52;
+  --kartenkante: #46707a;
+  --akzent-schwach: #2a2118;
+  --warnung-grund: #3a1f22;
+  --warnung-text: #ffd9da;
+  --blase-fremd: var(--surface-2);
+  --schleier: rgba(255, 255, 255, 0.16);
+  --nadel-rand: #fff;
+  /* Liegt ueber dem Hintergrundbild - ohne ihn waere heller Text
+     auf einem hellen Foto nicht mehr zu lesen. */
+  --bg-schleier: rgba(14, 20, 22, 0.74);
+}
+
+/* ---------- Helles Aussehen ----------
+   Nur die Toene werden getauscht, kein Baustein doppelt beschrieben. Die
+   Wahl steht am Geraet: sie sagt nichts ueber die eigenen Daten aus,
+   sondern nur, wie hell der Bildschirm gerade sein soll. */
+:root[data-thema="hell"] {
+  --bg: #f3f1ec;
+  --surface: #ffffff;
+  --surface-2: #eae7e0;
+  --line: #d8d3c9;
+  --text: #1d2321;
+  --muted: #545b59;
+  --accent: #98570f;
+  --self: #d9ede6;
+  --danger: #b1332f;
+  --auf-akzent: #ffffff;
+  --tief: #2a2f30;
+  --kartengrund: #dfe7e6;
+  --kartenland: #b9cfc9;
+  --kartenkante: #8ba9a1;
+  --akzent-schwach: #f6e6d2;
+  --warnung-grund: #fbe0de;
+  --warnung-text: #7d2320;
+  --blase-fremd: #ffffff;
+  --schleier: rgba(0, 0, 0, 0.12);
+  --bg-schleier: rgba(243, 241, 236, 0.80);
+  --nadel-rand: #fff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-thema="dunkel"]):not([data-thema="hell"]) {
+    --bg: #f3f1ec;
+    --surface: #ffffff;
+    --surface-2: #eae7e0;
+    --line: #d8d3c9;
+    --text: #1d2321;
+    --muted: #545b59;
+    --accent: #98570f;
+    --self: #d9ede6;
+    --danger: #b1332f;
+    --auf-akzent: #ffffff;
+    --tief: #2a2f30;
+    --kartengrund: #dfe7e6;
+    --kartenland: #b9cfc9;
+    --kartenkante: #8ba9a1;
+    --akzent-schwach: #f6e6d2;
+    --warnung-grund: #fbe0de;
+    --warnung-text: #7d2320;
+    --blase-fremd: #ffffff;
+    --schleier: rgba(0, 0, 0, 0.12);
+    --bg-schleier: rgba(243, 241, 236, 0.80);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -79,7 +149,7 @@ button { cursor: pointer; }
   width: 100%;
   padding: 11px;
   background: var(--accent);
-  color: #16110a;
+  color: var(--auf-akzent);
   border: none;
   border-radius: 8px;
   font-weight: 600;
@@ -90,9 +160,9 @@ button { cursor: pointer; }
   border: 1px solid var(--line);
 }
 .error {
-  background: #3a1f22;
+  background: var(--warnung-grund);
   border: 1px solid var(--danger);
-  color: #ffd9da;
+  color: var(--warnung-text);
   padding: 9px 12px;
   border-radius: 8px;
   font-size: 13px;
@@ -152,7 +222,7 @@ button { cursor: pointer; }
 .dot.on { background: #4ec98a; }
 .badge {
   background: var(--accent);
-  color: #16110a;
+  color: var(--auf-akzent);
   font-size: 11px;
   font-weight: 700;
   border-radius: 999px;
@@ -346,7 +416,7 @@ button { cursor: pointer; }
 }
 .send {
   background: var(--accent);
-  color: #16110a;
+  color: var(--auf-akzent);
   border: none;
   border-radius: 10px;
   padding: 10px 16px;
@@ -628,7 +698,7 @@ button { cursor: pointer; }
   margin-top: 2px;
 }
 .act.ok { color: var(--text); border-color: var(--accent); }
-.act.ok:hover { background: var(--accent); color: #14202a; }
+.act.ok:hover { background: var(--accent); color: var(--auf-akzent); }
 
 .login-card textarea {
   width: 100%;
@@ -678,9 +748,9 @@ button { cursor: pointer; }
 /* Hinweis, wenn die Verbindung fehlt */
 .verbindung {
   padding: 7px 16px;
-  background: #3a1f22;
+  background: var(--warnung-grund);
   border-top: 1px solid var(--danger);
-  color: #ffd9da;
+  color: var(--warnung-text);
   font-size: 12px;
   text-align: center;
 }
@@ -893,7 +963,7 @@ audio.abspieler { width: min(260px, 100%); }
   height: 22px;
   border-radius: 50%;
   background: var(--accent);
-  color: #16110a;
+  color: var(--auf-akzent);
   font-size: 13px;
   font-weight: 700;
   display: flex;
@@ -907,7 +977,7 @@ audio.abspieler { width: min(260px, 100%); }
   position: relative;
   width: min(300px, 68vw);
   aspect-ratio: 1.6;
-  background: #16232b;
+  background: var(--kartengrund);
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
@@ -915,7 +985,7 @@ audio.abspieler { width: min(260px, 100%); }
 .ortskarte svg { width: 100%; height: 100%; display: block; }
 /* Die Fuellung muss am <use> haengen - der Pfad steckt in der Gruppe und
    wird von dort geklont. */
-.ortskarte svg use { fill: #2e4a52; stroke: #46707a; stroke-width: 0.2; }
+.ortskarte svg use { fill: var(--kartenland); stroke: var(--kartenkante); stroke-width: 0.2; }
 #weltkarte-vorrat { position: absolute; width: 0; height: 0; overflow: hidden; }
 .ortsnadel {
   position: absolute;
@@ -1039,13 +1109,13 @@ audio.abspieler { width: min(260px, 100%); }
   position: relative;
   width: 100%;
   aspect-ratio: 1.6;
-  background: #16232b;
+  background: var(--kartengrund);
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
 }
 .grosskarte svg { width: 100%; height: 100%; display: block; }
-.grosskarte svg use { fill: #2e4a52; stroke: #46707a; stroke-width: 0.15; }
+.grosskarte svg use { fill: var(--kartenland); stroke: var(--kartenkante); stroke-width: 0.15; }
 .karte-leer {
   padding: 34px 16px;
   text-align: center;
@@ -1110,7 +1180,7 @@ audio.abspieler { width: min(260px, 100%); }
   padding: 4px 7px;
   cursor: pointer;
 }
-.st-emoji.gewaehlt { border-color: var(--accent); background: #2a2118; }
+.st-emoji.gewaehlt { border-color: var(--accent); background: var(--akzent-schwach); }
 
 /* ---------- Termine ---------- */
 .event {
@@ -1178,7 +1248,7 @@ audio.abspieler { width: min(260px, 100%); }
   color: var(--muted);
   cursor: pointer;
 }
-.ev-kat.gewaehlt { color: var(--text); border-color: var(--accent); background: #2a2118; }
+.ev-kat.gewaehlt { color: var(--text); border-color: var(--accent); background: var(--akzent-schwach); }
 .modal.hoch { max-height: 92vh; }
 
 .termin-zeile { padding: 7px 16px; cursor: pointer; }
@@ -1197,7 +1267,7 @@ audio.abspieler { width: min(260px, 100%); }
   height: min(420px, 52vh);
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #16232b;
+  background: var(--kartengrund);
 }
 .ev-kartenflaeche { margin: 8px 0 0; }
 .ev-kartenflaeche .echtkarte { height: min(300px, 42vh); }
@@ -1228,7 +1298,7 @@ audio.abspieler { width: min(260px, 100%); }
 /* Einladungen auf der Karte */
 .karten-punkt.termin .karten-name {
   background: rgba(242, 166, 90, 0.92);
-  color: #14202a;
+  color: var(--auf-akzent);
   font-weight: 600;
 }
 .karten-fahne.klein { font-size: 20px; width: 28px; text-align: center; }
@@ -1332,7 +1402,7 @@ audio.abspieler { width: min(260px, 100%); }
   padding: 0 4px;
   border-radius: 999px;
   background: var(--accent);
-  color: #14202a;
+  color: var(--auf-akzent);
   font-size: 10px;
   font-weight: 700;
   line-height: 16px;
@@ -1421,7 +1491,7 @@ audio.abspieler { width: min(260px, 100%); }
   border-radius: 50%;
   border: none;
   background: var(--accent);
-  color: #14202a;
+  color: var(--auf-akzent);
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
@@ -1430,7 +1500,7 @@ audio.abspieler { width: min(260px, 100%); }
   flex: 1;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--schleier);
   overflow: hidden;
 }
 .sn-fortschritt {
@@ -1491,7 +1561,7 @@ audio.abspieler { width: min(260px, 100%); }
   position: fixed;
   inset: 0;
   z-index: 90;
-  background: #0b1012;
+  background: var(--tief);
   display: flex;
   flex-direction: column;
 }
@@ -1626,7 +1696,7 @@ audio.abspieler { width: min(260px, 100%); }
 .karten-fahne.stern { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8)); }
 .karten-punkt.tipp .karten-name {
   background: rgba(111, 211, 199, 0.92);
-  color: #14202a;
+  color: var(--auf-akzent);
   font-weight: 600;
 }
 .karten-zeile.tipp-zeile { cursor: pointer; }
@@ -1643,3 +1713,18 @@ audio.abspieler { width: min(260px, 100%); }
 }
 .tp-gemerkt .avatar { margin-right: -6px; border: 1px solid var(--surface); }
 .tp-gemerkt span { margin-left: 12px; }
+
+/* ---------- Hintergrundbild der Unterhaltung ---------- */
+.messages.mit-bild {
+  background-size: cover;
+  background-position: center;
+  background-attachment: local;
+}
+/* Auf dem Bild braucht die Sprechblase einen festen Grund, sonst laeuft das
+   Foto durch die Schrift. */
+.messages.mit-bild .bubble { background: var(--blase-fremd); }
+.messages.mit-bild .msg.mine .bubble { background: var(--self); }
+.messages.mit-bild .day {
+  background: var(--surface);
+  border: 1px solid var(--line);
+}

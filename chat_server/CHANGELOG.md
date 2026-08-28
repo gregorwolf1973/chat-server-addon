@@ -1,5 +1,18 @@
 # Änderungsverlauf
 
+## 0.27.0
+
+- **Hell und Dunkel**: in den Einstellungen unter *Aussehen* waehlbar, dazu
+  *Wie das Geraet*. Die Wahl wird gesetzt, bevor die Seite gezeichnet wird -
+  sonst blitzte kurz die falsche Helligkeit auf
+- **Hintergrundbild je Unterhaltung**, nur fuer einen selbst. Vor dem
+  Hochladen auf 1440 Pixel verkleinert; ein Schleier darueber haelt den Text
+  lesbar
+- Die **Farbeinstellung je Unterhaltung ist entfallen** - das Hintergrundbild
+  tritt an ihre Stelle
+- Verstreute Festfarben im Stilblatt haben Namen bekommen; ohne sie liesse
+  sich kein helles Aussehen bauen
+
 ## 0.26.2
 
 - **Von einer Empfehlung kam man nirgends auf eine Karte.** Die Ortseingabe

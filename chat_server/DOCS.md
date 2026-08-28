@@ -543,6 +543,30 @@ Je Person gilt immer nur **eine** Meldung – eine neue ersetzt die alte, sonst
 stünde die Pinnwand nach einer Woche voller alter Launen. Abgelaufene
 Meldungen verschwinden von selbst.
 
+## Aussehen
+
+In den Einstellungen unter **Aussehen** wählst du **Wie das Gerät**, **Hell**
+oder **Dunkel**. Die Wahl bleibt am Gerät gespeichert – sie sagt nichts über
+deine Daten aus, sondern nur, wie hell dein Bildschirm gerade sein soll.
+„Wie das Gerät" folgt der Einstellung von Telefon oder Rechner.
+
+Die Helligkeit wird schon gesetzt, bevor die Seite gezeichnet wird; sonst
+blitzte beim Laden kurz die falsche auf.
+
+## Hintergrundbild
+
+In den Angaben zur Unterhaltung (Tipp auf das Bild oben) lässt sich ein
+**Hintergrundbild** wählen. Es gilt **nur für dich** – andere sehen ihren
+eigenen Hintergrund oder gar keinen. Das Bild wird vor dem Hochladen auf
+1440 Pixel verkleinert.
+
+Über dem Bild liegt ein Schleier, sonst wäre Text auf einem hellen Foto nicht
+mehr zu lesen; Sprechblasen und Tagestrenner bekommen dort einen festen
+Grund.
+
+Die frühere **Farbeinstellung je Unterhaltung ist entfallen** – das
+Hintergrundbild tritt an ihre Stelle.
+
 ## Bilder und Dateien
 
 Der Knopf **Medien** oben in der Unterhaltung öffnet alles, was geteilt

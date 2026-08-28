@@ -172,7 +172,7 @@
     $("room-avatar").innerHTML = raumAvatar(room, "gross");
     $("room-avatar").title = "Angaben zur Unterhaltung";
     $("room-avatar").classList.add("aenderbar");
-    chatfarbeAnwenden(room);
+    hintergrundAnwenden(room);
     $("room-title").textContent = room.name;
     const others = room.members.filter((m) => m.id !== ME);
     $("room-sub").textContent = room.is_group
@@ -2243,6 +2243,101 @@
   socket.on("tipps_geaendert", () => tippsLaden());
   $("btn-tipp").addEventListener("click", () => tippDialog());
 
+  // ---------- Aussehen ----------
+  // Hell, dunkel oder was das Geraet sagt. Die Wahl steht am Geraet: sie
+  // sagt nichts ueber die eigenen Daten aus, sondern nur, wie hell der
+  // Bildschirm gerade sein soll.
+  const THEMEN = [["auto", "Wie das Gerät"], ["hell", "Hell"],
+                  ["dunkel", "Dunkel"]];
+
+  function themaLesen() {
+    try {
+      const wert = localStorage.getItem("chat-thema");
+      return THEMEN.some(([k]) => k === wert) ? wert : "auto";
+    } catch (err) {
+      return "auto";
+    }
+  }
+
+  function themaSetzen(wert) {
+    if (!THEMEN.some(([k]) => k === wert)) wert = "auto";
+    try { localStorage.setItem("chat-thema", wert); } catch (err) { /* egal */ }
+    if (wert === "auto") document.documentElement.removeAttribute("data-thema");
+    else document.documentElement.setAttribute("data-thema", wert);
+    // Die Leiste des Browsers soll mitgehen
+    const marke = document.querySelector('meta[name="theme-color"]');
+    if (marke) {
+      marke.content = getComputedStyle(document.documentElement)
+        .getPropertyValue("--bg").trim() || "#0e1416";
+    }
+  }
+
+  // ---------- Hintergrundbild ----------
+  // Es gilt nur fuer den, der es setzt - so wie vorher die Farbe. Ueber dem
+  // Bild liegt ein Schleier, sonst waeren Tagestrenner und heller Text auf
+  // einem hellen Foto nicht mehr zu lesen.
+  function hintergrundAnwenden(room) {
+    const box = $("messages");
+    if (!box) return;
+    if (room && room.hintergrund) {
+      const url = `${BASE}/hintergrund/${room.id}`
+        + `?v=${encodeURIComponent(room.hintergrund)}`;
+      box.style.backgroundImage =
+        `linear-gradient(var(--bg-schleier), var(--bg-schleier)), url("${url}")`;
+      box.classList.add("mit-bild");
+    } else {
+      box.style.backgroundImage = "";
+      box.classList.remove("mit-bild");
+    }
+  }
+
+  /** Auf 1440 Pixel lange Kante bringen - ein Foto vom Telefon hat sonst
+   *  mehrere Megabyte, und der Pi soll das nicht lagern muessen. */
+  function hintergrundVerkleinern(datei, kante = 1440) {
+    return new Promise((fertig, fehler) => {
+      const bild = new Image();
+      bild.onload = () => {
+        const faktor = Math.min(1, kante / Math.max(bild.width, bild.height));
+        const leinwand = document.createElement("canvas");
+        leinwand.width = Math.round(bild.width * faktor);
+        leinwand.height = Math.round(bild.height * faktor);
+        leinwand.getContext("2d").drawImage(bild, 0, 0,
+                                            leinwand.width, leinwand.height);
+        URL.revokeObjectURL(bild.src);
+        leinwand.toBlob((b) => b ? fertig(b) : fehler(new Error("Bild fehlerhaft")),
+                        "image/jpeg", 0.82);
+      };
+      bild.onerror = () => fehler(new Error("Das ist kein lesbares Bild."));
+      bild.src = URL.createObjectURL(datei);
+    });
+  }
+
+  function hintergrundWaehlen(room, fertig) {
+    const feld = document.createElement("input");
+    feld.type = "file";
+    feld.accept = "image/*";
+    feld.addEventListener("change", async () => {
+      const datei = feld.files[0];
+      if (!datei) return;
+      try {
+        const klein = await hintergrundVerkleinern(datei);
+        const fd = new FormData();
+        fd.append("file", klein, "hintergrund.jpg");
+        const res = await api(`/api/rooms/${room.id}/hintergrund`,
+                              {method: "POST", body: fd});
+        const daten = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(daten.error || "Das Bild ging nicht durch."); return; }
+        room.hintergrund = daten.hintergrund;
+        hintergrundAnwenden(room);
+        toast("Hintergrund gesetzt.");
+        if (fertig) fertig();
+      } catch (err) {
+        toast(err.message);
+      }
+    });
+    feld.click();
+  }
+
   // ---------- Freunde ----------
   // Gegenseitig: eine Anfrage wird erst durch die Zusage der Gegenseite zur
   // Freundschaft. Wer befreundet ist, sieht die Stimmung und die Tipps des
@@ -3022,22 +3117,6 @@
 
   // Farben zur Auswahl - dieselben Werte kennt der Server, damit niemand
   // beliebige Angaben unterschiebt.
-  const CHATFARBEN = [
-    {wert: "", name: "Standard"},
-    {wert: "#1f4a48", name: "Petrol"},
-    {wert: "#3b4a6b", name: "Blau"},
-    {wert: "#4a3b5c", name: "Violett"},
-    {wert: "#5c4030", name: "Braun"},
-    {wert: "#2f5136", name: "Grün"},
-    {wert: "#5c3040", name: "Bordeaux"},
-    {wert: "#334a5c", name: "Stahl"},
-    {wert: "#4a4a2f", name: "Oliv"},
-  ];
-
-  function chatfarbeAnwenden(room) {
-    document.documentElement.style.setProperty(
-      "--self", (room && room.color) || "#1f4a48");
-  }
 
   // Ein Tipp auf ein Profilbild zeigt es formatfuellend.
   function bildGross(kind, id, name, avatar) {
@@ -3076,12 +3155,13 @@
         ${room.avatar ? '<button class="btn ghost" id="a-weg">Bild entfernen</button>' : ""}
       </div>` : ""}
       <hr class="sep">
-      <h2>Farbe</h2>
-      <p class="hint">Gilt nur für dich – andere sehen ihre eigene Wahl.</p>
-      <div class="farbwahl">${CHATFARBEN.map((f) => `
-        <button class="farbe ${(room.color || "") === f.wert ? "aktiv" : ""}"
-                data-wert="${f.wert}" title="${f.name}"
-                style="background:${f.wert || "var(--surface-2)"}"></button>`).join("")}</div>
+      <h2>Hintergrundbild</h2>
+      <p class="hint">Gilt nur für dich – andere sehen ihren eigenen Hintergrund.</p>
+      <div class="row schmal">
+        <button class="btn ghost" id="hg-neu">Bild wählen</button>
+        <button class="btn ghost" id="hg-weg" ${room.hintergrund ? "" : "hidden"}
+          >Hintergrund entfernen</button>
+      </div>
       <hr class="sep">
       <div class="row schmal">
         <button class="btn ghost" id="r-leave">Chat löschen</button>
@@ -3123,19 +3203,18 @@
       raumVerlassen(room.id);
     });
 
-    root.querySelectorAll(".farbe").forEach((knopf) =>
-      knopf.addEventListener("click", async () => {
-        const wert = knopf.dataset.wert;
-        const res = await api(`/api/rooms/${room.id}/color`, {
-          method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({color: wert}),
-        });
-        if (!res.ok) { toast("Die Farbe ließ sich nicht setzen."); return; }
-        room.color = wert || null;
-        chatfarbeAnwenden(room);
-        root.querySelectorAll(".farbe").forEach((k) =>
-          k.classList.toggle("aktiv", k.dataset.wert === wert));
+    root.querySelector("#hg-neu").addEventListener("click", () =>
+      hintergrundWaehlen(room, () => {
+        root.querySelector("#hg-weg").hidden = false;
       }));
+    root.querySelector("#hg-weg").addEventListener("click", async () => {
+      const res = await api(`/api/rooms/${room.id}/hintergrund`, {method: "DELETE"});
+      if (!res.ok) { toast("Das ging nicht."); return; }
+      room.hintergrund = null;
+      hintergrundAnwenden(room);
+      root.querySelector("#hg-weg").hidden = true;
+      toast("Hintergrund entfernt.");
+    });
 
     const neu = root.querySelector("#a-neu");
     if (neu) neu.addEventListener("click", () =>
@@ -3258,6 +3337,9 @@
       <div class="field"><label>Neues Passwort</label><input id="p-new" type="password"></div>
       <button class="btn" id="p-ok">Passwort ändern</button>
       <hr class="sep">
+      <h2>Aussehen</h2>
+      <div class="kf-zeile" id="thema-wahl"></div>
+      <hr class="sep">
       <h2>Karten</h2>
       <p class="hint">Die Umrisskarte steckt im Add-on und fragt niemanden.
         Für Straßen holt die Live- und Terminansicht Kacheln von
@@ -3292,6 +3374,19 @@
       closeModal();
       $("btn-settings").click();
     });
+    const themaFeld = root.querySelector("#thema-wahl");
+    const themaZeichnen = () => {
+      const jetzt = themaLesen();
+      themaFeld.innerHTML = THEMEN.map(([wert, text]) =>
+        `<button class="mini-btn ${jetzt === wert ? "an" : ""}"
+                 data-thema="${wert}">${text}</button>`).join("");
+      themaFeld.querySelectorAll("[data-thema]").forEach((b) =>
+        b.addEventListener("click", () => {
+          themaSetzen(b.dataset.thema);
+          themaZeichnen();
+        }));
+    };
+    themaZeichnen();
     root.querySelector("#k-kacheln").addEventListener("change", async (e) => {
       const an = e.target.checked;
       const res = await api("/api/me/karten", {
@@ -3725,6 +3820,7 @@
     b.addEventListener("click", () => reiterSetzen(b.dataset.reiter)));
   reiterSetzen(aktiverReiter);
 
+  themaSetzen(themaLesen());
   weltkarteLaden();
   terminLaden();
   tippsLaden();

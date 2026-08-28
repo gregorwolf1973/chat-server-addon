@@ -9,6 +9,15 @@
   <link rel="icon" href="{{ statisch('favicon.png') }}" type="image/png">
   <link rel="apple-touch-icon" href="{{ statisch('icon-180.png') }}">
   <link rel="stylesheet" href="{{ statisch('style.css') }}">
+  <script>
+    // Vor dem ersten Anstrich: sonst blitzt kurz die falsche Helligkeit auf
+    try {
+      var w = localStorage.getItem("chat-thema");
+      if (w === "hell" || w === "dunkel") {
+        document.documentElement.setAttribute("data-thema", w);
+      }
+    } catch (e) { /* privates Fenster: dann eben wie das Geraet */ }
+  </script>
 </head>
 <body data-base="{{ base }}" data-me="{{ me.id }}" data-name="{{ me.display_name }}"
       data-admin="{{ 1 if me.is_admin else 0 }}" data-vapid="{{ vapid }}">

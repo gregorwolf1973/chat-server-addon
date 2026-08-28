@@ -121,26 +121,6 @@ def main():
     e.pruefe(boese["mime"] == "application/octet-stream",
              "HTML bleibt trotzdem draussen")
 
-    e.abschnitt("Farbe je Unterhaltung - nur fuer einen selbst")
-    r = anna.post(f"{BASE}/api/rooms/{raum_anna}/color", json={"color": "#3b4a6b"})
-    e.pruefe(r.status_code == 200, f"Farbe setzen = {r.status_code}")
-    meiner = next(x for x in anna.get(f"{BASE}/api/state").json()["rooms"]
-                  if x["id"] == raum_anna)
-    e.pruefe(meiner["color"] == "#3b4a6b", "sie steht in Annas Zustand")
-    seiner = next((x for x in admin.get(f"{BASE}/api/state").json()["rooms"]
-                   if x["id"] == raum_anna), None)
-    e.pruefe(seiner is not None and seiner["color"] is None,
-             "der Administrator sieht davon nichts")
-    e.pruefe(anna.post(f"{BASE}/api/rooms/{raum_anna}/color",
-                       json={"color": "#ff0000"}).status_code == 400,
-             "eine nicht vorgesehene Farbe wird abgewiesen")
-    e.pruefe(anna.post(f"{BASE}/api/rooms/{raum_bert}/color",
-                       json={"color": "#3b4a6b"}).status_code == 403,
-             "in fremden Unterhaltungen geht es nicht")
-    r = anna.post(f"{BASE}/api/rooms/{raum_anna}/color", json={"color": ""})
-    e.pruefe(r.status_code == 200 and r.json()["color"] is None,
-             "zuruecksetzen auf Standard")
-
     e.abschnitt("Unterhaltung bei sich loeschen")
     eigener = anna.post(f"{BASE}/api/rooms",
                         json={"is_group": True, "name": "Nur kurz",
@@ -221,6 +201,55 @@ def main():
     e.pruefe(antwort and antwort.get("ok"), "unsinnige Werte kippen den Text nicht")
     letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
     e.pruefe(letzte["ort"] is None, "werden aber verworfen")
+
+    e.abschnitt("Hintergrundbild einer Unterhaltung")
+    import io as _io
+    def hg(sitzung, raum):
+        return sitzung.post(f"{BASE}/api/rooms/{raum}/hintergrund",
+                            files={"file": ("hg.png", _io.BytesIO(PNG), "image/png")})
+    r = hg(anna, raum_anna)
+    e.pruefe(r.status_code == 200, f"Anna setzt eins = {r.status_code}")
+    name = r.json().get("hintergrund")
+    e.pruefe(bool(name), "und bekommt seine Kennung zurueck")
+    e.pruefe(anna.get(f"{BASE}/hintergrund/{raum_anna}").status_code == 200,
+             "sie kann es abrufen")
+    dieser = [x for x in anna.get(f"{BASE}/api/state").json()["rooms"]
+              if x["id"] == raum_anna][0]
+    e.pruefe(dieser["hintergrund"] == name, "der Startzustand nennt es")
+    e.pruefe("color" not in dieser, "eine Farbe gibt es nicht mehr")
+
+    # Das Bild gehoert der Person, nicht der Unterhaltung. Im Direktchat
+    # von Anna sitzt der Administrator.
+    e.pruefe(admin.get(f"{BASE}/hintergrund/{raum_anna}").status_code == 404,
+             "das andere Mitglied sieht ihren nicht")
+    anderer = [x for x in admin.get(f"{BASE}/api/state").json()["rooms"]
+               if x["id"] == raum_anna]
+    e.pruefe(anderer and anderer[0]["hintergrund"] is None,
+             "und bekommt ihn auch nicht im Startzustand")
+
+    r = hg(admin, raum_anna)
+    e.pruefe(r.status_code == 200, "er setzt seinen eigenen")
+    e.pruefe(admin.get(f"{BASE}/hintergrund/{raum_anna}").status_code == 200,
+             "und sieht ihn")
+    e.pruefe(anna.get(f"{BASE}/api/state").json()
+             and [x for x in anna.get(f"{BASE}/api/state").json()["rooms"]
+                  if x["id"] == raum_anna][0]["hintergrund"] == name,
+             "Annas bleibt davon unberuehrt")
+
+    e.pruefe(anna.post(f"{BASE}/api/rooms/{raum_bert}/hintergrund",
+                       files={"file": ("hg.png", _io.BytesIO(PNG), "image/png")}
+                       ).status_code == 403,
+             "in einer fremden Unterhaltung geht es nicht")
+    r = anna.post(f"{BASE}/api/rooms/{raum_anna}/hintergrund",
+                  files={"file": ("text.txt", _io.BytesIO(b"kein Bild"), "text/plain")})
+    e.pruefe(r.status_code == 400, f"und nur Bilder werden genommen = {r.status_code}")
+
+    e.pruefe(anna.delete(f"{BASE}/api/rooms/{raum_anna}/hintergrund"
+                         ).status_code == 200, "entfernen geht")
+    e.pruefe(anna.get(f"{BASE}/hintergrund/{raum_anna}").status_code == 404,
+             "danach ist er fort")
+    e.pruefe(admin.get(f"{BASE}/hintergrund/{raum_anna}").status_code == 200,
+             "der des anderen bleibt stehen")
 
     e.abschnitt("Sprachnachrichten")
     ton = hochladen(anna, "sprachnachricht.webm", b"kein echter Ton, reicht hier",
