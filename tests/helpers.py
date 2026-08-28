@@ -84,6 +84,12 @@ def verbindung(sitzung):
     return _verbindungen[sitzung]
 
 
+def senden_mit_antwort(sitzung, raum, body="", datei=None):
+    """Wie senden(), gibt aber die Empfangsbestaetigung des Servers zurueck."""
+    return verbindung(sitzung).call("send", {"room_id": raum, "body": body,
+                                             "file_id": datei}, timeout=8)
+
+
 def senden(sitzung, raum, body="", datei=None, warten=1.0):
     """Eine Nachricht ueber Socket.IO schicken - so wie die Oberflaeche es tut."""
     verbindung(sitzung).emit("send", {"room_id": raum, "body": body,

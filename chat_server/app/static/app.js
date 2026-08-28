@@ -317,7 +317,8 @@
   // mit Tracebacks und verzoegert jeden Verbindungsaufbau um einen Fehlversuch.
   const socket = io({path: BASE + "/socket.io", transports: ["polling", "websocket"]});
 
-  socket.on("connect_error", () => toast("Verbindung unterbrochen – versuche es erneut."));
+  socket.on("connect", () => verbindungAnzeigen(true));
+  socket.on("connect_error", () => verbindungAnzeigen(false));
 
   socket.on("message", (m) => {
     const room = roomById(m.room_id);
@@ -371,7 +372,8 @@
 
   // Wer gesperrt oder geloescht wird, fliegt serverseitig aus der Verbindung.
   socket.on("disconnect", (reason) => {
-    if (reason === "io server disconnect") location.reload();
+    if (reason === "io server disconnect") { location.reload(); return; }
+    verbindungAnzeigen(false);
   });
 
   socket.on("typing", (t) => {
@@ -413,16 +415,54 @@
       send();
     }
   });
-  $("btn-send").addEventListener("click", send);
+  // Nicht send direkt uebergeben: der Knopf reicht sonst das Klick-Ereignis
+  // als erstes Argument weiter - und das heisst dort fileId.
+  $("btn-send").addEventListener("click", () => send());
 
   function send(fileId) {
     const body = input.value.trim();
     if ((!body && !fileId) || !currentRoom) return;
-    socket.emit("send", {room_id: currentRoom, body, file_id: fileId || null,
-                         reply_to: replyTo});
+    if (!socket.connected) {
+      verbindungAnzeigen(false);
+      toast("Keine Verbindung – die Nachricht wurde nicht gesendet.");
+      return;
+    }
+    const entwurf = input.value;
+    const antwortId = replyTo;
+    // Der Server bestaetigt den Empfang. Bleibt sie aus, kommt der Text
+    // zurueck ins Feld, statt still zu verschwinden.
+    socket.timeout(8000).emit("send",
+      {room_id: currentRoom, body, file_id: fileId || null, reply_to: replyTo},
+      (zeitfehler, antwort) => {
+        if (zeitfehler) {
+          toast("Der Server hat nicht geantwortet – bitte noch einmal senden.");
+        } else if (antwort && antwort.ok === false) {
+          toast(antwort.error || "Die Nachricht wurde nicht angenommen.");
+        } else {
+          return;
+        }
+        if (!input.value) {
+          input.value = entwurf;
+          replyTo = antwortId;
+        }
+      });
     input.value = "";
     input.style.height = "auto";
     cancelReply();
+  }
+
+  // Ein Balken ueber dem Eingabefeld zeigt, wenn die Verbindung fehlt -
+  // sonst tippt man ins Leere und merkt es erst, wenn niemand antwortet.
+  function verbindungAnzeigen(verbunden) {
+    let balken = $("verbindung");
+    if (!balken) {
+      balken = document.createElement("div");
+      balken.id = "verbindung";
+      balken.className = "verbindung";
+      balken.textContent = "Keine Verbindung zum Server – Nachrichten warten.";
+      $("composer").parentNode.insertBefore(balken, $("composer"));
+    }
+    balken.hidden = !!verbunden;
   }
 
   $("btn-file").addEventListener("click", () => $("file-input").click());

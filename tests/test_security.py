@@ -4,7 +4,8 @@ import sys
 from urllib.parse import urljoin
 
 from helpers import (BASE, PNG, Ergebnis, als_admin, anmelden, eigene_id,
-                     hochladen, senden, verbindungen_schliessen)
+                     hochladen, senden, senden_mit_antwort,
+                     verbindungen_schliessen)
 
 
 def main():
@@ -61,8 +62,21 @@ def main():
                  for m in nachrichten),
              "die eigene Datei laesst sich senden")
 
+    e.abschnitt("Der Server bestaetigt jede Nachricht")
+    antwort = senden_mit_antwort(gast, raum, "wird das bestaetigt?")
+    e.pruefe(antwort and antwort.get("ok"), f"eine gueltige Nachricht: {antwort}")
+    # Der Sende-Knopf reichte frueher sein Klick-Ereignis als Datei-Kennung
+    # weiter - ohne Bestaetigung verschwand die Nachricht stillschweigend.
+    antwort = senden_mit_antwort(gast, raum, "mit Unsinn als Datei",
+                                 datei={"isTrusted": True})
+    e.pruefe(antwort and antwort.get("ok") is False,
+             f"eine unsinnige Datei-Kennung wird gemeldet: {antwort}")
+    e.pruefe(not any(m["body"] == "mit Unsinn als Datei"
+                     for m in gast.get(f"{BASE}/api/rooms/{raum}/messages").json()),
+             "und die Nachricht landet nicht im Verlauf")
+
     e.abschnitt("Manifest-Pfade werden relativ zum Manifest aufgeloest")
-    manifest_url = f"{BASE}/static/manifest.json"
+    manifest_url = f"{BASE}/manifest.webmanifest"
     mf = admin.get(manifest_url).json()
     for name, wert in [("start_url", mf["start_url"]),
                        ("Symbol 192", mf["icons"][0]["src"]),
@@ -70,6 +84,13 @@ def main():
         ziel = urljoin(manifest_url, wert)
         code = admin.get(ziel).status_code
         e.pruefe(code == 200, f"{name}: {wert!r} -> {ziel} = {code}")
+    e.pruefe(all("?v=" in i["src"] for i in mf["icons"]),
+             "die Symbole tragen eine Kennung, damit kein altes Bild haengen bleibt")
+
+    e.abschnitt("Auch Skript und Gestaltung tragen eine Kennung")
+    seite = admin.get(f"{BASE}/").text
+    e.pruefe("app.js?v=" in seite and "style.css?v=" in seite,
+             "sonst liefert der Browser nach einem Update alte Dateien aus")
 
     verbindungen_schliessen()
     return e.bilanz()

@@ -1,5 +1,21 @@
 # Änderungsverlauf
 
+## 0.6.1
+
+- **Der Sende-Knopf funktioniert wieder.** Er reichte sein Klick-Ereignis als
+  Datei-Kennung an das Senden weiter; der Server wies die Nachricht ab und
+  niemand erfuhr davon. Mit der Tastatur am Rechner fiel es nicht auf, am
+  Handy tippt man den Knopf
+- **Jede Nachricht wird jetzt vom Server bestätigt.** Bleibt die Bestätigung
+  aus oder wird die Nachricht abgelehnt, sagt die Oberfläche das und der Text
+  kehrt ins Eingabefeld zurück, statt verloren zu gehen
+- Fehlt die Verbindung, erscheint ein Hinweis über dem Eingabefeld
+- Das App-Symbol wird nach einem Update erneuert: das Manifest wird erzeugt
+  und trägt für die Symbole eine Kennung – vorher blieb beim Hinzufügen zum
+  Home-Bildschirm das alte Bild hängen
+- Im Einstellungsdialog passen „Bild wählen" und „Entfernen" wieder
+  nebeneinander in den Rahmen
+
 ## 0.6.0
 
 - **Profilbilder für Personen und Gruppen** – sichtbar in der Unterhaltungs-

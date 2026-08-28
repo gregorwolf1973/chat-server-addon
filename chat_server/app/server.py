@@ -680,6 +680,32 @@ def index():
                            vapid=VAPID["public_key"])
 
 
+@app.get("/manifest.webmanifest")
+def manifest():
+    """Das Manifest wird erzeugt, damit die Symbole eine Kennung tragen.
+
+    Als feste Datei behielt der Browser - und schlimmer: das Betriebssystem
+    nach dem Hinzufuegen zum Home-Bildschirm - das alte Symbol. Die Adressen
+    wechseln jetzt mit der Datei. Relative Angaben loesen gegen diese Route
+    auf, unter Ingress also gegen den Ingress-Pfad.
+    """
+    return jsonify({
+        "name": "Chat",
+        "short_name": "Chat",
+        "start_url": "./",
+        "scope": "./",
+        "display": "standalone",
+        "background_color": "#0e1416",
+        "theme_color": "#0e1416",
+        "icons": [
+            {"src": statisch("icon-192.png"), "sizes": "192x192",
+             "type": "image/png", "purpose": "any"},
+            {"src": statisch("icon-512.png"), "sizes": "512x512",
+             "type": "image/png", "purpose": "any"},
+        ],
+    })
+
+
 @app.route("/sw.js")
 def service_worker():
     resp = app.send_static_file("sw.js")
@@ -1490,13 +1516,13 @@ def on_typing(data):
 def on_send(data):
     uid = session.get("uid")
     if not uid:
-        return
+        return {"ok": False, "error": "Du bist nicht mehr angemeldet."}
     room_id = int(data.get("room_id", 0))
     body = (data.get("body") or "").strip()
     file_id = data.get("file_id")
     reply_to = data.get("reply_to")
     if not body and not file_id:
-        return
+        return {"ok": False, "error": "Die Nachricht ist leer."}
 
     conn = raw_db()
     member = conn.execute(
@@ -1505,7 +1531,7 @@ def on_send(data):
         (room_id, uid)).fetchone()
     if not member:
         conn.close()
-        return
+        return {"ok": False, "error": "Du gehoerst nicht zu dieser Unterhaltung."}
     if file_id is not None:
         # Datei-IDs sind fortlaufend. Ohne diese Pruefung koennte man eine
         # fremde Datei an eine eigene Nachricht haengen und sie damit fuer den
@@ -1515,13 +1541,13 @@ def on_send(data):
             file_id = int(file_id)
         except (TypeError, ValueError):
             conn.close()
-            return
+            return {"ok": False, "error": "Die Datei wurde nicht erkannt."}
         owner = conn.execute("SELECT user_id FROM files WHERE id=?",
                              (file_id,)).fetchone()
         if owner is None or owner["user_id"] != uid:
             log.warning("Nutzer %s wollte fremde Datei %s anhaengen", uid, file_id)
             conn.close()
-            return
+            return {"ok": False, "error": "Diese Datei gehoert dir nicht."}
     if reply_to:
         parent = conn.execute("SELECT room_id FROM messages WHERE id=?",
                               (reply_to,)).fetchone()
@@ -1554,6 +1580,9 @@ def on_send(data):
         text = body or "Datei gesendet"
     url = f"{EXTERNAL_URL}/?room={room_id}" if EXTERNAL_URL else f"?room={room_id}"
     push_to_users(offline, title, text[:180], url)
+    # Rueckmeldung an den Absender: ohne sie verschwindet eine abgelehnte
+    # Nachricht spurlos, und niemand weiss warum.
+    return {"ok": True, "id": msg_id}
 
 
 if __name__ == "__main__":

@@ -637,5 +637,16 @@ button { cursor: pointer; }
 
 .avatar-vorschau { display: flex; justify-content: center; margin: 6px 0 14px; }
 .mein-bild { margin-bottom: 18px; }
-.row.schmal { justify-content: center; gap: 8px; }
-.row.schmal .btn { flex: 0 0 auto; padding-left: 16px; padding-right: 16px; }
+.row.schmal { justify-content: center; gap: 8px; flex-wrap: wrap; }
+/* .btn ist sonst 100% breit - in einer Reihe nebeneinander sprengt das den Dialog */
+.row.schmal .btn { width: auto; flex: 0 1 auto; padding: 9px 16px; }
+
+/* Hinweis, wenn die Verbindung fehlt */
+.verbindung {
+  padding: 7px 16px;
+  background: #3a1f22;
+  border-top: 1px solid var(--danger);
+  color: #ffd9da;
+  font-size: 12px;
+  text-align: center;
+}
