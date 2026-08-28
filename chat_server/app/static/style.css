@@ -550,9 +550,21 @@ button { cursor: pointer; }
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
-.media-row .file-link { flex: 1; min-width: 0; }
-.media-meta { font-size: 11px; color: var(--muted); }
-.media-row .act { position: static; opacity: 1; pointer-events: auto; }
+/* Der Dateiname darf Groesse und Loeschknopf nicht ueberlaufen - er wird
+   gekuerzt, die beiden anderen behalten ihren Platz. */
+.media-row .file-link {
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.media-row .file-link span:first-of-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.media-row .fsize { flex: 0 0 auto; }
+.media-meta { font-size: 11px; color: var(--muted); flex: 1; min-width: 0; }
+.media-row .act { position: static; opacity: 1; pointer-events: auto; flex: 0 0 auto; }
 
 @media (max-width: 520px) {
   .media-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
@@ -745,3 +757,53 @@ audio.abspieler { width: min(260px, 100%); }
 .msg > .avatar { cursor: pointer; }
 .avatar-vorschau { cursor: zoom-in; }
 .btn.ghost.del { color: var(--danger); border-color: var(--danger); }
+
+/* Videos in der Übersicht wie Bilder im Raster */
+.media-cell video {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  background: #000;
+}
+
+/* ---------- Emoji-Auswahl ---------- */
+.emoji-feld {
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.emoji-reiter {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 8px 10px 0;
+  scrollbar-width: thin;
+}
+.emoji-reiter-knopf {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+.emoji-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--accent); }
+.emoji-liste {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 2px;
+  padding: 8px 10px 10px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.emoji {
+  background: transparent;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  padding: 6px 0;
+  border-radius: 6px;
+}
+.emoji:hover { background: var(--surface-2); }
+.icon-btn.aktiv { color: var(--accent); border-color: var(--accent); }

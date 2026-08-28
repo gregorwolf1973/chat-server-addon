@@ -1,5 +1,15 @@
 # Änderungsverlauf
 
+## 0.10.0
+
+- **Emoji-Auswahl** neben dem Eingabefeld: rund 375 Zeichen in elf Gruppen,
+  eingefügt wird an der Schreibmarke. Ohne Fremdbibliothek, funktioniert
+  also auch ohne Internet
+- **Videos erscheinen in der Medienübersicht als Vorschaukachel** statt als
+  Zeile mit Dateinamen
+- In der Dateiliste überlappten sich langer Name, Größe und Löschknopf. Der
+  Name wird jetzt gekürzt, die beiden anderen behalten ihren Platz
+
 ## 0.9.2
 
 - Das Token wird jetzt auch ohne `Bearer ` davor angenommen. Wer es in

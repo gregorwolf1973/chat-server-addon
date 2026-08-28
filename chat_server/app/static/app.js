@@ -503,6 +503,80 @@
     balken.hidden = !!verbunden;
   }
 
+  // ---------- Emoji ----------
+  // Eine feste Auswahl statt einer Fremdbibliothek: das haelt das Add-on klein
+  // und funktioniert ohne Internet.
+  const EMOJI = {
+    "Gesichter": "😀😃😄😁😆😅😂🤣🙂🙃😉😊😇🥰😍🤩😘😗😚😙😋😛😜🤪😝🤑🤗🤭🤫🤔😐😑😶😏😒🙄😬🤥😌😔😪🤤😴😷🤒🤕🤢🤧🥵🥶🥴😵🤯🤠🥳😎🤓🧐😕😟🙁😮😯😲😳🥺😦😧😨😰😥😢😭😱😖😣😞😓😩😫😤😡😠🤬",
+    "Gesten": "👍👎👌🤞🤘🤙👈👉👆👇✋🤚🖐🖖👋💪🙏👏🙌👐🤲🤝✍💅🤳",
+    "Menschen": "👶👧👦👩👨👵👴👮👷💂👪👫👬👭💑👯💃🚶🏃",
+    "Tiere": "🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🦆🦉🐝🐛🦋🐌🐞🐟🐬🐳🐋🐎🦄🌵🌲🌳🍀🌷🌹🌻🌼",
+    "Essen": "🍏🍎🍐🍊🍋🍌🍉🍇🍓🍒🍑🍍🥝🍅🥕🌽🍄🍞🥐🥖🧀🍖🍗🥓🍔🍟🍕🌭🌮🍳🥘🍝🍜🍣🍱🍙🍨🍦🍰🎂🍫🍬☕🍵🍺🍻🍷🥂🥤",
+    "Aktivitaet": "⚽🏀🏈⚾🎾🏐🏉🎱🏓🏸🥅🏒🏑⛳🎯🎿🏂🏋🚴🏊🏄🥇🏆🎵🎸🎤🎮🎲🎬🎨",
+    "Reise": "🚗🚕🚌🚓🚒🚜🏍🚲🚋🚆✈🚁🚢⛵🚀🏠🏡🏢🏥🏫⛪🏰⛲🌍🗺🏖⛰🌄🌅🌇🌃",
+    "Wetter": "☀🌞⛅☁🌦🌧⛈🌩🌨❄☃⛄🌬💨🌪🌈🌙⭐🌟✨⚡🔥💧🌊",
+    "Dinge": "📱💻⌨🖥📷📹🔋🔌💡🔦📖📚📝✏📎📌📅⏰⌚🔑🔒🚪🛋🧹🧺🛒🎁🎈🎉🎶💰💶✂🔧🔨🔩⚙",
+    "Herzen": "❤🧡💛💚💙💜🖤🤍🤎💔💕💞💓💗💖💘💝",
+    "Zeichen": "✅❌❗❓⚠🚫🔝🆕⬆⬇➡⬅🔃🔄♻💯🔞🚻🚽🚾",
+  };
+
+  let emojiOffen = false;
+
+  function emojiFeldAufbauen() {
+    if ($("emoji-feld")) return $("emoji-feld");
+    const feld = document.createElement("div");
+    feld.id = "emoji-feld";
+    feld.className = "emoji-feld";
+    feld.hidden = true;
+    const namen = Object.keys(EMOJI);
+    feld.innerHTML = `<div class="emoji-reiter">${namen.map((n, i) =>
+        `<button class="emoji-reiter-knopf ${i === 0 ? "aktiv" : ""}"
+                 type="button" data-gruppe="${esc(n)}">${esc(n)}</button>`).join("")}</div>
+      <div class="emoji-liste"></div>`;
+    $("composer").parentNode.insertBefore(feld, $("composer"));
+
+    const liste = feld.querySelector(".emoji-liste");
+    const zeichnen = (gruppe) => {
+      liste.innerHTML = [...EMOJI[gruppe]]
+        .map((z) => `<button class="emoji" type="button">${z}</button>`).join("");
+    };
+    zeichnen(namen[0]);
+
+    feld.querySelectorAll(".emoji-reiter-knopf").forEach((knopf) =>
+      knopf.addEventListener("click", () => {
+        feld.querySelectorAll(".emoji-reiter-knopf").forEach((k) =>
+          k.classList.remove("aktiv"));
+        knopf.classList.add("aktiv");
+        zeichnen(knopf.dataset.gruppe);
+      }));
+
+    liste.addEventListener("click", (e) => {
+      const knopf = e.target.closest(".emoji");
+      if (knopf) emojiEinfuegen(knopf.textContent);
+    });
+    return feld;
+  }
+
+  // An der Schreibmarke einfuegen, nicht stumpf anhaengen
+  function emojiEinfuegen(zeichen) {
+    const feld = $("input");
+    const von = feld.selectionStart ?? feld.value.length;
+    const bis = feld.selectionEnd ?? feld.value.length;
+    feld.value = feld.value.slice(0, von) + zeichen + feld.value.slice(bis);
+    const neu = von + zeichen.length;
+    feld.setSelectionRange(neu, neu);
+    feld.focus();
+    feld.dispatchEvent(new Event("input"));
+  }
+
+  $("btn-emoji").addEventListener("click", () => {
+    const feld = emojiFeldAufbauen();
+    emojiOffen = !emojiOffen;
+    feld.hidden = !emojiOffen;
+    $("btn-emoji").classList.toggle("aktiv", emojiOffen);
+    if (!emojiOffen) $("input").focus();
+  });
+
   $("btn-file").addEventListener("click", () => $("file-input").click());
   $("file-input").addEventListener("change", async (e) => {
     const dateien = [...e.target.files];
@@ -1024,17 +1098,22 @@
       box.innerHTML = '<p class="hint">Hier wurde noch nichts geteilt.</p>';
       return;
     }
-    const bilder = alle.filter((m) => (m.mime || "").startsWith("image/"));
-    const dateien = alle.filter((m) => !(m.mime || "").startsWith("image/"));
+    const istBild = (m) => (m.mime || "").startsWith("image/");
+    const istVideo = (m) => (m.mime || "").startsWith("video/");
+    const bilder = alle.filter((m) => istBild(m) || istVideo(m));
+    const dateien = alle.filter((m) => !istBild(m) && !istVideo(m));
     const raumName = (id) => roomById(id)?.name || "Unterhaltung";
     const herkunft = (m) => `${esc(m.author)} · ${medienRaum ? "" : esc(raumName(m.room_id)) + " · "}${shortTime(m.at)}`;
 
     box.innerHTML = `
       ${bilder.length ? `<div class="media-grid">${bilder.map((m) => `
         <figure class="media-cell" data-id="${m.id}">
-          <a href="${BASE}/files/${m.id}" target="_blank" rel="noopener">
-            <img src="${BASE}/files/${m.id}" alt="${esc(m.name)}" loading="lazy">
-          </a>
+          ${istVideo(m)
+            ? `<video src="${BASE}/files/${m.id}" preload="metadata" controls
+                      playsinline></video>`
+            : `<a href="${BASE}/files/${m.id}" target="_blank" rel="noopener">
+                <img src="${BASE}/files/${m.id}" alt="${esc(m.name)}" loading="lazy">
+              </a>`}
           <figcaption>${herkunft(m)}</figcaption>
           ${m.can_delete ? '<button class="media-del" data-act="del" title="Löschen">✕</button>' : ""}
         </figure>`).join("")}</div>` : ""}

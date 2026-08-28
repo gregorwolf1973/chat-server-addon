@@ -231,6 +231,10 @@ denen du Mitglied bist.
 Abspielknopf; geladen wird zunächst nur der Anfang, nicht die ganze Datei.
 Alles Übrige bleibt ein Anhang zum Herunterladen.
 
+**Emoji:** Der Knopf links neben der Büroklammer öffnet eine Auswahl mit
+rund 375 Zeichen in elf Gruppen. Eingefügt wird an der Stelle, an der die
+Schreibmarke steht. Auf dem Handy geht natürlich auch die Tastatur.
+
 **Mehrere auf einmal:** Über die Büroklammer lassen sich mehrere Dateien
 zugleich auswählen. Jede wird eine eigene Nachricht, der Fortschritt steht
 währenddessen am unteren Rand.
