@@ -123,7 +123,7 @@ button { cursor: pointer; }
 .room-list { flex: 1; overflow-y: auto; }
 .room {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr auto;
   gap: 2px 8px;
   padding: 11px 16px;
   border-bottom: 1px solid var(--line);
@@ -134,7 +134,7 @@ button { cursor: pointer; }
 .room .name { font-weight: 600; display: flex; align-items: center; gap: 7px; }
 .room .time { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .room .preview {
-  grid-column: 1;
+  grid-column: 2;
   font-size: 13px;
   color: var(--muted);
   overflow: hidden;
@@ -213,17 +213,33 @@ button { cursor: pointer; }
   border-color: #2a5c59;
   border-radius: 12px 4px 12px 12px;
 }
-/* Die Uhrzeit sitzt wie bei WhatsApp rechts unten in der letzten Zeile.
-   Der Float laesst kurzen Text daneben stehen, statt eine eigene Zeile zu
-   verbrauchen; flow-root an der Blase schliesst ihn wieder ein. */
+/* Die Uhrzeit sitzt wie bei WhatsApp fest unten rechts. Damit der Text sie
+   nicht beruehrt, laesst er am Ende Platz frei - ein Float wuerde bei langem
+   Text entweder ankleben oder in eine neue Zeile rutschen. */
+.bubble { position: relative; }
 .bubble .meta {
-  float: right;
+  position: absolute;
+  right: 12px;
+  bottom: 7px;
   font-family: var(--mono);
   font-size: 10px;
   color: var(--muted);
-  margin: 5px 0 0 10px;
 }
 .bubble .text { white-space: pre-wrap; }
+.bubble .text::after {
+  content: "";
+  display: inline-block;
+  width: 3.3em;
+  white-space: nowrap;
+}
+/* Ohne Text - also nur Bild oder Datei - haengt die Zeit einfach darunter */
+.bubble.nur-anhang .text { display: none; }
+.bubble.nur-anhang .meta {
+  position: static;
+  display: block;
+  text-align: right;
+  margin-top: 4px;
+}
 .bubble .actions { clear: both; }
 .bubble img { max-width: 100%; border-radius: 6px; display: block; margin-bottom: 6px; }
 .file-link {
@@ -592,3 +608,34 @@ button { cursor: pointer; }
 }
 .login-card textarea:focus { outline: none; border-color: var(--accent); }
 .login-card .hint a { color: var(--accent); }
+
+/* ---------- Profilbilder ---------- */
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+.avatar.gross { width: 34px; height: 34px; font-size: 13px; }
+.avatar.riesig { width: 96px; height: 96px; font-size: 32px; }
+
+/* In der Raumliste ueber beide Zeilen */
+.room > .avatar { grid-row: 1 / span 2; align-self: center; }
+
+#room-avatar { display: inline-flex; }
+#room-avatar.aenderbar { cursor: pointer; }
+#room-avatar.aenderbar:hover .avatar { outline: 2px solid var(--accent); }
+
+.avatar-vorschau { display: flex; justify-content: center; margin: 6px 0 14px; }
+.mein-bild { margin-bottom: 18px; }
+.row.schmal { justify-content: center; gap: 8px; }
+.row.schmal .btn { flex: 0 0 auto; padding-left: 16px; padding-right: 16px; }

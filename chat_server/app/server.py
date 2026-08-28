@@ -22,6 +22,7 @@ from werkzeug.utils import secure_filename
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
 DB_PATH = os.path.join(DATA_DIR, "chat.db")
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+AVATAR_DIR = os.path.join(DATA_DIR, "avatars")
 VAPID_PATH = os.path.join(DATA_DIR, "vapid.json")
 SECRET_PATH = os.path.join(DATA_DIR, "secret.key")
 TOKEN_PATH = os.path.join(DATA_DIR, "api_token.txt")
@@ -103,6 +104,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT,
     phone TEXT,
     note TEXT,
+    avatar TEXT,
     created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS rooms (
@@ -110,6 +112,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     name TEXT,
     is_group INTEGER NOT NULL DEFAULT 0,
     created_by INTEGER,
+    avatar TEXT,
     created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS room_members (
@@ -194,9 +197,12 @@ def migrate(conn):
         conn.execute("ALTER TABLE users ADD COLUMN pw_version INTEGER NOT NULL DEFAULT 0")
     if "pending" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN pending INTEGER NOT NULL DEFAULT 0")
-    for spalte in ("email", "phone", "note"):
+    for spalte in ("email", "phone", "note", "avatar"):
         if spalte not in cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN {spalte} TEXT")
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(rooms)")}
+    if "avatar" not in cols:
+        conn.execute("ALTER TABLE rooms ADD COLUMN avatar TEXT")
     conn.commit()
 
 
@@ -221,6 +227,7 @@ def load_api_token():
 
 def init_db():
     os.makedirs(UPLOAD_DIR, exist_ok=True)
+    os.makedirs(AVATAR_DIR, exist_ok=True)
     conn = raw_db()
     conn.executescript(SCHEMA)
     conn.commit()
@@ -345,10 +352,25 @@ def safe_mime(raw):
     return mime if mime in IMAGE_MIMES else "application/octet-stream"
 
 
+def statisch(dateiname):
+    """Adresse einer statischen Datei mit Aenderungsstempel.
+
+    Ohne diesen Anhang liefert der Browser nach einem Update weiter die alte
+    app.js und style.css aus seinem Zwischenspeicher - die Oberflaeche sieht
+    dann kaputt aus oder Knoepfe fehlen, obwohl das Add-on aktuell ist.
+    """
+    adresse = url_for("static", filename=dateiname)
+    try:
+        stempel = int(os.path.getmtime(os.path.join(app.static_folder, dateiname)))
+    except OSError:
+        return adresse
+    return f"{adresse}?v={stempel}"
+
+
 @app.context_processor
 def vorlagen_werte():
     """Steht allen Vorlagen zur Verfuegung - etwa fuer den Link zur Anmeldung."""
-    return {"registration_open": ALLOW_REGISTRATION}
+    return {"registration_open": ALLOW_REGISTRATION, "statisch": statisch}
 
 
 @app.after_request
@@ -417,7 +439,7 @@ def is_member(room_id, user_id):
 def room_payload(room, uid, conn=None):
     conn = conn or db()
     members = conn.execute(
-        "SELECT u.id, u.display_name FROM room_members m"
+        "SELECT u.id, u.display_name, u.avatar FROM room_members m"
         " JOIN users u ON u.id=m.user_id WHERE m.room_id=?",
         (room["id"],)).fetchall()
     name = room["name"]
@@ -441,6 +463,7 @@ def room_payload(room, uid, conn=None):
         "id": room["id"],
         "name": name,
         "is_group": bool(room["is_group"]),
+        "avatar": room["avatar"],
         "members": [dict(m) for m in members],
         "online": online,
         "unread": unread,
@@ -672,13 +695,14 @@ def service_worker():
 @login_required
 def api_state():
     uid = session["uid"]
+    me = current_user()
     conn = db()
     rooms = conn.execute(
         "SELECT r.* FROM rooms r JOIN room_members m ON m.room_id=r.id"
         " WHERE m.user_id=?", (uid,)).fetchall()
     marks = ",".join("?" * len(SYSTEM_USERS))
     users = conn.execute(
-        "SELECT id, username, display_name, is_admin, active FROM users"
+        "SELECT id, username, display_name, is_admin, active, avatar FROM users"
         f" WHERE username NOT IN ({marks}) AND pending=0 ORDER BY display_name",
         SYSTEM_USERS).fetchall()
     with ONLINE_LOCK:
@@ -686,8 +710,8 @@ def api_state():
     payload = [room_payload(r, uid, conn) for r in rooms]
     payload.sort(key=lambda r: (r["last"]["at"] if r["last"] else 0), reverse=True)
     return jsonify({
-        "me": {"id": uid, "name": current_user()["display_name"],
-               "is_admin": bool(current_user()["is_admin"])},
+        "me": {"id": uid, "name": me["display_name"],
+               "is_admin": bool(me["is_admin"]), "avatar": me["avatar"]},
         "rooms": payload,
         "users": [dict(u) for u in users],
         "online": online,
@@ -1062,6 +1086,130 @@ def api_file(file_id):
                      as_attachment=not inline)
     resp.headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'"
     return resp
+
+
+# --------------------------------------------------------------------------
+# Profilbilder
+# --------------------------------------------------------------------------
+# Die Oberflaeche verkleinert Bilder vor dem Hochladen auf 256 Pixel. Was
+# hier ankommt, ist also klein - die Grenze faengt nur ab, wenn jemand am
+# Browser vorbei etwas Grosses schickt.
+MAX_AVATAR_BYTES = 512 * 1024
+
+
+def avatar_speichern(datei):
+    """Bild pruefen und ablegen. Gibt den Dateinamen zurueck."""
+    mime = safe_mime(datei.mimetype)
+    if mime not in IMAGE_MIMES:
+        return None, "Als Profilbild geht nur ein Bild (PNG, JPEG, GIF oder WebP)."
+    name = secrets.token_hex(16)
+    pfad = os.path.join(AVATAR_DIR, name)
+    datei.save(pfad)
+    if os.path.getsize(pfad) > MAX_AVATAR_BYTES:
+        os.remove(pfad)
+        return None, "Das Bild ist zu gross."
+    return name, None
+
+
+def avatar_entfernen(name):
+    if not name:
+        return
+    try:
+        os.remove(os.path.join(AVATAR_DIR, name))
+    except FileNotFoundError:
+        pass
+    except OSError as exc:  # noqa: BLE001
+        log.warning("Profilbild %s liess sich nicht entfernen: %s", name, exc)
+
+
+@app.get("/avatars/<kind>/<int:ziel_id>")
+@login_required
+def api_avatar(kind, ziel_id):
+    if kind == "u":
+        row = db().execute("SELECT avatar FROM users WHERE id=?", (ziel_id,)).fetchone()
+    elif kind == "r":
+        # Raumbilder sehen nur Mitglieder
+        if not is_member(ziel_id, session["uid"]):
+            abort(403)
+        row = db().execute("SELECT avatar FROM rooms WHERE id=?", (ziel_id,)).fetchone()
+    else:
+        abort(404)
+    if row is None or not row["avatar"]:
+        abort(404)
+    pfad = os.path.join(AVATAR_DIR, row["avatar"])
+    if not os.path.exists(pfad):
+        abort(404)
+    resp = send_file(pfad, mimetype="image/*")
+    # Der Name wechselt bei jedem neuen Bild, die Adresse darf also lange gelten
+    resp.headers["Cache-Control"] = "private, max-age=604800"
+    resp.headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'"
+    return resp
+
+
+@app.post("/api/me/avatar")
+@login_required
+def api_set_my_avatar():
+    datei = request.files.get("file")
+    if not datei or not datei.filename:
+        return jsonify({"error": "Kein Bild ausgewaehlt."}), 400
+    name, fehler = avatar_speichern(datei)
+    if fehler:
+        return jsonify({"error": fehler}), 400
+    me = current_user()
+    alt = me["avatar"]
+    db().execute("UPDATE users SET avatar=? WHERE id=?", (name, me["id"]))
+    db().commit()
+    avatar_entfernen(alt)
+    socketio.emit("avatar_changed", {"kind": "u", "id": me["id"], "avatar": name})
+    return jsonify({"avatar": name})
+
+
+@app.delete("/api/me/avatar")
+@login_required
+def api_clear_my_avatar():
+    me = current_user()
+    db().execute("UPDATE users SET avatar=NULL WHERE id=?", (me["id"],))
+    db().commit()
+    avatar_entfernen(me["avatar"])
+    socketio.emit("avatar_changed", {"kind": "u", "id": me["id"], "avatar": None})
+    return jsonify({"ok": True})
+
+
+@app.post("/api/rooms/<int:room_id>/avatar")
+@login_required
+def api_set_room_avatar(room_id):
+    """Gruppenbild - jedes Mitglied der Gruppe darf es setzen."""
+    room = db().execute("SELECT * FROM rooms WHERE id=?", (room_id,)).fetchone()
+    if room is None or not is_member(room_id, session["uid"]):
+        abort(403)
+    if not room["is_group"]:
+        return jsonify({"error": "Ein Direktchat zeigt das Bild der Person."}), 400
+    datei = request.files.get("file")
+    if not datei or not datei.filename:
+        return jsonify({"error": "Kein Bild ausgewaehlt."}), 400
+    name, fehler = avatar_speichern(datei)
+    if fehler:
+        return jsonify({"error": fehler}), 400
+    db().execute("UPDATE rooms SET avatar=? WHERE id=?", (name, room_id))
+    db().commit()
+    avatar_entfernen(room["avatar"])
+    socketio.emit("avatar_changed", {"kind": "r", "id": room_id, "avatar": name},
+                  to=f"room:{room_id}")
+    return jsonify({"avatar": name})
+
+
+@app.delete("/api/rooms/<int:room_id>/avatar")
+@login_required
+def api_clear_room_avatar(room_id):
+    room = db().execute("SELECT * FROM rooms WHERE id=?", (room_id,)).fetchone()
+    if room is None or not is_member(room_id, session["uid"]):
+        abort(403)
+    db().execute("UPDATE rooms SET avatar=NULL WHERE id=?", (room_id,))
+    db().commit()
+    avatar_entfernen(room["avatar"])
+    socketio.emit("avatar_changed", {"kind": "r", "id": room_id, "avatar": None},
+                  to=f"room:{room_id}")
+    return jsonify({"ok": True})
 
 
 # --------------------------------------------------------------------------

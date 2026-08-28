@@ -27,7 +27,8 @@ kill %1
 ```
 
 Danach dasselbe für `tests/test_users.py`, `tests/test_media.py` und
-`tests/test_register.py`.
+`tests/test_register.py` und
+`tests/test_avatars.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
 
@@ -53,6 +54,13 @@ das durch Altbestände fehl.
 * `nosniff` und eine enge CSP auf der Datei-Route.
 * Fremde Datei-IDs lassen sich nicht an eigene Nachrichten hängen.
 * Die Pfade im PWA-Manifest lösen auf existierende Adressen auf.
+
+`test_avatars.py` (24 Prüfungen)
+
+* Bild setzen, abrufen, ersetzen und entfernen, jeweils mit Blick auf die
+  Dateien auf der Platte.
+* Nur Bilder werden angenommen.
+* Gruppenbilder sehen und setzen nur Mitglieder; Direktchats haben keins.
 
 `test_register.py` (24 Prüfungen)
 

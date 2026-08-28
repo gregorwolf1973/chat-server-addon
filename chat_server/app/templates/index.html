@@ -8,7 +8,7 @@
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
   <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}" type="image/png">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-180.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ statisch('style.css') }}">
 </head>
 <body data-base="{{ base }}" data-me="{{ me.id }}" data-name="{{ me.display_name }}"
       data-admin="{{ 1 if me.is_admin else 0 }}" data-vapid="{{ vapid }}">
@@ -33,6 +33,7 @@
     <main class="chat">
       <div class="chat-header" id="chat-header" hidden>
         <button class="icon-btn back" id="btn-back">←</button>
+        <span id="room-avatar"></span>
         <div>
           <div class="title" id="room-title"></div>
           <div class="sub" id="room-sub"></div>
@@ -59,7 +60,8 @@
       <div class="composer" id="composer" hidden>
         <button class="icon-btn" id="btn-file" title="Datei anhängen">📎</button>
         <input type="file" id="file-input" hidden>
-        <textarea id="input" rows="1" placeholder="Nachricht schreiben…"></textarea>
+        <textarea id="input" rows="1" enterkeyhint="send"
+                  placeholder="Nachricht schreiben…"></textarea>
         <button class="send" id="btn-send">Senden</button>
       </div>
     </main>
@@ -67,7 +69,7 @@
 
   <div id="modal-root"></div>
 
-  <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ statisch('socket.io.min.js') }}"></script>
+  <script src="{{ statisch('app.js') }}"></script>
 </body>
 </html>

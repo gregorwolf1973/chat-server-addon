@@ -45,6 +45,80 @@
   const fileSize = (b) => b < 1024 ? b + " B"
     : b < 1048576 ? (b / 1024).toFixed(0) + " KB" : (b / 1048576).toFixed(1) + " MB";
 
+  // ---------- Profilbilder ----------
+  // Ohne Bild zeigen wir die Initialen auf farbigem Grund. Die Farbe haengt
+  // an der Kennung, bleibt also fuer dieselbe Person immer gleich.
+  const AVATAR_FARBEN = ["#3f6f6b", "#6b4f7a", "#7a5a3c", "#3c5a7a", "#6f6b3f",
+                         "#7a3c4f", "#417a5a", "#54487a"];
+
+  const initialen = (name) => (name || "?").trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0] || "").join("").toUpperCase() || "?";
+
+  function avatarHtml(kind, id, name, avatar, extra = "") {
+    if (avatar) {
+      return `<img class="avatar ${extra}" alt=""`
+        + ` src="${BASE}/avatars/${kind}/${id}?v=${encodeURIComponent(avatar)}">`;
+    }
+    const farbe = AVATAR_FARBEN[Math.abs(id || 0) % AVATAR_FARBEN.length];
+    return `<span class="avatar ${extra} initialen" style="background:${farbe}">`
+      + `${esc(initialen(name))}</span>`;
+  }
+
+  // Bild eines Raumes: bei Gruppen das Gruppenbild, bei Direktchats das der
+  // Gegenseite - so wie man es aus anderen Messengern kennt.
+  function raumAvatar(room, extra = "") {
+    if (room.is_group) return avatarHtml("r", room.id, room.name, room.avatar, extra);
+    const other = room.members.find((m) => m.id !== ME) || room.members[0];
+    return other ? avatarHtml("u", other.id, other.display_name, other.avatar, extra)
+                 : avatarHtml("r", room.id, room.name, null, extra);
+  }
+
+  // Vor dem Hochladen im Browser verkleinern und mittig quadratisch
+  // zuschneiden - sonst landen Handyfotos in voller Groesse auf dem Pi.
+  function bildVerkleinern(datei, kante = 256) {
+    return new Promise((fertig, fehler) => {
+      const bild = new Image();
+      bild.onload = () => {
+        const seite = Math.min(bild.width, bild.height);
+        const leinwand = document.createElement("canvas");
+        leinwand.width = leinwand.height = kante;
+        leinwand.getContext("2d").drawImage(
+          bild, (bild.width - seite) / 2, (bild.height - seite) / 2, seite, seite,
+          0, 0, kante, kante);
+        URL.revokeObjectURL(bild.src);
+        leinwand.toBlob((b) => b ? fertig(b) : fehler(new Error("Bild fehlerhaft")),
+                        "image/jpeg", 0.85);
+      };
+      bild.onerror = () => fehler(new Error("Das ist kein lesbares Bild."));
+      bild.src = URL.createObjectURL(datei);
+    });
+  }
+
+  // Dateiauswahl oeffnen, Bild verkleinern und an die Adresse schicken
+  function bildWaehlen(ziel, fertig) {
+    const feld = document.createElement("input");
+    feld.type = "file";
+    feld.accept = "image/*";
+    feld.addEventListener("change", async () => {
+      const datei = feld.files[0];
+      if (!datei) return;
+      try {
+        const klein = await bildVerkleinern(datei);
+        const fd = new FormData();
+        fd.append("file", klein, "avatar.jpg");
+        const res = await api(ziel, {method: "POST", body: fd});
+        const daten = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(daten.error || "Hochladen fehlgeschlagen."); return; }
+        toast("Bild gespeichert.");
+        await loadState();
+        if (fertig) fertig();
+      } catch (err) {
+        toast(err.message);
+      }
+    });
+    feld.click();
+  }
+
   const toast = (text) => {
     const el = document.createElement("div");
     el.className = "toast";
@@ -66,6 +140,7 @@
         : r.members.some((m) => m.id !== ME && state.online.has(m.id));
       const prev = r.last ? (r.is_group ? `${r.last.author}: ${r.last.text}` : r.last.text) : "Noch keine Nachricht";
       return `<div class="room ${currentRoom === r.id ? "active" : ""}" data-id="${r.id}">
+        ${raumAvatar(r)}
         <div class="name"><span class="dot ${online ? "on" : ""}"></span>${esc(r.name)}${r.is_group ? " ·" + r.members.length : ""}</div>
         <div class="time">${shortTime(r.last ? r.last.at : 0)}</div>
         <div class="preview">${esc(prev)}</div>
@@ -86,6 +161,9 @@
     $("chat-header").hidden = false;
     $("composer").hidden = false;
     $("btn-invite").hidden = !room.is_group;
+    $("room-avatar").innerHTML = raumAvatar(room, "gross");
+    $("room-avatar").title = room.is_group ? "Gruppenbild ändern" : room.name;
+    $("room-avatar").classList.toggle("aenderbar", !!room.is_group);
     $("room-title").textContent = room.name;
     const others = room.members.filter((m) => m.id !== ME);
     $("room-sub").textContent = room.is_group
@@ -155,7 +233,9 @@
              <span class="fsize">${fileSize(m.file.size)}</span></a>`;
     }
     const canDelete = m.user_id === ME || IS_ADMIN;
-    inner += `<div class="bubble">${quoteHtml}${fileHtml}`
+    // Ohne Text reserviert die Blase keinen Platz fuer die Uhrzeit - sie
+    // haengt dann unter dem Bild oder der Datei.
+    inner += `<div class="bubble${m.body ? "" : " nur-anhang"}">${quoteHtml}${fileHtml}`
       + `<span class="text">${esc(m.body)}</span>`
       + `<span class="meta">${timeOf(m.at)}</span>`
       + `<div class="actions"><button class="act" data-act="reply">Antworten</button>`
@@ -283,6 +363,7 @@
 
   // Konten geaendert oder entfernt - Namen und Auswahllisten nachziehen.
   socket.on("user_changed", () => loadState());
+  socket.on("avatar_changed", () => loadState());
   socket.on("user_pending", (u) => {
     if (IS_ADMIN) toast(`Neuer Zugangsantrag von ${u.display_name}.`);
   });
@@ -316,8 +397,21 @@
       typingTimer = setTimeout(() => { typingTimer = null; }, 1500);
     }
   });
+  // Auf dem Handy meldet die Bildschirmtastatur bei keydown haeufig gar kein
+  // "Enter" - Gboard schickt waehrend der Worterkennung "Unidentified". Der
+  // Umbruch selbst kommt aber zuverlaessig als beforeinput an, deshalb hoeren
+  // wir auf beides. Am Rechner greift keydown zuerst und unterdrueckt das
+  // beforeinput, es wird also nichts doppelt gesendet.
+  let mitUmschalt = false;
   input.addEventListener("keydown", (e) => {
+    mitUmschalt = e.shiftKey;
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  input.addEventListener("beforeinput", (e) => {
+    if (e.inputType === "insertLineBreak" && !mitUmschalt) {
+      e.preventDefault();
+      send();
+    }
   });
   $("btn-send").addEventListener("click", send);
 
@@ -343,6 +437,34 @@
     if (!res.ok) { toast(data.error || "Upload fehlgeschlagen."); return; }
     send(data.id);
     e.target.value = "";
+  });
+
+  // Auf das Bild in der Kopfzeile tippen: Gruppenbild setzen oder entfernen.
+  // Bei Direktchats gibt es nichts zu aendern - dort steht das Bild der Person.
+  $("room-avatar").addEventListener("click", () => {
+    const room = roomById(currentRoom);
+    if (!room || !room.is_group) return;
+    const root = modal(`<h2>Gruppenbild</h2>
+      <p class="hint">für „${esc(room.name)}“</p>
+      <div class="avatar-vorschau">${raumAvatar(room, "riesig")}</div>
+      <div class="row"><button class="btn" id="a-neu">Bild wählen</button>
+      ${room.avatar ? '<button class="btn ghost" id="a-weg">Entfernen</button>' : ""}</div>
+      <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelector("#a-neu").addEventListener("click", () =>
+      bildWaehlen(`/api/rooms/${room.id}/avatar`, () => {
+        closeModal();
+        if (currentRoom === room.id) openRoom(room.id);
+      }));
+    const weg = root.querySelector("#a-weg");
+    if (weg) weg.addEventListener("click", async () => {
+      const res = await api(`/api/rooms/${room.id}/avatar`, {method: "DELETE"});
+      if (!res.ok) { toast("Entfernen fehlgeschlagen."); return; }
+      toast("Gruppenbild entfernt.");
+      closeModal();
+      await loadState();
+      if (currentRoom === room.id) openRoom(room.id);
+    });
   });
 
   $("btn-back").addEventListener("click", () => {
@@ -417,7 +539,13 @@
   });
 
   $("btn-settings").addEventListener("click", () => {
+    const meinBild = avatarHtml("u", ME, B.dataset.name, state.me && state.me.avatar, "riesig");
     const root = modal(`<h2>Einstellungen</h2>
+      <div class="mein-bild">
+        <div class="avatar-vorschau">${meinBild}</div>
+        <div class="row schmal"><button class="btn ghost" id="me-bild">Bild wählen</button>
+        ${state.me && state.me.avatar ? '<button class="btn ghost" id="me-bild-weg">Entfernen</button>' : ""}</div>
+      </div>
       <div class="field"><label>Aktuelles Passwort</label><input id="p-old" type="password"></div>
       <div class="field"><label>Neues Passwort</label><input id="p-new" type="password"></div>
       <button class="btn" id="p-ok">Passwort ändern</button>
@@ -428,6 +556,17 @@
       <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button>
       <a class="btn ghost" style="text-align:center;text-decoration:none;line-height:2.2" href="${BASE}/logout">Abmelden</a></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelector("#me-bild").addEventListener("click", () =>
+      bildWaehlen("/api/me/avatar", () => { closeModal(); $("btn-settings").click(); }));
+    const meinBildWeg = root.querySelector("#me-bild-weg");
+    if (meinBildWeg) meinBildWeg.addEventListener("click", async () => {
+      const res = await api("/api/me/avatar", {method: "DELETE"});
+      if (!res.ok) { toast("Entfernen fehlgeschlagen."); return; }
+      toast("Bild entfernt.");
+      await loadState();
+      closeModal();
+      $("btn-settings").click();
+    });
     root.querySelector("#p-ok").addEventListener("click", async () => {
       const res = await api("/api/me/password", {
         method: "POST", headers: {"Content-Type": "application/json"},
@@ -718,6 +857,7 @@
     const data = await res.json();
     state.rooms = data.rooms;
     state.users = data.users;
+    state.me = data.me;
     state.online = new Set(data.online);
     renderRooms();
   }

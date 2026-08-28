@@ -1,5 +1,27 @@
 # Änderungsverlauf
 
+## 0.6.0
+
+- **Profilbilder für Personen und Gruppen** – sichtbar in der Unterhaltungs-
+  liste und in der Kopfzeile. Das eigene Bild setzt man in den Einstellungen,
+  das Gruppenbild durch Tippen auf das Bild oben in der Gruppe
+- Ohne Bild erscheinen die Initialen auf farbigem Grund, die Farbe bleibt für
+  dieselbe Person gleich
+- Bilder werden im Browser auf 256 Pixel verkleinert und quadratisch
+  zugeschnitten, bevor sie hochgeladen werden; ersetzte Bilder werden vom
+  Server gelöscht
+- **Nach einem Update lädt der Browser die Oberfläche wieder frisch.** Bisher
+  behielt er `app.js` und `style.css` im Zwischenspeicher – auf dem Handy
+  sah die Ansicht danach kaputt aus oder Knöpfe fehlten, obwohl das Add-on
+  aktuell war. Die Dateien tragen jetzt einen Änderungsstempel in der Adresse
+- **Senden mit der Bildschirmtastatur** funktioniert wieder: Android meldet
+  beim Tippen auf Enter oft kein „Enter“, sondern einen Umbruch aus der
+  Worterkennung. Darauf hört die Eingabe jetzt zusätzlich, und die Tastatur
+  zeigt eine Senden-Taste statt einer Zeilenschaltung
+- Der Abstand zwischen Text und Uhrzeit ist größer und bleibt es auch bei
+  langen Nachrichten: die Uhrzeit sitzt jetzt fest unten rechts, und der Text
+  lässt dafür Platz – vorher klebte sie bei voller Zeile am letzten Wort
+
 ## 0.5.0
 
 - **Eigenes Logo** – als Add-on-Symbol, auf der Anmeldeseite, als App-Symbol

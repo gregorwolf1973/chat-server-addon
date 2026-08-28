@@ -113,6 +113,21 @@ Am eigenen Konto steht nur **Passwort** zur Verfügung, und der letzte
 verbliebene Administrator lässt sich weder entmachten noch sperren – sonst
 könnte niemand mehr Konten verwalten.
 
+## Bilder für Personen und Gruppen
+
+Jeder kann sein eigenes Bild setzen: **… → Einstellungen → Bild wählen**.
+Das Gruppenbild ändert man, indem man in der Gruppe oben auf das runde Bild
+neben dem Namen tippt – das darf jedes Mitglied. In einem Direktchat steht
+dort das Bild der Gegenseite, dort gibt es nichts einzustellen.
+
+Wer kein Bild hat, erscheint mit seinen Initialen auf farbigem Grund. Die
+Farbe bleibt für dieselbe Person immer gleich.
+
+Bilder werden **im Browser** auf 256 Pixel verkleinert und mittig quadratisch
+zugeschnitten, bevor sie hochgeladen werden – aus einem Handyfoto werden so
+rund 30 KB statt mehrerer Megabyte. Ein ersetztes Bild wird vom Server
+gelöscht, es sammelt sich nichts an.
+
 ## Bilder und Dateien
 
 Der Knopf **Medien** unten links öffnet alles, was in deinen Unterhaltungen
