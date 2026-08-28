@@ -1378,6 +1378,23 @@
       + " Uhr";
   };
 
+  // Aendern darf der Gastgeber und der Administrator. Ab- und zusagen darf
+  // allein der Gastgeber - wer zu einer Feier laedt, entscheidet auch, ob sie
+  // stattfindet.
+  function verwaltenHtml(ev) {
+    const meiner = ev.von.id === ME;
+    const darfAendern = meiner || IS_ADMIN;
+    const knoepfe = [];
+    if (ev.abgesagt) {
+      if (meiner) knoepfe.push('<button class="act ev-zurueck">Absage zurücknehmen</button>');
+    } else {
+      if (darfAendern) knoepfe.push('<button class="act ev-bearbeiten">Bearbeiten</button>');
+      if (meiner) knoepfe.push('<button class="act del ev-absagen">Termin absagen</button>');
+    }
+    return knoepfe.length
+      ? `<div class="ev-verwalten">${knoepfe.join("")}</div>` : "";
+  }
+
   function eventHtml(ev) {
     const wer = (art) => (ev.wer[art] || []);
     const knopf = (art, text) => `<button class="ev-antwort ${
@@ -1407,11 +1424,7 @@
       ${dabei.length ? `<div class="ev-dabei">${dabei.map((w) =>
         avatarHtml("u", w.id, w.name, w.avatar, "winzig")).join("")}
         <span>${dabei.length === 1 ? "1 Zusage" : `${dabei.length} Zusagen`}</span></div>` : ""}
-      ${ev.von.id === ME || IS_ADMIN ? `<div class="ev-verwalten">${
-        ev.abgesagt
-          ? '<button class="act ev-zurueck">Absage zurücknehmen</button>'
-          : '<button class="act ev-bearbeiten">Bearbeiten</button>'
-            + '<button class="act del ev-absagen">Termin absagen</button>'}</div>` : ""}
+      ${verwaltenHtml(ev)}
     </div>`;
   }
 

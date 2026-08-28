@@ -1992,6 +1992,11 @@ def api_update_event(event_id):
         felder.append("kategorien=?")
         werte.append(",".join(kategorien_saeubern(data.get("kategorien"))))
     if "abgesagt" in data:
+        # Absagen und Zuruecknehmen bleiben beim Gastgeber - sonst waere der
+        # Weg ueber das Aendern eine Hintertuer um genau diese Regel herum.
+        if ev["user_id"] != uid:
+            return jsonify(
+                {"error": "Nur wer eingeladen hat, kann ab- oder zusagen."}), 403
         felder.append("abgesagt=?")
         werte.append(1 if data.get("abgesagt") else 0)
 
@@ -2056,15 +2061,19 @@ def api_update_event(event_id):
 @app.delete("/api/events/<int:event_id>")
 @login_required
 def api_delete_event(event_id):
-    """Absagen darf, wer eingeladen hat - und der Administrator."""
+    """Absagen darf allein, wer eingeladen hat.
+
+    Bewusst ohne Ausnahme fuer den Administrator: Wer zu einer Feier laedt,
+    entscheidet auch, ob sie stattfindet. Wird ein Termin zum Problem, bleibt
+    dem Administrator die Unterhaltung selbst.
+    """
     uid = session["uid"]
-    me = current_user()
     conn = db()
     ev = conn.execute("SELECT room_id, user_id FROM events WHERE id=?",
                       (event_id,)).fetchone()
     if ev is None or not is_member(ev["room_id"], uid):
         abort(403)
-    if ev["user_id"] != uid and not me["is_admin"]:
+    if ev["user_id"] != uid:
         return jsonify({"error": "Nur wer eingeladen hat, kann absagen."}), 403
     conn.execute("UPDATE events SET abgesagt=1 WHERE id=?", (event_id,))
     conn.commit()

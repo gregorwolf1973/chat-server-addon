@@ -272,9 +272,14 @@ streicht ihn wieder. Ist die Straßenkarte abgeschaltet, steht dort ein Hinweis
 mit einem Knopf, der sie einschaltet – auf der Umrisskarte läge ein Punkt
 leicht mehrere Kilometer daneben, die taugt dafür nicht.
 
-Nur wer eingeladen hat – und der Administrator – kann den Termin **absagen**.
-Er bleibt danach sichtbar, nimmt aber keine Zusagen mehr an. Über **Absage
-zurücknehmen** steht er wieder, mit allen Zusagen von vorher.
+**Absagen** darf allein, wer eingeladen hat – bewusst auch der Administrator
+nicht. Wer zu einer Feier lädt, entscheidet auch, ob sie stattfindet. Der
+Termin bleibt danach sichtbar, nimmt aber keine Zusagen mehr an; über
+**Absage zurücknehmen** steht er wieder, mit allen Zusagen von vorher.
+
+Der Administrator kann fremde Termine also **ändern, aber nicht absagen**.
+Wird ein Termin zum Problem, bleibt ihm die Unterhaltung selbst: Wer sie
+löscht, nimmt die Termine darin mit.
 
 ## Was ist wo los?
 

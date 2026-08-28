@@ -61,11 +61,12 @@ das durch Altbestände fehl.
 * Abstimmen, zurücknehmen, Einfach- und Mehrfachwahl.
 * Wer gestimmt hat, ist sichtbar; Antworten fremder Fragen werden abgewiesen.
 
-`test_termine.py` (99 Prüfungen)
+`test_termine.py` (104 Prüfungen)
 
 * Termin anlegen, mit Fehlerfällen; unbekannte Merkmale fallen weg.
 * Zusagen, ändern, zurücknehmen; Fremde sehen und beantworten nichts.
-* Die Terminliste zeigt nur Anstehendes; absagen darf nur der Gastgeber.
+* Die Terminliste zeigt nur Anstehendes. Absagen darf allein der Gastgeber –
+  auch der Administrator nicht, und auch nicht über den Umweg des Änderns.
 * Das Bild einer Einladung sehen Mitglieder, Fremde nicht – und eine fremde
   Datei lässt sich nicht einhängen.
 * Live-Standort: starten, Dauer gedeckelt, Ping, beenden; nur Mitglieder

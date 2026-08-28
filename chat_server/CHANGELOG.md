@@ -1,5 +1,14 @@
 # Änderungsverlauf
 
+## 0.20.1
+
+- **Absagen darf allein, wer eingeladen hat** - der Administrator jetzt
+  ausdruecklich nicht mehr. Wer zu einer Feier laedt, entscheidet auch, ob
+  sie stattfindet
+- Das gilt auch fuer den Umweg ueber das Aendern: `abgesagt` nimmt nur der
+  Gastgeber. Sonst waere die Regel mit einem Feld zu umgehen
+- Fremde Termine kann der Administrator weiterhin aendern
+
 ## 0.20.0
 
 - **Stimmung** und **Termine** zeigen in der Seitenleiste hoechstens drei

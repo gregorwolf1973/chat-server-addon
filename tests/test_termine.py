@@ -106,11 +106,29 @@ def lauf():
     titel = [x["titel"] for x in anna.get(f"{BASE}/api/events").json()]
     e.pruefe("War mal" not in titel, f"Vergangenes faellt heraus = {titel}")
 
-    e.abschnitt("Absagen darf nur, wer eingeladen hat")
+    e.abschnitt("Absagen darf allein der Gastgeber")
     e.pruefe(anna.delete(f"{BASE}/api/events/{event_id}").status_code == 403,
              "Anna kann den Termin nicht absagen")
+
+    # Der Administrator ist hier ausdruecklich keine Ausnahme. Also ein Termin,
+    # zu dem Anna geladen hat - der Administrator darf ihn nicht absagen.
+    annas = anna.post(f"{BASE}/api/rooms/{raum}/event",
+                      json={"titel": "Annas Feier"}).json()["event_id"]
+    e.pruefe(admin.delete(f"{BASE}/api/events/{annas}").status_code == 403,
+             "auch der Administrator kann fremde Termine nicht absagen")
+    e.pruefe(admin.patch(f"{BASE}/api/events/{annas}",
+                         json={"abgesagt": True}).status_code == 403,
+             "und auch nicht ueber den Umweg des Aenderns")
+    e.pruefe(admin.get(f"{BASE}/api/events/{annas}").json()["abgesagt"] is False,
+             "Annas Termin steht unveraendert")
+    e.pruefe(admin.patch(f"{BASE}/api/events/{annas}",
+                         json={"titel": "Umbenannt"}).status_code == 200,
+             "aendern darf er ihn weiterhin")
+    e.pruefe(anna.delete(f"{BASE}/api/events/{annas}").status_code == 200,
+             "Anna selbst sagt ihn ab")
+
     e.pruefe(admin.delete(f"{BASE}/api/events/{event_id}").status_code == 200,
-             "der Gastgeber schon")
+             "der eigene Termin laesst sich absagen")
     ev = admin.get(f"{BASE}/api/events/{event_id}").json()
     e.pruefe(ev["abgesagt"] is True, "er ist als abgesagt vermerkt")
     e.pruefe(anna.post(f"{BASE}/api/events/{event_id}/antwort",
