@@ -181,6 +181,33 @@ def main():
     e.pruefe(admin.delete(f"{BASE}/api/rooms/{gemeinsam}").status_code == 404,
              "ein zweites Loeschen meldet sauber 404")
 
+    e.abschnitt("Verlaesst der Letzte, verschwindet alles")
+    zuzweit = admin.post(f"{BASE}/api/rooms",
+                         json={"is_group": True, "name": "Zu zweit",
+                               "members": [anna_id]}).json()["id"]
+    anhang = hochladen(anna, "gemeinsam.png", PNG, "image/png").json()
+    senden(anna, zuzweit, "", datei=anhang["id"])
+    vorher = dateien_auf_platte()
+
+    e.pruefe(anna.post(f"{BASE}/api/rooms/{zuzweit}/leave").status_code == 200,
+             "Anna geht als Erste")
+    e.pruefe(admin.get(f"{BASE}/files/{anhang['id']}").status_code == 200,
+             "solange der Administrator bleibt, ist der Anhang noch da")
+    if vorher is not None:
+        e.pruefe(dateien_auf_platte() == vorher,
+                 "und die Datei liegt weiterhin auf der Platte")
+
+    e.pruefe(admin.post(f"{BASE}/api/rooms/{zuzweit}/leave").json().get("geloescht"),
+             "geht auch der Letzte, meldet der Server die Aufloesung")
+    e.pruefe(admin.get(f"{BASE}/files/{anhang['id']}").status_code == 404,
+             "der Anhang ist damit fort")
+    if vorher is not None:
+        e.pruefe(dateien_auf_platte() == vorher - 1,
+                 f"auch von der Platte ({vorher} -> {dateien_auf_platte()})")
+    e.pruefe(not any(x["id"] == zuzweit
+                     for x in admin.get(f"{BASE}/api/state").json()["rooms"]),
+             "und die Unterhaltung ist bei niemandem mehr sichtbar")
+
     verbindungen_schliessen()
     return e.bilanz()
 
