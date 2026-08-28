@@ -1,5 +1,11 @@
 # Änderungsverlauf
 
+## 0.9.2
+
+- Das Token wird jetzt auch ohne `Bearer ` davor angenommen. Wer es in
+  `secrets.yaml` nackt hinterlegt, bekam bisher nur ein wortkarges 401 – der
+  häufigste Stolperstein beim Einrichten
+
 ## 0.9.1
 
 - Abgelehnte Nachrichten aus Home Assistant stehen jetzt mit Grund im

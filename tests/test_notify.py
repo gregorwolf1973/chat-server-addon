@@ -33,6 +33,20 @@ def main():
     e.pruefe(requests.get(f"{BASE}/api/token").status_code == 401,
              "ohne Anmeldung erst recht nicht")
 
+    e.abschnitt("Das Token darf auf mehrere Arten kommen")
+    e.pruefe(melde(token, room="rosa", message="mit Bearer").status_code == 200,
+             "als 'Bearer <token>'")
+    r = requests.post(f"{BASE}/api/notify", headers={"Authorization": token},
+                      json={"room": "rosa", "message": "ohne Bearer"})
+    e.pruefe(r.status_code == 200,
+             f"auch nackt ohne 'Bearer ' davor = {r.status_code}")
+    r = requests.post(f"{BASE}/api/notify?token={token}",
+                      json={"room": "rosa", "message": "in der Adresse"})
+    e.pruefe(r.status_code == 200, f"und als Parameter in der Adresse = {r.status_code}")
+    r = requests.post(f"{BASE}/api/notify", headers={"Authorization": ""},
+                      json={"room": "rosa", "message": "leer"})
+    e.pruefe(r.status_code == 401, "eine leere Kopfzeile wird abgewiesen")
+
     e.abschnitt("Nachricht aus Home Assistant")
     e.pruefe(melde("falsch", room="Rosa Rot", message="hallo").status_code == 401,
              "ein falsches Token wird abgewiesen")

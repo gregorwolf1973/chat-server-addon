@@ -1482,8 +1482,16 @@ def api_notify():
     Header: Authorization: Bearer <api_token>
     Body:   {"room": "Familie", "message": "Waschmaschine ist fertig"}
     """
-    auth = request.headers.get("Authorization", "")
-    token = auth[7:].strip() if auth.startswith("Bearer ") else request.args.get("token", "")
+    # "Bearer <token>" ist die uebliche Form, aber wer in secrets.yaml nur das
+    # nackte Token hinterlegt, soll nicht ratlos vor einem 401 stehen - beides
+    # wird angenommen, ebenso ?token= in der Adresse.
+    auth = request.headers.get("Authorization", "").strip()
+    if auth.lower().startswith("bearer "):
+        token = auth[7:].strip()
+    elif auth:
+        token = auth
+    else:
+        token = request.args.get("token", "").strip()
     if not token or not secrets.compare_digest(token, API_TOKEN):
         # Home Assistant meldet einen rest_command auch dann als erfolgreich,
         # wenn wir ablehnen - deshalb steht der Grund hier im Protokoll.

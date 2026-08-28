@@ -59,7 +59,9 @@ In `secrets.yaml`:
 chat_token: "Bearer DEIN-TOKEN"
 ```
 
-Das `Bearer ` davor gehört mit hinein, es ist Teil des Kopfzeilenwerts.
+Das `Bearer ` davor ist die übliche Form; das nackte Token allein wird
+ebenso angenommen. Die Anführungszeichen sind wichtig, wenn das Token
+Sonderzeichen wie `&` enthält.
 
 In `configuration.yaml` zwei Dienste – einer für den Alltag, einer für
 Dringendes:
@@ -133,7 +135,7 @@ der Chat-Server die Nachricht ablehnt. Der Grund steht im **Add-on-Protokoll**
 
 | Eintrag | Bedeutung |
 |---|---|
-| `abgelehnt: das Token stimmt nicht` | Token in `secrets.yaml` prüfen – mit `Bearer ` davor |
+| `abgelehnt: das Token stimmt nicht` | Token in `secrets.yaml` stimmt nicht mit dem im Add-on überein |
 | `abgelehnt: kein Token mitgeschickt` | Die Kopfzeile `Authorization` fehlt im `rest_command` |
 | `abgelehnt: weder Gruppe noch Person mit dem Namen '…'` | Der Name unter `room` stimmt nicht; das Protokoll listet die vorhandenen Gruppen auf |
 | `zugestellt, 0 benachrichtigt` | Angekommen, aber niemand wurde benachrichtigt – alle hatten den Chat offen. Mit `"always": true` klingelt es trotzdem |
