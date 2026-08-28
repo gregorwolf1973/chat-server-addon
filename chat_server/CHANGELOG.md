@@ -1,5 +1,14 @@
 # Änderungsverlauf
 
+## 0.9.1
+
+- Abgelehnte Nachrichten aus Home Assistant stehen jetzt mit Grund im
+  Add-on-Protokoll. Ein `rest_command` gilt dort auch dann als erfolgreich,
+  wenn der Chat-Server ablehnt – bisher sah man deshalb gar nicht, weshalb
+  nichts ankam
+- Ist der Empfänger unbekannt, nennt die Antwort zusätzlich die vorhandenen
+  Gruppen, und das Protokoll listet sie ebenfalls auf
+
 ## 0.9.0
 
 - **Unterhaltungen löschen**: In den Angaben zur Unterhaltung (Tipp auf den

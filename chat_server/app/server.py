@@ -1485,6 +1485,11 @@ def api_notify():
     auth = request.headers.get("Authorization", "")
     token = auth[7:].strip() if auth.startswith("Bearer ") else request.args.get("token", "")
     if not token or not secrets.compare_digest(token, API_TOKEN):
+        # Home Assistant meldet einen rest_command auch dann als erfolgreich,
+        # wenn wir ablehnen - deshalb steht der Grund hier im Protokoll.
+        log.warning("Nachricht aus Home Assistant abgelehnt: %s",
+                    "kein Token mitgeschickt" if not token
+                    else "das Token stimmt nicht")
         return jsonify({"error": "Token ungueltig."}), 401
 
     data = request.get_json(force=True, silent=True) or request.form
@@ -1495,6 +1500,8 @@ def api_notify():
     immer = str(data.get("always", "")).strip().lower() in ("1", "true", "ja",
                                                             "yes", "on")
     if not target or not text:
+        log.warning("Nachricht aus Home Assistant abgelehnt: %s",
+                    "'room' fehlt" if not target else "'message' fehlt")
         return jsonify({"error": "room und message werden gebraucht."}), 400
 
     conn = db()
@@ -1508,8 +1515,15 @@ def api_notify():
             "SELECT * FROM users WHERE (lower(username)=? OR display_name=?)"
             " AND active=1", (target.lower(), target)).fetchone()
         if user is None:
+            vorhanden = [r["name"] for r in conn.execute(
+                "SELECT name FROM rooms WHERE is_group=1 AND name IS NOT NULL"
+                " ORDER BY name").fetchall()]
+            log.warning("Nachricht aus Home Assistant abgelehnt: weder Gruppe "
+                        "noch Person mit dem Namen '%s'. Vorhandene Gruppen: %s",
+                        target, ", ".join(vorhanden) or "(keine)")
             return jsonify({"error": f"Weder Gruppe noch Person mit dem Namen "
-                                     f"'{target}' gefunden."}), 404
+                                     f"'{target}' gefunden.",
+                            "gruppen": vorhanden}), 404
         room = conn.execute(
             "SELECT r.* FROM rooms r"
             " JOIN room_members a ON a.room_id=r.id AND a.user_id=?"
@@ -1553,6 +1567,8 @@ def api_notify():
     # seine eigene Adresse auf und trifft damit auch unter Ingress den Chat.
     url = f"{EXTERNAL_URL}/?room={room['id']}" if EXTERNAL_URL else f"?room={room['id']}"
     push_to_users(empfaenger, "Home Assistant", text[:180], url)
+    log.info("Nachricht aus Home Assistant an '%s' zugestellt, %d benachrichtigt",
+             target, len(empfaenger))
     return jsonify({"ok": True, "room_id": room["id"],
                     "message_id": payload["id"], "pushed": len(empfaenger)})
 

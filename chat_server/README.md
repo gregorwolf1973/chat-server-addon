@@ -125,6 +125,19 @@ Push nicht eingeschaltet oder die App offen.
 Ist `room` ein Benutzername, entsteht beim ersten Mal automatisch ein
 Direktchat mit „Home Assistant“.
 
+### Wenn nichts ankommt
+
+Home Assistant meldet einen `rest_command` **auch dann als erfolgreich**, wenn
+der Chat-Server die Nachricht ablehnt. Der Grund steht im **Add-on-Protokoll**
+(Add-on → Protokoll):
+
+| Eintrag | Bedeutung |
+|---|---|
+| `abgelehnt: das Token stimmt nicht` | Token in `secrets.yaml` prüfen – mit `Bearer ` davor |
+| `abgelehnt: kein Token mitgeschickt` | Die Kopfzeile `Authorization` fehlt im `rest_command` |
+| `abgelehnt: weder Gruppe noch Person mit dem Namen '…'` | Der Name unter `room` stimmt nicht; das Protokoll listet die vorhandenen Gruppen auf |
+| `zugestellt, 0 benachrichtigt` | Angekommen, aber niemand wurde benachrichtigt – alle hatten den Chat offen. Mit `"always": true` klingelt es trotzdem |
+
 ## Zugang beantragen
 
 Auf der Anmeldeseite steht **Zugang beantragen**. Wer das ausfüllt, gibt

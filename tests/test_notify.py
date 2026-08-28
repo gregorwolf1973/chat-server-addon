@@ -38,8 +38,10 @@ def main():
              "ein falsches Token wird abgewiesen")
     e.pruefe(melde(token, room="Rosa Rot").status_code == 400,
              "ohne Text geht es nicht")
-    e.pruefe(melde(token, room="Gibtsnicht", message="hallo").status_code == 404,
-             "ein unbekannter Empfaenger wird gemeldet")
+    r = melde(token, room="Gibtsnicht", message="hallo")
+    e.pruefe(r.status_code == 404, "ein unbekannter Empfaenger wird gemeldet")
+    e.pruefe("gruppen" in r.json(),
+             "und die Antwort nennt die vorhandenen Gruppen zur Orientierung")
 
     r = melde(token, room="rosa", message="Die Waschmaschine ist fertig")
     e.pruefe(r.status_code == 200, f"an eine Person = {r.status_code}")
