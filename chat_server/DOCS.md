@@ -465,6 +465,26 @@ nicht am Gerät – sie gilt also auch auf dem Telefon.
 Fehlt die Bibliothek oder kommt sie nicht durch, bleibt die Umrisskarte
 stehen und ein Hinweis sagt, warum.
 
+## Freunde
+
+Unten links öffnet **Freunde** die Liste aller Konten auf diesem Server. Eine
+Anfrage wird erst durch die **Zusage der Gegenseite** zur Freundschaft – wer
+nicht will, lehnt ab, und beide Seiten können sie jederzeit wieder beenden.
+Wartet eine Anfrage auf dich, färbt sich der Knopf.
+
+**Wozu das gut ist:** Stimmung und Empfehlungen sind für deinen *Kreis*
+sichtbar. Dazu gehören
+
+* alle, mit denen du **mindestens eine Unterhaltung teilst**, und
+* alle, mit denen du **befreundet** bist.
+
+Die Freundschaft reicht also über die Unterhaltungen hinaus – so erreicht
+eine Empfehlung auch jemanden, mit dem du noch nie geschrieben hast.
+Umgekehrt bleibt die Familie im Kreis, ohne dass sich alle erst gegenseitig
+bestätigen müssen.
+
+Wird ein Konto gelöscht, verschwinden seine Freundschaften mit.
+
 ## Stimmung
 
 Über **Setzen** im Abschnitt **Stimmung** sagst du, worauf du gerade Lust
@@ -472,10 +492,9 @@ hättest – ein Emoji, ein Satz, eine Geltungsdauer von zwei Stunden bis morgen
 und auf Wunsch dein Standort. Andere tippen auf **Ich mach mit**; ein zweiter
 Tipp nimmt es zurück.
 
-Sichtbar ist eine Meldung für alle, mit denen du **mindestens eine
-Unterhaltung teilst**. Solange es keine gegenseitigen Freundschaften gibt,
-ist das die ehrlichste Abgrenzung: Wer nie mit dir geschrieben hat, sieht
-deine Stimmung nicht.
+Sichtbar ist eine Meldung für deinen Kreis – alle, mit denen du eine
+Unterhaltung teilst, und alle, mit denen du befreundet bist. Wer weder das
+eine noch das andere ist, sieht deine Stimmung nicht.
 
 Je Person gilt immer nur **eine** Meldung – eine neue ersetzt die alte, sonst
 stünde die Pinnwand nach einer Woche voller alter Launen. Abgelaufene

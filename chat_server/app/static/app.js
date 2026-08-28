@@ -1886,6 +1886,94 @@
     feld.dispatchEvent(new Event("input"));
   }
 
+  // ---------- Freunde ----------
+  // Gegenseitig: eine Anfrage wird erst durch die Zusage der Gegenseite zur
+  // Freundschaft. Wer befreundet ist, sieht die Stimmung und die Tipps des
+  // anderen - auch ohne gemeinsame Unterhaltung.
+  async function freundeDialog() {
+    const root = modal(`<h2>Freunde</h2>
+      <div id="fr-inhalt"><p class="hint">Wird geladen …</p></div>
+      <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    await freundeZeichnen(root);
+  }
+
+  async function freundeZeichnen(root) {
+    const feld = (root || document).querySelector("#fr-inhalt");
+    if (!feld) return;
+    const res = await api("/api/freunde");
+    if (!res.ok) { feld.innerHTML = '<p class="hint">Das ging nicht.</p>'; return; }
+    const d = await res.json();
+
+    const zeile = (u, knoepfe) => `<div class="fr-zeile" data-id="${u.id}">
+      ${avatarHtml("u", u.id, u.display_name, u.avatar, "klein")}
+      <div class="fr-name">${esc(u.display_name)}
+        <span class="utag">${esc(u.username)}</span></div>
+      <span style="flex:1"></span>${knoepfe}</div>`;
+
+    const gruppe = (titel, leute, knoepfe, leer) => {
+      if (!leute.length && !leer) return "";
+      return `<div class="fr-gruppe">${esc(titel)}</div>`
+        + (leute.length ? leute.map((u) => zeile(u, knoepfe(u))).join("")
+                        : `<p class="hint">${esc(leer)}</p>`);
+    };
+
+    feld.innerHTML =
+      gruppe("Wartet auf deine Antwort", d.eingehend, () =>
+        '<button class="mini-btn an" data-ja>Annehmen</button>'
+        + '<button class="mini-btn" data-nein>Ablehnen</button>', "")
+      + gruppe("Deine Freunde", d.freunde, () =>
+        '<button class="mini-btn" data-weg>Entfernen</button>',
+        "Noch niemand. Frag unten jemanden an.")
+      + gruppe("Angefragt", d.ausgehend, () =>
+        '<button class="mini-btn" data-zurueck>Zurücknehmen</button>', "")
+      + gruppe("Weitere Personen", d.andere, () =>
+        '<button class="mini-btn" data-fragen>Anfragen</button>', "");
+
+    const tat = async (id, methode) => {
+      const res = await api(`/api/freunde/${id}`, {method: methode});
+      if (!res.ok) {
+        const daten = await res.json().catch(() => ({}));
+        toast(daten.error || "Das ging nicht.");
+        return;
+      }
+      await loadState();
+      await freundeZeichnen(root);
+    };
+    feld.querySelectorAll(".fr-zeile").forEach((z) => {
+      const id = parseInt(z.dataset.id, 10);
+      const binde = (was, methode) => {
+        const knopf = z.querySelector(`[data-${was}]`);
+        if (knopf) knopf.addEventListener("click", () => tat(id, methode));
+      };
+      binde("ja", "POST");
+      binde("fragen", "POST");
+      binde("nein", "DELETE");
+      binde("weg", "DELETE");
+      binde("zurueck", "DELETE");
+    });
+  }
+
+  // Am Einstellungsknopf sieht man, dass jemand auf Antwort wartet
+  function freundeMerker() {
+    const knopf = $("btn-freunde");
+    if (!knopf) return;
+    const offen = state.freund_anfragen || 0;
+    knopf.classList.toggle("wartet", offen > 0);
+    knopf.title = offen
+      ? `${offen} ${offen === 1 ? "Anfrage wartet" : "Anfragen warten"}`
+      : "Freunde";
+  }
+
+  socket.on("freunde_geaendert", async (d) => {
+    await loadState();
+    if (d && d.anfrage) toast("Jemand möchte sich mit dir befreunden.");
+    const offen = document.querySelector("#fr-inhalt");
+    if (offen) freundeZeichnen($("modal-root"));
+  });
+
+  $("btn-freunde").addEventListener("click", freundeDialog);
+
   // ---------- Anrufe ----------
   // Bild und Ton laufen direkt von Gerät zu Gerät, nie über den Pi. Jeder
   // spricht mit jedem einzeln; für eine Familienrunde reicht das und spart
@@ -3167,12 +3255,15 @@
     state.online = new Set(data.online);
     state.live = data.live || [];
     state.stimmung = data.stimmung || [];
+    state.freunde = data.freunde || [];
+    state.freund_anfragen = data.freund_anfragen || 0;
     renderRooms();
     renderKarten();
     renderStimmung();
     pingPlanen();
     if (imAnruf()) anrufZeichnen();
     klingelZeigen();
+    freundeMerker();
   }
 
   // Die Restzeiten laufen ab, ohne dass der Server etwas schickt. Einmal je

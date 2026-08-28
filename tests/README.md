@@ -28,8 +28,8 @@ kill %1
 
 Danach dasselbe für `tests/test_users.py`, `tests/test_media.py`,
 `tests/test_register.py`, `tests/test_avatars.py`, `tests/test_notify.py`,
-`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py` und
-`tests/test_anrufe.py`.
+`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py`, `tests/test_anrufe.py` und
+`tests/test_freunde.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
 
@@ -70,6 +70,15 @@ das durch Altbestände fehl.
   Aussenstehende können niemandem etwas schicken.
 * Schaltet jemand die Kamera zu, gilt das für den ganzen Anruf.
 * Wer neu in die Gruppe kommt, wird den schon Anwesenden gemeldet.
+
+`test_freunde.py` (32 Prüfungen)
+
+* Anfragen, annehmen, ablehnen, zurücknehmen, beenden – und dass eine
+  Anfrage allein noch keine Freundschaft ist.
+* Der Kreis wächst mit den Freunden: eine Freundin sieht die Stimmung ohne
+  gemeinsame Unterhaltung, ein Fremder nicht.
+* Eine gemeinsame Unterhaltung genügt weiterhin auch ohne Freundschaft.
+* Ein gelöschtes Konto nimmt seine Freundschaften mit.
 
 `test_polls.py` (22 Prüfungen)
 

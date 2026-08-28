@@ -1,5 +1,16 @@
 # Änderungsverlauf
 
+## 0.25.0
+
+- **Freunde**, gegenseitig: eine Anfrage wird erst durch die Zusage der
+  Gegenseite zur Freundschaft. Ablehnen, zuruecknehmen und beenden gehen
+  jederzeit; wartet eine Anfrage, faerbt sich der Knopf unten links
+- Der **Kreis** umfasst jetzt Freunde *und* alle, mit denen man eine
+  Unterhaltung teilt. Eine Empfehlung erreicht damit auch jemanden, mit dem
+  man noch nie geschrieben hat - und die Familie bleibt drin, ohne dass sich
+  alle erst bestaetigen muessen
+- Ein geloeschtes Konto nimmt seine Freundschaften mit
+
 ## 0.24.3
 
 - Basis-Image von Alpine 3.19 auf 3.22 gehoben. 3.19 bekommt keine

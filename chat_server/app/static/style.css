@@ -1550,3 +1550,25 @@ audio.abspieler { width: min(260px, 100%); }
 }
 .anruf-knopf.aus { background: var(--surface); color: var(--muted); }
 .anruf-knopf.auflegen { background: var(--danger); border-color: var(--danger); }
+
+/* ---------- Freunde ---------- */
+.fr-gruppe {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 16px 0 6px;
+}
+.fr-gruppe:first-child { margin-top: 0; }
+.fr-zeile {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.fr-zeile:last-child { border-bottom: none; }
+.fr-name { font-size: 13px; font-weight: 600; display: flex; gap: 7px; align-items: baseline; }
+.fr-zeile .mini-btn { flex: 0 0 auto; }
+/* Wartet eine Anfrage, faellt der Knopf ins Auge */
+.icon-btn.wartet { color: var(--accent); border-color: var(--accent); }

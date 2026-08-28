@@ -241,6 +241,14 @@ CREATE TABLE IF NOT EXISTS stimmung_mit (
     created_at INTEGER NOT NULL,
     PRIMARY KEY (stimmung_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS freundschaften (
+    klein_id INTEGER NOT NULL,
+    gross_id INTEGER NOT NULL,
+    angefragt_von INTEGER NOT NULL,
+    bestaetigt INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (klein_id, gross_id)
+);
 CREATE TABLE IF NOT EXISTS push_subs (
     id INTEGER PRIMARY KEY,
     user_id INTEGER NOT NULL,
@@ -754,17 +762,20 @@ def event_payload(event_id, uid, conn=None):
 
 
 def mein_kreis(uid, conn=None):
-    """Alle, mit denen ich mindestens eine Unterhaltung teile.
+    """Alle, mit denen ich etwas zu tun habe.
 
-    Solange es keine gegenseitigen Freundschaften gibt, ist das die ehrlichste
-    Abgrenzung: wer nie mit mir geschrieben hat, sieht meine Stimmung nicht.
+    Das sind meine bestaetigten Freunde und alle, mit denen ich mindestens
+    eine Unterhaltung teile. Die Freundschaft reicht ueber die
+    Unterhaltungen hinaus - so erreicht eine Empfehlung auch jemanden, mit
+    dem ich noch nie geschrieben habe. Umgekehrt bleibt die Familie im
+    Kreis, ohne dass alle einander erst bestaetigen muessen.
     """
     conn = conn or db()
     rows = conn.execute(
         "SELECT DISTINCT b.user_id FROM room_members a"
         " JOIN room_members b ON b.room_id=a.room_id"
         " WHERE a.user_id=? AND b.user_id<>?", (uid, uid)).fetchall()
-    return {r["user_id"] for r in rows}
+    return {r["user_id"] for r in rows} | meine_freunde(uid, conn)
 
 
 def live_sichtbar(uid, conn=None):
@@ -1126,6 +1137,8 @@ def api_state():
         "rooms": payload,
         "users": [dict(u) for u in users],
         "online": online,
+        "freunde": sorted(meine_freunde(uid, conn)),
+        "freund_anfragen": offene_anfragen(uid, conn),
         "live": live_sichtbar(uid, conn),
         "stimmung": stimmungen_sichtbar(uid, conn),
     })
@@ -1513,6 +1526,8 @@ def api_delete_user(user_id):
                  (user_id, user_id))
     conn.execute("DELETE FROM stimmungen WHERE user_id=?", (user_id,))
     conn.execute("DELETE FROM event_antworten WHERE user_id=?", (user_id,))
+    conn.execute("DELETE FROM freundschaften WHERE klein_id=? OR gross_id=?",
+                 (user_id, user_id))
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
     conn.commit()
 
@@ -1827,6 +1842,135 @@ def api_get_poll(poll_id):
     if poll is None or not is_member(poll["room_id"], uid):
         abort(403)
     return jsonify(poll_payload(poll_id, uid))
+
+
+# --------------------------------------------------------------------------
+# Freundschaften
+# --------------------------------------------------------------------------
+# Gegenseitig und in einer Zeile je Paar: die kleinere Kennung steht immer
+# links. Ohne diese Regel gaebe es zwei Zeilen fuer dieselbe Freundschaft und
+# jede Abfrage muesste beide Richtungen pruefen.
+def _paar(a, b):
+    return (a, b) if a < b else (b, a)
+
+
+def freund_status(uid, anderer, conn=None):
+    """'freund', 'gesendet', 'erhalten' oder '' - aus meiner Sicht."""
+    conn = conn or db()
+    klein, gross = _paar(uid, anderer)
+    row = conn.execute(
+        "SELECT bestaetigt, angefragt_von FROM freundschaften"
+        " WHERE klein_id=? AND gross_id=?", (klein, gross)).fetchone()
+    if row is None:
+        return ""
+    if row["bestaetigt"]:
+        return "freund"
+    return "gesendet" if row["angefragt_von"] == uid else "erhalten"
+
+
+def meine_freunde(uid, conn=None):
+    """Kennungen aller bestaetigten Freunde."""
+    conn = conn or db()
+    rows = conn.execute(
+        "SELECT klein_id, gross_id FROM freundschaften"
+        " WHERE bestaetigt=1 AND (klein_id=? OR gross_id=?)",
+        (uid, uid)).fetchall()
+    return {r["gross_id"] if r["klein_id"] == uid else r["klein_id"]
+            for r in rows}
+
+
+def offene_anfragen(uid, conn=None):
+    """Wie viele Anfragen auf meine Antwort warten."""
+    conn = conn or db()
+    return conn.execute(
+        "SELECT COUNT(*) c FROM freundschaften WHERE bestaetigt=0"
+        " AND angefragt_von<>? AND (klein_id=? OR gross_id=?)",
+        (uid, uid, uid)).fetchone()["c"]
+
+
+@app.get("/api/freunde")
+@login_required
+def api_freunde():
+    """Freunde, eingegangene und gestellte Anfragen - und wer sonst da ist."""
+    uid = session["uid"]
+    conn = db()
+    marks = ",".join("?" * len(SYSTEM_USERS))
+    alle = conn.execute(
+        "SELECT id, username, display_name, avatar FROM users"
+        f" WHERE username NOT IN ({marks}) AND pending=0 AND active=1"
+        " AND id<>? ORDER BY display_name", (*SYSTEM_USERS, uid)).fetchall()
+    freunde, eingehend, ausgehend, offen = [], [], [], []
+    for u in alle:
+        eintrag = dict(u)
+        stand = freund_status(uid, u["id"], conn)
+        if stand == "freund":
+            freunde.append(eintrag)
+        elif stand == "erhalten":
+            eingehend.append(eintrag)
+        elif stand == "gesendet":
+            ausgehend.append(eintrag)
+        else:
+            offen.append(eintrag)
+    return jsonify({"freunde": freunde, "eingehend": eingehend,
+                    "ausgehend": ausgehend, "andere": offen})
+
+
+@app.post("/api/freunde/<int:user_id>")
+@login_required
+def api_freund_anfragen(user_id):
+    """Anfragen - oder eine offene Anfrage der Gegenseite annehmen."""
+    uid = session["uid"]
+    if user_id == uid:
+        return jsonify({"error": "Mit sich selbst geht das nicht."}), 400
+    conn = db()
+    ziel = conn.execute(
+        "SELECT username, display_name FROM users WHERE id=? AND active=1"
+        " AND pending=0", (user_id,)).fetchone()
+    if ziel is None or ziel["username"] in SYSTEM_USERS:
+        return jsonify({"error": "Dieses Konto gibt es nicht."}), 404
+
+    klein, gross = _paar(uid, user_id)
+    row = conn.execute(
+        "SELECT bestaetigt, angefragt_von FROM freundschaften"
+        " WHERE klein_id=? AND gross_id=?", (klein, gross)).fetchone()
+    now = int(time.time())
+    if row is None:
+        conn.execute(
+            "INSERT INTO freundschaften (klein_id, gross_id, angefragt_von,"
+            " bestaetigt, created_at) VALUES (?,?,?,0,?)",
+            (klein, gross, uid, now))
+        conn.commit()
+        socketio.emit("freunde_geaendert", {"anfrage": True}, to=f"user:{user_id}")
+        return jsonify({"ok": True, "stand": "gesendet"})
+    if row["bestaetigt"]:
+        return jsonify({"ok": True, "stand": "freund"})
+    if row["angefragt_von"] == uid:
+        return jsonify({"ok": True, "stand": "gesendet"})
+    # Die Gegenseite hat gefragt - das hier ist die Zusage
+    conn.execute(
+        "UPDATE freundschaften SET bestaetigt=1 WHERE klein_id=? AND gross_id=?",
+        (klein, gross))
+    conn.commit()
+    for ziel_id in (uid, user_id):
+        socketio.emit("freunde_geaendert", {}, to=f"user:{ziel_id}")
+    log.info("Nutzer %s und %s sind jetzt befreundet", uid, user_id)
+    return jsonify({"ok": True, "stand": "freund"})
+
+
+@app.delete("/api/freunde/<int:user_id>")
+@login_required
+def api_freund_loesen(user_id):
+    """Zuruecknehmen, ablehnen oder die Freundschaft beenden - eine Taste
+    fuer alle drei, denn es laeuft auf dasselbe hinaus."""
+    uid = session["uid"]
+    klein, gross = _paar(uid, user_id)
+    conn = db()
+    conn.execute("DELETE FROM freundschaften WHERE klein_id=? AND gross_id=?",
+                 (klein, gross))
+    conn.commit()
+    for ziel_id in (uid, user_id):
+        socketio.emit("freunde_geaendert", {}, to=f"user:{ziel_id}")
+    return jsonify({"ok": True, "stand": ""})
 
 
 # --------------------------------------------------------------------------
