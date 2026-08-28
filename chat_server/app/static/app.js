@@ -686,7 +686,16 @@
       ${IS_ADMIN ? `<hr class="sep">
         <h2>Benutzer verwalten</h2>
         <div id="u-list" class="user-list"><p class="hint">Wird geladen …</p></div>
-        <button class="btn ghost" id="u-new">+ Neues Konto</button>` : ""}
+        <button class="btn ghost" id="u-new">+ Neues Konto</button>
+        <hr class="sep">
+        <h2>Home Assistant</h2>
+        <p class="hint">Mit diesem Token schickt eine Automation Nachrichten
+          in den Chat. Behandle es wie ein Passwort.</p>
+        <div class="token-zeile">
+          <input id="ha-token" readonly value="wird geladen …">
+          <button class="btn ghost" id="ha-kopieren">Kopieren</button>
+        </div>
+        <p class="hint" id="ha-herkunft"></p>` : ""}
       <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button>
       <a class="btn ghost" style="text-align:center;text-decoration:none;line-height:2.2" href="${BASE}/logout">Abmelden</a></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
@@ -714,6 +723,7 @@
     if (IS_ADMIN) {
       renderUserAdmin(root);
       root.querySelector("#u-new").addEventListener("click", () => newUserDialog());
+      zeigeToken(root);
     }
   });
 
@@ -815,6 +825,30 @@
       }
       if (ok) { renderUserAdmin(root); loadState(); }
     }));
+  }
+
+  async function zeigeToken(root) {
+    const feld = root.querySelector("#ha-token");
+    const herkunft = root.querySelector("#ha-herkunft");
+    const res = await api("/api/token");
+    if (!res.ok) { feld.value = "nicht verfügbar"; return; }
+    const daten = await res.json();
+    feld.value = daten.token;
+    herkunft.textContent = daten.aus_option
+      ? "Stammt aus der Add-on-Option api_token."
+      : "Wurde beim ersten Start erzeugt und liegt in /data/api_token.txt. "
+        + "Du kannst stattdessen die Add-on-Option api_token setzen.";
+    root.querySelector("#ha-kopieren").addEventListener("click", async () => {
+      feld.select();
+      try {
+        // Nur über HTTPS verfügbar - unter Ingress läuft es über http,
+        // dann bleibt der markierte Text zum Kopieren von Hand.
+        await navigator.clipboard.writeText(feld.value);
+        toast("Token kopiert.");
+      } catch (err) {
+        toast("Bitte von Hand kopieren – der Text ist markiert.");
+      }
+    });
   }
 
   function passwordDialog(user, settingsRoot) {

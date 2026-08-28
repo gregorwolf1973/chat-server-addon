@@ -950,6 +950,14 @@ def api_reset_password(user_id):
     return jsonify({"ok": True})
 
 
+@app.get("/api/token")
+@admin_required
+def api_token_lesen():
+    """Das Token fuer die Home-Assistant-Schnittstelle - nur fuer Verwalter."""
+    return jsonify({"token": API_TOKEN,
+                    "aus_option": bool(_opt("API_TOKEN"))})
+
+
 @app.post("/api/users/<int:user_id>/approve")
 @admin_required
 def api_approve_user(user_id):
@@ -1428,6 +1436,10 @@ def api_notify():
     data = request.get_json(force=True, silent=True) or request.form
     target = (data.get("room") or "").strip()
     text = (data.get("message") or "").strip()
+    # Aus einer rest_command-Vorlage kommt oft der Text "true" statt eines
+    # echten Wahrheitswerts.
+    immer = str(data.get("always", "")).strip().lower() in ("1", "true", "ja",
+                                                            "yes", "on")
     if not target or not text:
         return jsonify({"error": "room und message werden gebraucht."}), 400
 
@@ -1477,13 +1489,18 @@ def api_notify():
 
     members = [r["user_id"] for r in conn.execute(
         "SELECT user_id FROM room_members WHERE room_id=?", (room["id"],)).fetchall()]
+    # Normalerweise nur an alle, die gerade nicht zusehen. Mit "always" geht
+    # die Meldung auch an offene Sitzungen - fuer Alarme, die niemand
+    # verpassen soll.
     with ONLINE_LOCK:
-        offline = [m for m in members if m != bot["id"] and m not in ONLINE]
+        empfaenger = [m for m in members if m != bot["id"]
+                      and (immer or m not in ONLINE)]
     # Ohne external_url relativ lassen: der Service Worker loest das gegen
     # seine eigene Adresse auf und trifft damit auch unter Ingress den Chat.
     url = f"{EXTERNAL_URL}/?room={room['id']}" if EXTERNAL_URL else f"?room={room['id']}"
-    push_to_users(offline, "Home Assistant", text[:180], url)
-    return jsonify({"ok": True, "room_id": room["id"], "message_id": payload["id"]})
+    push_to_users(empfaenger, "Home Assistant", text[:180], url)
+    return jsonify({"ok": True, "room_id": room["id"],
+                    "message_id": payload["id"], "pushed": len(empfaenger)})
 
 
 @app.errorhandler(413)

@@ -28,7 +28,8 @@ kill %1
 
 Danach dasselbe für `tests/test_users.py`, `tests/test_media.py` und
 `tests/test_register.py` und
-`tests/test_avatars.py`.
+`tests/test_avatars.py` und
+`tests/test_notify.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
 
@@ -54,6 +55,12 @@ das durch Altbestände fehl.
 * `nosniff` und eine enge CSP auf der Datei-Route.
 * Fremde Datei-IDs lassen sich nicht an eigene Nachrichten hängen.
 * Die Pfade im PWA-Manifest lösen auf existierende Adressen auf.
+
+`test_notify.py` (13 Prüfungen)
+
+* Das Token sieht nur ein Administrator.
+* Nachrichten an Personen und Gruppen, mit den Fehlerfällen.
+* Benachrichtigt wird nur, wer nicht zusieht – ausser bei `always`.
 
 `test_avatars.py` (24 Prüfungen)
 

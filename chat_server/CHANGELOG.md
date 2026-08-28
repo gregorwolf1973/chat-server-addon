@@ -1,5 +1,16 @@
 # Änderungsverlauf
 
+## 0.8.0
+
+- **Benachrichtigung erzwingen:** `POST /api/notify` nimmt jetzt
+  `"always": true` an. Damit erreicht eine Meldung auch die, die den Chat
+  gerade offen haben – für Alarme, die niemand verpassen soll. Ohne das Feld
+  bleibt es beim bisherigen Verhalten
+- Die Antwort nennt unter `pushed`, an wie viele Geräte sie ging
+- **Das Token steht in der Oberfläche**: Administratoren finden es unter
+  **… → Einstellungen → Home Assistant** samt Kopierknopf, statt es aus
+  `/data/api_token.txt` holen zu müssen
+
 ## 0.7.0
 
 - **Nachrichten sehen aus wie gewohnt:** In Gruppen trägt jede fremde
