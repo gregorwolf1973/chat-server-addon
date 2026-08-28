@@ -200,6 +200,7 @@ button { cursor: pointer; }
   margin: 8px 0 3px 12px;
 }
 .bubble {
+  display: flow-root;
   background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: 4px 12px 12px 12px;
@@ -212,13 +213,18 @@ button { cursor: pointer; }
   border-color: #2a5c59;
   border-radius: 12px 4px 12px 12px;
 }
+/* Die Uhrzeit sitzt wie bei WhatsApp rechts unten in der letzten Zeile.
+   Der Float laesst kurzen Text daneben stehen, statt eine eigene Zeile zu
+   verbrauchen; flow-root an der Blase schliesst ihn wieder ein. */
 .bubble .meta {
+  float: right;
   font-family: var(--mono);
   font-size: 10px;
   color: var(--muted);
-  margin-top: 4px;
-  text-align: right;
+  margin: 5px 0 0 10px;
 }
+.bubble .text { white-space: pre-wrap; }
+.bubble .actions { clear: both; }
 .bubble img { max-width: 100%; border-radius: 6px; display: block; margin-bottom: 6px; }
 .file-link {
   display: flex;
@@ -524,4 +530,13 @@ button { cursor: pointer; }
 @media (max-width: 520px) {
   .media-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
   .media-filter { max-width: 100%; }
+}
+
+/* Der Titel darf die Knoepfe in der Kopfzeile nicht verdraengen */
+.chat-header > div { min-width: 0; }
+.chat-header .title,
+.chat-header .sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

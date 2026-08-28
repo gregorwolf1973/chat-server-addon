@@ -1,5 +1,17 @@
 # Änderungsverlauf
 
+## 0.4.1
+
+- Sprechblasen sind deutlich kompakter: unter jeder Nachricht standen 40 Pixel
+  Leerraum, weil die Zeilenumbrüche der Vorlage zu Textknoten wurden. Eine
+  Textnachricht misst jetzt 38 statt 114 Pixel
+- Die Uhrzeit steht wie bei WhatsApp rechts neben dem Text statt in einer
+  eigenen Zeile darunter
+- Die Medienübersicht ist jetzt auch aus einer geöffneten Unterhaltung
+  erreichbar – auf dem Handy war sie es gar nicht, weil die Seitenleiste dort
+  verdeckt wird, sobald ein Chat offen ist. Der Knopf in der Kopfzeile zeigt
+  gleich die Medien dieser Unterhaltung
+
 ## 0.4.0
 
 - **Medienübersicht** über den Knopf **Medien**: alle Bilder und Dateien aus

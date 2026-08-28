@@ -130,9 +130,11 @@
     const showAuthor = room && room.is_group && m.user_id !== ME && m.user_id !== prevAuthor;
     let inner = showAuthor ? `<div class="author">${esc(m.author)}</div>` : "";
 
+    // Achtung: keine Zeilenumbrueche zwischen den Elementen. Sie werden zu
+    // Textknoten und erzeugen in der Sprechblase eine leere Zeile.
     if (m.deleted) {
-      inner += `<div class="bubble"><span class="gone-text">Nachricht gelöscht</span>
-        <div class="meta">${timeOf(m.at)}</div></div>`;
+      inner += `<div class="bubble"><span class="gone-text">Nachricht gelöscht</span>`
+        + `<div class="meta">${timeOf(m.at)}</div></div>`;
       wrap.innerHTML = inner;
       box.appendChild(wrap);
       return;
@@ -153,12 +155,12 @@
              <span class="fsize">${fileSize(m.file.size)}</span></a>`;
     }
     const canDelete = m.user_id === ME || IS_ADMIN;
-    inner += `<div class="bubble">${quoteHtml}${fileHtml}${esc(m.body)}
-      <div class="meta">${timeOf(m.at)}</div>
-      <div class="actions">
-        <button class="act" data-act="reply">Antworten</button>
-        ${canDelete ? '<button class="act del" data-act="delete">Löschen</button>' : ""}
-      </div></div>`;
+    inner += `<div class="bubble">${quoteHtml}${fileHtml}`
+      + `<span class="text">${esc(m.body)}</span>`
+      + `<span class="meta">${timeOf(m.at)}</span>`
+      + `<div class="actions"><button class="act" data-act="reply">Antworten</button>`
+      + (canDelete ? '<button class="act del" data-act="delete">Löschen</button>' : "")
+      + `</div></div>`;
     wrap.innerHTML = inner;
     box.appendChild(wrap);
   }
@@ -197,8 +199,9 @@
   function startReply(id, msgEl) {
     const author = msgEl.querySelector(".author")?.textContent
       || (msgEl.classList.contains("mine") ? B.dataset.name : roomById(currentRoom).name);
-    const text = msgEl.querySelector(".bubble").childNodes[0]?.textContent?.trim()
-      || msgEl.querySelector(".bubble").textContent.trim();
+    const text = msgEl.querySelector(".bubble .text")?.textContent?.trim()
+      || msgEl.querySelector(".file-link span")?.textContent?.trim()
+      || "Datei";
     replyTo = id;
     $("reply-bar").hidden = false;
     $("reply-author").textContent = author;
@@ -556,7 +559,16 @@
   // ---------- Medien ----------
   let medienRaum = 0;  // 0 = alle Unterhaltungen
 
+  // Zwei Zugaenge: aus der Seitenleiste ueber alle Unterhaltungen, aus dem
+  // Chat nur diese eine. Auf dem Handy ist die Seitenleiste verdeckt, sobald
+  // ein Chat offen ist - ohne den zweiten Knopf waere die Uebersicht dort
+  // gar nicht erreichbar.
   $("btn-media").addEventListener("click", () => {
+    medienRaum = 0;
+    medienDialog();
+  });
+
+  $("btn-room-media").addEventListener("click", () => {
     medienRaum = currentRoom || 0;
     medienDialog();
   });
