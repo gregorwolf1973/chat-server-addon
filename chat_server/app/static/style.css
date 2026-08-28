@@ -1178,3 +1178,37 @@ audio.abspieler { width: min(260px, 100%); }
 /* Kleine Profilbilder außerhalb des Verlaufs */
 .avatar.klein { width: 28px; height: 28px; font-size: 11px; }
 .avatar.winzig { width: 20px; height: 20px; font-size: 9px; }
+
+/* ---------- Straßenkarte (Leaflet) ---------- */
+.echtkarte {
+  width: 100%;
+  height: min(420px, 52vh);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #16232b;
+}
+.ev-kartenflaeche { margin: 8px 0 0; }
+.ev-kartenflaeche .echtkarte { height: min(300px, 42vh); }
+/* Leaflet gibt dem Symbol sonst weissen Grund und einen Rahmen. Die Huelle
+   bleibt absichtlich ohne Groesse: Leaflet setzt sie auf den Punkt, und der
+   Inhalt zentriert sich per translate darauf. */
+.leaflet-eigen { background: none; border: none; width: 0; height: 0; }
+.karten-punkt.fest { left: 0; top: 0; }
+.karten-fahne {
+  font-size: 22px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
+}
+/* Der Kartenhinweis muss lesbar bleiben, auch auf dunklem Grund */
+.leaflet-control-attribution {
+  background: rgba(14, 20, 22, 0.82) !important;
+  color: var(--muted) !important;
+  font-size: 10px;
+}
+.leaflet-control-attribution a { color: var(--accent) !important; }
+.leaflet-control-zoom a {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--line) !important;
+}
+.leaflet-control-zoom a:hover { background: var(--surface-2) !important; }

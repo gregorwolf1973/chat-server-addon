@@ -1,5 +1,18 @@
 # Änderungsverlauf
 
+## 0.17.0
+
+- **Straßenkarte** mit Leaflet (1.9.4, BSD-2-Clause, liegt im Add-on) in der
+  Live-Karte und der Terminansicht. Kacheln von OpenStreetMap
+- Geladen wird erst beim Oeffnen einer ganzen Karte - beim Start der App und
+  in Sprechblasen geht **keine einzige** Anfrage nach draussen. Dort bleibt
+  es bei der Umrisskarte aus dem Add-on
+- **Abschalter** in den Einstellungen. Dann bleibt es ueberall bei den
+  Umrissen. Die Einstellung haengt am Konto, nicht am Geraet - eine
+  Entscheidung ueber die eigenen Daten soll nicht davon abhaengen, mit
+  welchem Telefon man sich anmeldet
+- Kommt Leaflet nicht durch, bleibt die Umrisskarte stehen und sagt, warum
+
 ## 0.16.0
 
 - **Einladungen** (Knopf 📅): Titel, Zeit, Ort, Bild, Beschreibung und

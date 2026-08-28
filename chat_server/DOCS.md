@@ -298,6 +298,34 @@ Servern nachgeladen**.
 
 Auch hier gilt: Der Browser gibt den Standort **nur über HTTPS** heraus.
 
+## Straßenkarte oder Umrisse
+
+Es gibt zwei Karten im Chat, und der Unterschied ist Absicht:
+
+**Die Umrisskarte** steckt als 102 KB große Datei im Add-on (gemeinfreie
+Daten von Natural Earth). Sie zeigt Küsten und Grenzen, keine Straßen, und
+**fragt niemanden**. Sie steht in jeder Sprechblase mit Standort und in jeder
+Terminkarte im Verlauf.
+
+**Die Straßenkarte** (Leaflet, ebenfalls im Add-on) erscheint nur dort, wo
+eine ganze Karte gezeigt wird: in der **Live-Karte** und in der
+**Terminansicht** aus der Seitenleiste. Erst dann werden Kacheln von
+OpenStreetMap geholt – das ist die einzige Stelle, an der dieser Chat etwas
+von einem fremden Server lädt. Beim Start der App passiert das nicht, und in
+Sprechblasen auch nicht.
+
+Was OpenStreetMap dabei erfährt: deine IP-Adresse und welchen Ausschnitt du
+ansiehst. Der Chat schickt `Referrer-Policy: no-referrer` mit, die Adresse
+deines Servers bleibt also außen vor.
+
+**Abschalten:** In den Einstellungen unter *Karten* nimmst du den Haken bei
+**Straßenkarte verwenden** weg. Dann bleibt es überall bei den Umrissen und
+es geht keine einzige Anfrage nach draußen. Die Einstellung hängt am Konto,
+nicht am Gerät – sie gilt also auch auf dem Telefon.
+
+Fehlt die Bibliothek oder kommt sie nicht durch, bleibt die Umrisskarte
+stehen und ein Hinweis sagt, warum.
+
 ## Stimmung
 
 Über **Setzen** im Abschnitt **Stimmung** sagst du, worauf du gerade Lust

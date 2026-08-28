@@ -782,6 +782,102 @@
       + `</svg>${nadeln}</div>`;
   }
 
+  // ---------- Straßenkarte ----------
+  // Leaflet liegt im Add-on, wird aber erst geladen, wenn wirklich eine ganze
+  // Karte gezeigt wird - nicht beim Start und nicht in Sprechblasen. Die
+  // Kacheln kommen von OpenStreetMap; das ist die einzige Stelle, an der
+  // dieser Chat etwas von einem fremden Server holt. Wer das nicht will,
+  // schaltet es in den Einstellungen ab und behält die Umrisskarte.
+  const KACHEL_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const KACHEL_DANK = '&copy; <a href="https://www.openstreetmap.org/copyright" '
+    + 'target="_blank" rel="noopener noreferrer">OpenStreetMap</a>';
+
+  const kachelnErlaubt = () => !(state.me && state.me.kacheln === false);
+
+  let leafletLaeuft = null;
+
+  function leafletLaden() {
+    // Nur einmal laden, auch wenn zwei Karten gleichzeitig aufgehen
+    if (leafletLaeuft) return leafletLaeuft;
+    leafletLaeuft = new Promise((fertig, fehler) => {
+      if (window.L) { fertig(); return; }
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = `${BASE}/static/leaflet/leaflet.css`;
+      document.head.appendChild(css);
+      const js = document.createElement("script");
+      js.src = `${BASE}/static/leaflet/leaflet.js`;
+      js.addEventListener("load", () => fertig());
+      js.addEventListener("error", () => {
+        leafletLaeuft = null;
+        fehler(new Error("Die Kartenbibliothek ließ sich nicht laden."));
+      });
+      document.head.appendChild(js);
+    });
+    return leafletLaeuft;
+  }
+
+  function nadelSymbol(p) {
+    return L.divIcon({
+      className: "leaflet-eigen",
+      html: `<span class="karten-punkt fest">`
+        + (p.user_id
+           ? avatarHtml("u", p.user_id, p.name, p.avatar, "winzig")
+           : '<span class="karten-fahne">📍</span>')
+        + (p.name ? `<span class="karten-name">${esc(p.name)}</span>` : "")
+        + `</span>`,
+      iconSize: null,
+    });
+  }
+
+  /**
+   * Zeichnet eine echte Karte in den Behälter - oder, wenn die Kacheln aus
+   * sind oder Leaflet nicht kommt, die Umrisskarte aus dem Add-on.
+   */
+  async function karteZeichnen(behaelter, punkte) {
+    if (!behaelter) return;
+    if (!punkte.length) {
+      behaelter.innerHTML = uebersichtHtml(punkte);
+      return;
+    }
+    if (!kachelnErlaubt()) {
+      behaelter.innerHTML = uebersichtHtml(punkte)
+        + '<p class="hint">Die Straßenkarte ist abgeschaltet – in den '
+        + 'Einstellungen lässt sie sich einschalten.</p>';
+      return;
+    }
+    // Bis die Kacheln da sind, steht die Umrisskarte im Bild. So ist sofort
+    // etwas zu sehen, und bei einem Fehler bleibt sie einfach stehen.
+    behaelter.innerHTML = uebersichtHtml(punkte);
+    try {
+      await leafletLaden();
+    } catch (err) {
+      behaelter.insertAdjacentHTML("beforeend",
+        `<p class="hint">${esc(err.message)} Es bleibt bei den Umrissen.</p>`);
+      return;
+    }
+    behaelter.innerHTML = '<div class="echtkarte"></div>';
+    const karte = L.map(behaelter.firstElementChild, {
+      attributionControl: true,
+      // Auf dem Telefon soll eine Wischgeste die Seite scrollen, nicht die
+      // Karte verschieben - erst ein Tipp auf die Karte gibt sie frei.
+      tap: true,
+    });
+    L.tileLayer(KACHEL_URL, {maxZoom: 19, attribution: KACHEL_DANK}).addTo(karte);
+    const marken = punkte.map((p) =>
+      L.marker([p.lat, p.lon], {icon: nadelSymbol(p)}).addTo(karte));
+    if (punkte.length === 1) {
+      karte.setView([punkte[0].lat, punkte[0].lon], 15);
+    } else {
+      karte.fitBounds(L.featureGroup(marken).getBounds().pad(0.25),
+                      {maxZoom: 16});
+    }
+    // Der Behälter ist gerade erst im Fenster gelandet; Leaflet muss seine
+    // Größe danach noch einmal nachmessen.
+    setTimeout(() => karte.invalidateSize(), 60);
+    return karte;
+  }
+
   // ---------- Live-Standort ----------
   // Die Freigabe gehört immer zu einer Unterhaltung und läuft von selbst ab.
   // Damit ist ohne Zutun klar, wer mitsehen darf: die Mitglieder.
@@ -914,7 +1010,7 @@
       <button class="btn ghost klein" id="karte-teilen">Standort teilen</button>
       <span style="flex:1"></span>
       <button class="icon-btn" id="m-cancel">✕</button></div>
-      <div id="karte-flaeche">${uebersichtHtml(punkte)}</div>
+      <div id="karte-flaeche"></div>
       <div class="karten-fuss">${punkte.length
         ? punkte.map((p) => `<div class="karten-zeile">
             ${avatarHtml("u", p.user_id, p.name, p.avatar, "klein")}
@@ -931,6 +1027,7 @@
       <p class="hint">Die Karte zeigt grobe Umrisse – für Straßen tippe auf
         „Öffnen“.</p>`);
     root.querySelector(".modal").classList.add("wide");
+    karteZeichnen(root.querySelector("#karte-flaeche"), punkte);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelector("#karte-teilen").addEventListener("click", liveDialog);
     root.querySelectorAll("[data-stopp]").forEach((b) =>
@@ -1287,6 +1384,16 @@
       ${eventHtml(ev)}
       <div class="row"><button class="btn ghost" id="ev-zum-chat">Zur Unterhaltung</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    // In der ganzseitigen Ansicht lohnt die echte Karte - in der Sprechblase
+    // bleibt es bei den Umrissen.
+    const vorschau = root.querySelector(".ev-karte");
+    if (vorschau && ev.ort) {
+      const flaeche = document.createElement("div");
+      flaeche.className = "ev-kartenflaeche";
+      vorschau.replaceWith(flaeche);
+      karteZeichnen(flaeche, [{lat: ev.ort.lat, lon: ev.ort.lon,
+                               name: ev.ort_text || ev.titel}]);
+    }
     root.querySelector("#ev-zum-chat").addEventListener("click", () => {
       closeModal();
       openRoom(ev.room_id);
@@ -1637,6 +1744,14 @@
       <div class="field"><label>Aktuelles Passwort</label><input id="p-old" type="password"></div>
       <div class="field"><label>Neues Passwort</label><input id="p-new" type="password"></div>
       <button class="btn" id="p-ok">Passwort ändern</button>
+      <hr class="sep">
+      <h2>Karten</h2>
+      <p class="hint">Die Umrisskarte steckt im Add-on und fragt niemanden.
+        Für Straßen holt die Live- und Terminansicht Kacheln von
+        OpenStreetMap – das ist die einzige Stelle, an der dieser Chat etwas
+        von einem fremden Server lädt.</p>
+      <label class="check"><input type="checkbox" id="k-kacheln"
+        ${kachelnErlaubt() ? "checked" : ""}> Straßenkarte verwenden</label>
       ${IS_ADMIN ? `<hr class="sep">
         <h2>Benutzer verwalten</h2>
         <div id="u-list" class="user-list"><p class="hint">Wird geladen …</p></div>
@@ -1663,6 +1778,17 @@
       await loadState();
       closeModal();
       $("btn-settings").click();
+    });
+    root.querySelector("#k-kacheln").addEventListener("change", async (e) => {
+      const an = e.target.checked;
+      const res = await api("/api/me/karten", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({kacheln: an}),
+      });
+      if (!res.ok) { toast("Das ließ sich nicht speichern."); e.target.checked = !an; return; }
+      if (state.me) state.me.kacheln = an;
+      toast(an ? "Straßenkarte eingeschaltet."
+               : "Es bleibt bei der Umrisskarte.");
     });
     root.querySelector("#p-ok").addEventListener("click", async () => {
       const res = await api("/api/me/password", {

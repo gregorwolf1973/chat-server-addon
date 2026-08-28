@@ -231,8 +231,42 @@ def lauf():
     e.pruefe(len(anna.get(f"{BASE}/api/stimmung").json()) == 0,
              "danach ist die Pinnwand leer")
 
+    e.abschnitt("Leaflet liegt im Add-on")
+    r = admin.get(f"{BASE}/static/leaflet/leaflet.js")
+    e.pruefe(r.status_code == 200, f"die Bibliothek wird ausgeliefert = {r.status_code}")
+    e.pruefe(b"leafletjs.com" in r.content, "und ist die echte")
+    e.pruefe(len(r.content) < 300 * 1024,
+             f"und bleibt klein genug fuer den Pi ({len(r.content) // 1024} KB)")
+    e.pruefe(admin.get(f"{BASE}/static/leaflet/leaflet.css").status_code == 200,
+             "das Stilblatt liegt daneben")
+    e.pruefe(admin.get(f"{BASE}/static/leaflet/images/marker-shadow.png")
+             .status_code == 200, "die Symbole ebenfalls")
+
+    e.abschnitt("Die Strassenkarte laesst sich abschalten")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["kacheln"] is True,
+             "sie ist zu Beginn an")
+    r = admin.post(f"{BASE}/api/me/karten", json={"kacheln": False})
+    e.pruefe(r.status_code == 200 and r.json()["kacheln"] is False,
+             f"sie laesst sich ausschalten = {r.status_code}")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["kacheln"] is False,
+             "und bleibt aus")
+    # Die Einstellung haengt am Konto, nicht am Geraet - also auch nach einer
+    # neuen Anmeldung von anderswo.
+    zweites, _ = anmelden("admin", "test1234")
+    e.pruefe(zweites.get(f"{BASE}/api/state").json()["me"]["kacheln"] is False,
+             "auch in einer neuen Sitzung")
+    e.pruefe(anna.get(f"{BASE}/api/state").json()["me"]["kacheln"] is True,
+             "bei Anna aendert sich nichts")
+    admin.post(f"{BASE}/api/me/karten", json={"kacheln": True})
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["kacheln"] is True,
+             "und wieder einschalten geht auch")
+
     e.abschnitt("Ohne Anmeldung geht gar nichts")
     import requests
+    r = requests.post(BASE + "/api/me/karten", json={"kacheln": False},
+                      allow_redirects=False)
+    e.pruefe(r.status_code in (302, 401),
+             f"/api/me/karten weist Fremde ab = {r.status_code}")
     for pfad in ("/api/events", "/api/live", "/api/stimmung"):
         r = requests.get(BASE + pfad, allow_redirects=False)
         e.pruefe(r.status_code in (302, 401),

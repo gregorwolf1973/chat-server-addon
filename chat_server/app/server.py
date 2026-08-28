@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS users (
     phone TEXT,
     note TEXT,
     avatar TEXT,
+    karten_kacheln INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS rooms (
@@ -294,6 +295,9 @@ def migrate(conn):
     for spalte in ("email", "phone", "note", "avatar"):
         if spalte not in cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN {spalte} TEXT")
+    if "karten_kacheln" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN karten_kacheln"
+                     " INTEGER NOT NULL DEFAULT 1")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(rooms)")}
     if "avatar" not in cols:
         conn.execute("ALTER TABLE rooms ADD COLUMN avatar TEXT")
@@ -1099,7 +1103,8 @@ def api_state():
     payload.sort(key=lambda r: (r["last"]["at"] if r["last"] else 0), reverse=True)
     return jsonify({
         "me": {"id": uid, "name": me["display_name"],
-               "is_admin": bool(me["is_admin"]), "avatar": me["avatar"]},
+               "is_admin": bool(me["is_admin"]), "avatar": me["avatar"],
+               "kacheln": bool(me["karten_kacheln"])},
         "rooms": payload,
         "users": [dict(u) for u in users],
         "online": online,
@@ -1512,6 +1517,24 @@ def api_change_password():
     # Die eigene Sitzung soll weiterlaufen, andere Geraete fliegen raus.
     session["pwv"] = me["pw_version"] + 1
     return jsonify({"ok": True})
+
+
+@app.post("/api/me/karten")
+@login_required
+def api_set_karten():
+    """Strassenkarte an oder aus.
+
+    Ist sie aus, bleibt es bei den Umrissen aus dem Add-on und es geht keine
+    einzige Anfrage nach draussen. Die Einstellung haengt am Konto, nicht am
+    Geraet - eine Entscheidung ueber die eigenen Daten soll nicht davon
+    abhaengen, mit welchem Telefon man sich gerade anmeldet.
+    """
+    an = 1 if request.get_json(force=True).get("kacheln") else 0
+    conn = db()
+    conn.execute("UPDATE users SET karten_kacheln=? WHERE id=?",
+                 (an, session["uid"]))
+    conn.commit()
+    return jsonify({"ok": True, "kacheln": bool(an)})
 
 
 @app.post("/api/upload")

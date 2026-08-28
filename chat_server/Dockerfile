@@ -18,7 +18,9 @@ COPY app /opt/chat
 # Syntaxfehler sollen den Build brechen, nicht erst den Start auf dem Pi
 RUN python3 -m compileall -q /opt/chat \
  && test -s /opt/chat/static/socket.io.min.js \
- && test -s /opt/chat/static/icon-192.png
+ && test -s /opt/chat/static/icon-192.png \
+ && test -s /opt/chat/static/leaflet/leaflet.js \
+ && test -s /opt/chat/static/weltkarte.svg
 
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
