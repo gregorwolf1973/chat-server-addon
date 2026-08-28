@@ -506,6 +506,23 @@ Sichtbar sind Empfehlungen für deinen Kreis – Freunde und alle, mit denen du
 eine Unterhaltung teilst. Oben lässt sich nach Art filtern; angeboten werden
 nur Arten, die auch vorkommen.
 
+### In meiner Nähe
+
+Ein Tipp auf **📍 In meiner Nähe** bestimmt einmal deinen Standort. Danach
+steht an jeder Empfehlung mit Ort die Luftlinie, und du kannst auf
+**5 km**, **25 km**, **100 km** oder **Überall** einschränken – innerhalb
+eines Umkreises nach Entfernung sortiert, die nächste zuerst. Mit ↻ bestimmst
+du den Standort neu.
+
+Empfehlungen **ohne** Ortsangabe fallen dabei heraus – bei ihnen lässt sich
+nicht sagen, ob sie in der Nähe sind. Wie viele das sind, steht unter der
+Liste; stillschweigend verschwindet nichts.
+
+**Dein Standort bleibt dabei im Gerät.** Die Empfehlungen bringen ihre
+Koordinaten ohnehin mit, die Entfernung wird also im Browser gerechnet – der
+Server erfährt nie, wo du gerade bist. Nachgemessen: während des Filterns
+geht keine einzige Anfrage hinaus.
+
 Wird ein Konto gelöscht, verschwinden seine Empfehlungen mit.
 
 ## Freunde

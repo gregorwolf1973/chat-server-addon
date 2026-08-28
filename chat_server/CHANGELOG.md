@@ -1,5 +1,14 @@
 # Änderungsverlauf
 
+## 0.28.0
+
+- **Empfehlungen nach Entfernung filtern**: 5 km, 25 km, 100 km oder Ueberall,
+  innerhalb des Umkreises nach Naehe sortiert. An jeder Empfehlung mit Ort
+  steht die Luftlinie
+- Gerechnet wird im Browser - **der Standort verlaesst das Geraet nicht**
+- Empfehlungen ohne Ortsangabe fallen beim Umkreis heraus; wie viele es sind,
+  steht unter der Liste
+
 ## 0.27.1
 
 - **Beschreibungsfelder in den Dialogen waren weiss und zu klein.** In der

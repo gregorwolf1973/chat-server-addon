@@ -1739,3 +1739,12 @@ audio.abspieler { width: min(260px, 100%); }
   background: var(--surface);
   border: 1px solid var(--line);
 }
+
+/* Entfernung an der Empfehlung */
+.tp-weg {
+  font-size: 11px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  white-space: nowrap;
+}

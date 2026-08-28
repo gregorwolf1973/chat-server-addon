@@ -1965,6 +1965,43 @@
     `<span class="sterne" title="${n} von 5">${"★".repeat(n)}`
     + `<span class="leer">${"★".repeat(5 - n)}</span></span>`;
 
+  // ---------- Empfehlungen in der Naehe ----------
+  // Der eigene Standort bleibt im Speicher dieses Fensters. Gerechnet wird
+  // hier im Browser - die Tipps bringen ihre Koordinaten ohnehin mit, also
+  // muss der Server nie erfahren, wo man gerade ist.
+  let meinOrt = null;
+  let tippUmkreis = 0;          // Kilometer, 0 heisst: alle
+  const UMKREISE = [0, 5, 25, 100];
+
+  /** Luftlinie in Kilometern (Haversine). */
+  function entfernungKm(a, b) {
+    const R = 6371;
+    const rad = (g) => g * Math.PI / 180;
+    const dLat = rad(b.lat - a.lat);
+    const dLon = rad(b.lon - a.lon);
+    const x = Math.sin(dLat / 2) ** 2
+      + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+  }
+
+  const entfernungText = (km) =>
+    km < 1 ? `${Math.round(km * 1000)} m`
+           : km < 10 ? `${km.toFixed(1)} km`
+                     : `${Math.round(km)} km`;
+
+  async function standortFuerUmkreis() {
+    const knopf = $("tipp-ort");
+    if (knopf) knopf.textContent = "Standort wird bestimmt …";
+    try {
+      const gefunden = await standortHolen();
+      meinOrt = {lat: gefunden.lat, lon: gefunden.lon};
+      if (!tippUmkreis) tippUmkreis = 25;
+    } catch (err) {
+      toast(err.message);
+    }
+    renderTipps();
+  }
+
   async function tippsLaden() {
     const res = await api("/api/tipps");
     if (!res.ok) return;
@@ -1977,8 +2014,21 @@
     const liste = $("tipp-liste");
     if (!liste) return;
     const alle = state.tipps || [];
-    const gezeigt = tippFilter ? alle.filter((t) => t.art === tippFilter) : alle;
-    // Nur Arten anbieten, die auch vorkommen
+
+    // Entfernung dranschreiben, sobald der eigene Standort bekannt ist
+    const mitWeg = alle.map((t) => Object.assign({}, t, {
+      km: meinOrt && t.ort ? entfernungKm(meinOrt, t.ort) : null,
+    }));
+    let gezeigt = tippFilter ? mitWeg.filter((t) => t.art === tippFilter) : mitWeg;
+    let ohneOrt = 0;
+    if (meinOrt && tippUmkreis) {
+      // Ohne Koordinaten laesst sich nicht sagen, ob es in der Naehe ist -
+      // solche Empfehlungen fallen heraus, aber nicht stillschweigend.
+      ohneOrt = gezeigt.filter((t) => t.km === null).length;
+      gezeigt = gezeigt.filter((t) => t.km !== null && t.km <= tippUmkreis)
+        .sort((a, b) => a.km - b.km);
+    }
+
     const vorhanden = [...new Set(alle.map((t) => t.art))]
       .filter((a) => TIPP_ARTEN[a]);
     $("tipp-filter").innerHTML = vorhanden.length > 1
@@ -1990,16 +2040,49 @@
     $("tipp-filter").querySelectorAll("[data-art]").forEach((b) =>
       b.addEventListener("click", () => { tippFilter = b.dataset.art; renderTipps(); }));
 
+    // Zweite Zeile: Umkreis. Erst wenn es ueberhaupt Empfehlungen mit Ort gibt.
+    const naehe = $("tipp-naehe");
+    const mitOrt = alle.filter((t) => t.ort).length;
+    if (naehe) {
+      if (!mitOrt) {
+        naehe.innerHTML = "";
+      } else if (!meinOrt) {
+        naehe.innerHTML = '<button class="mini-btn" id="tipp-ort">'
+          + '📍 In meiner Nähe</button>';
+        naehe.querySelector("#tipp-ort")
+          .addEventListener("click", standortFuerUmkreis);
+      } else {
+        naehe.innerHTML = UMKREISE.map((km) =>
+          `<button class="mini-btn ${tippUmkreis === km ? "an" : ""}"
+                   data-km="${km}">${km ? `${km} km` : "Überall"}</button>`).join("")
+          + '<button class="mini-btn" id="tipp-ort-neu" title="Standort neu bestimmen">↻</button>';
+        naehe.querySelectorAll("[data-km]").forEach((b) =>
+          b.addEventListener("click", () => {
+            tippUmkreis = parseInt(b.dataset.km, 10);
+            renderTipps();
+          }));
+        naehe.querySelector("#tipp-ort-neu")
+          .addEventListener("click", standortFuerUmkreis);
+      }
+    }
+
     if (!gezeigt.length) {
-      liste.innerHTML = `<div class="abschnitt-leer">${alle.length
-        ? "Zu diesem Filter gibt es nichts."
-        : "Noch keine Empfehlung. Sag, was gut war."}</div>`;
+      liste.innerHTML = `<div class="abschnitt-leer">${
+        meinOrt && tippUmkreis
+          ? `In ${tippUmkreis} km ist nichts dabei.${
+              ohneOrt ? ` ${ohneOrt} ohne Ortsangabe nicht berücksichtigt.` : ""}`
+          : alle.length ? "Zu diesem Filter gibt es nichts."
+                        : "Noch keine Empfehlung. Sag, was gut war."}</div>`;
+      reiterZahlen();
+      renderKarten();
       return;
     }
     liste.innerHTML = gezeigt.map((t) => `<div class="tipp anklickbar" data-id="${t.id}">
       <div class="tp-kopf">
         <span class="tp-art">${esc(TIPP_ARTEN[t.art] || t.art)}</span>
         ${sterneHtml(t.sterne)}
+        ${t.km !== null ? `<span style="flex:1"></span>
+          <span class="tp-weg">${entfernungText(t.km)}</span>` : ""}
       </div>
       <div class="tp-titel">${esc(t.titel)}</div>
       ${t.ort_text ? `<div class="tp-ort">📍 ${esc(t.ort_text)}</div>` : ""}
@@ -2014,12 +2097,17 @@
         ${t.meiner ? `<button class="mini-btn" data-bearbeiten="${t.id}">Ändern</button>`
                    : ""}
       </div>
-    </div>`).join("");
+    </div>`).join("")
+      + (ohneOrt ? `<div class="abschnitt-leer">${ohneOrt} ${
+          ohneOrt === 1 ? "Empfehlung hat" : "Empfehlungen haben"} keinen Ort und
+          ${ohneOrt === 1 ? "steht" : "stehen"} deshalb nicht in dieser Liste.</div>`
+        : "");
 
     reiterZahlen();
     renderKarten();
     liste.querySelectorAll("[data-merken]").forEach((b) =>
-      b.addEventListener("click", async () => {
+      b.addEventListener("click", async (e) => {
+        e.stopPropagation();
         const res = await api(`/api/tipps/${b.dataset.merken}/merken`,
                               {method: "POST"});
         if (!res.ok) { toast("Das ging nicht."); return; }
