@@ -162,8 +162,9 @@
     $("composer").hidden = false;
     $("btn-invite").hidden = !room.is_group;
     $("room-avatar").innerHTML = raumAvatar(room, "gross");
-    $("room-avatar").title = room.is_group ? "Gruppenbild ändern" : room.name;
-    $("room-avatar").classList.toggle("aenderbar", !!room.is_group);
+    $("room-avatar").title = "Angaben zur Unterhaltung";
+    $("room-avatar").classList.add("aenderbar");
+    chatfarbeAnwenden(room);
     $("room-title").textContent = room.name;
     const others = room.members.filter((m) => m.id !== ME);
     $("room-sub").textContent = room.is_group
@@ -188,6 +189,33 @@
     box.scrollTop = box.scrollHeight;
   }
 
+  // Kraeftigere Toene als bei den Profilbildern - der Name steht als Text auf
+  // dunklem Grund und soll sich abheben.
+  const NAMENSFARBEN = ["#6fd3c7", "#f2a65a", "#8fbcff", "#e58fd0", "#9fd67a",
+                        "#ffd166", "#c8a2ff", "#ff9b8a"];
+  const namensFarbe = (id) => NAMENSFARBEN[Math.abs(id || 0) % NAMENSFARBEN.length];
+
+  function anhangHtml(datei) {
+    const url = `${BASE}/files/${datei.id}`;
+    const art = (datei.mime || "").split("/")[0];
+    if (art === "image") {
+      return `<a class="bild" href="${url}" target="_blank" rel="noopener">`
+        + `<img src="${url}" alt="${esc(datei.name)}" loading="lazy"></a>`;
+    }
+    if (art === "video") {
+      // preload="metadata" laedt nur den Anfang - das genuegt fuer das
+      // Vorschaubild, ohne das ganze Video zu ziehen.
+      return `<video class="abspieler" controls playsinline preload="metadata"`
+        + ` src="${url}"></video>`;
+    }
+    if (art === "audio") {
+      return `<div class="ton"><div class="ton-name">🎵 ${esc(datei.name)}</div>`
+        + `<audio class="abspieler" controls preload="metadata" src="${url}"></audio></div>`;
+    }
+    return `<a class="file-link" href="${url}?dl=1">📄 <span>${esc(datei.name)}</span>`
+      + `<span class="fsize">${fileSize(datei.size)}</span></a>`;
+  }
+
   function appendMsg(m) {
     const box = $("messages");
     const day = dayOf(m.at);
@@ -197,54 +225,59 @@
       d.textContent = day;
       box.appendChild(d);
       lastDay = day;
-      lastAuthor = null;
     }
-    const prevAuthor = lastAuthor;
     lastAuthor = m.user_id;
+    const eigene = m.user_id === ME;
     const wrap = document.createElement("div");
-    wrap.className = "msg" + (m.user_id === ME ? " mine" : "") + (m.deleted ? " gone" : "");
+    wrap.className = "msg" + (eigene ? " mine" : "") + (m.deleted ? " gone" : "");
     wrap.dataset.id = m.id;
     const room = roomById(m.room_id);
-    const showAuthor = room && room.is_group && m.user_id !== ME && m.user_id !== prevAuthor;
-    let inner = showAuthor ? `<div class="author">${esc(m.author)}</div>` : "";
+    // In Gruppen steht an jeder fremden Nachricht Bild und Name - im
+    // Direktchat waere beides ueberfluessig, dort weiss man, mit wem man
+    // schreibt.
+    const zeigeAbsender = room && room.is_group && !eigene;
+    const person = zeigeAbsender
+      ? (room.members.find((x) => x.id === m.user_id) || null) : null;
 
-    // Achtung: keine Zeilenumbrueche zwischen den Elementen. Sie werden zu
-    // Textknoten und erzeugen in der Sprechblase eine leere Zeile.
+    if (zeigeAbsender) {
+      wrap.innerHTML = avatarHtml("u", m.user_id, m.author,
+                                  person ? person.avatar : null, "klein");
+    }
+
+    const blase = document.createElement("div");
+    blase.className = "bubble" + (m.body ? "" : " nur-anhang")
+      + (m.deleted ? " nur-anhang" : "");
+    let inner = zeigeAbsender
+      ? `<div class="author" style="color:${namensFarbe(m.user_id)}">${esc(m.author)}</div>`
+      : "";
+
     if (m.deleted) {
-      inner += `<div class="bubble nur-anhang"><span class="gone-text">Nachricht gelöscht</span>`
-        + `<div class="inhalt"><span class="meta">${timeOf(m.at)}</span></div></div>`;
-      wrap.innerHTML = inner;
+      inner += `<span class="gone-text">Nachricht gelöscht</span>`
+        + `<div class="inhalt"><span class="meta">${timeOf(m.at)}</span></div>`;
+      blase.innerHTML = inner;
+      wrap.appendChild(blase);
       box.appendChild(wrap);
       return;
     }
 
-    let quoteHtml = "";
     if (m.reply) {
-      quoteHtml = `<div class="quote" data-target="${m.reply.id}">
-        <span class="q-author">${esc(m.reply.author)}</span>
-        <span class="q-text">${esc(m.reply.text)}</span></div>`;
+      inner += `<div class="quote" data-target="${m.reply.id}">`
+        + `<span class="q-author">${esc(m.reply.author)}</span>`
+        + `<span class="q-text">${esc(m.reply.text)}</span></div>`;
     }
-    let fileHtml = "";
-    if (m.file) {
-      const url = `${BASE}/files/${m.file.id}`;
-      fileHtml = (m.file.mime || "").startsWith("image/")
-        ? `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${esc(m.file.name)}"></a>`
-        : `<a class="file-link" href="${url}?dl=1">📄 <span>${esc(m.file.name)}</span>
-             <span class="fsize">${fileSize(m.file.size)}</span></a>`;
-    }
-    const canDelete = m.user_id === ME || IS_ADMIN;
-    // Ohne Text reserviert die Blase keinen Platz fuer die Uhrzeit - sie
-    // haengt dann unter dem Bild oder der Datei.
+    if (m.file) inner += anhangHtml(m.file);
+
+    const canDelete = eigene || IS_ADMIN;
     // Text und Uhrzeit stecken in einem eigenen Block. Waere die Zeit an der
     // Sprechblase verankert, rutschte sie beim Aufklappen der Aktionen mit
     // nach unten und landete neben den Knoepfen.
-    inner += `<div class="bubble${m.body ? "" : " nur-anhang"}">${quoteHtml}${fileHtml}`
-      + `<div class="inhalt"><span class="text">${esc(m.body)}</span>`
+    inner += `<div class="inhalt"><span class="text">${esc(m.body)}</span>`
       + `<span class="meta">${timeOf(m.at)}</span></div>`
       + `<div class="actions"><button class="act" data-act="reply">Antworten</button>`
       + (canDelete ? '<button class="act del" data-act="delete">Löschen</button>' : "")
-      + `</div></div>`;
-    wrap.innerHTML = inner;
+      + `</div>`;
+    blase.innerHTML = inner;
+    wrap.appendChild(blase);
     box.appendChild(wrap);
   }
 
@@ -470,31 +503,86 @@
 
   $("btn-file").addEventListener("click", () => $("file-input").click());
   $("file-input").addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    if (!file || !currentRoom) return;
-    const fd = new FormData();
-    fd.append("file", file);
-    toast("Datei wird hochgeladen …");
-    const res = await api("/api/upload", {method: "POST", body: fd});
-    const data = await res.json();
-    if (!res.ok) { toast(data.error || "Upload fehlgeschlagen."); return; }
-    send(data.id);
+    const dateien = [...e.target.files];
     e.target.value = "";
+    if (!dateien.length || !currentRoom) return;
+    // Mehrere Dateien nacheinander - jede wird eine eigene Nachricht, so wie
+    // man es von anderen Messengern kennt.
+    const raum = currentRoom;
+    let fertig = 0;
+    for (const datei of dateien) {
+      toast(dateien.length > 1
+        ? `Lade ${fertig + 1} von ${dateien.length} …` : "Datei wird hochgeladen …");
+      const fd = new FormData();
+      fd.append("file", datei);
+      const res = await api("/api/upload", {method: "POST", body: fd});
+      const daten = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(`${datei.name}: ${daten.error || "Hochladen fehlgeschlagen."}`);
+        continue;
+      }
+      if (currentRoom !== raum) return;   // inzwischen woanders
+      send(daten.id);
+      fertig += 1;
+    }
+    if (dateien.length > 1) toast(`${fertig} von ${dateien.length} gesendet.`);
   });
 
-  // Auf das Bild in der Kopfzeile tippen: Gruppenbild setzen oder entfernen.
-  // Bei Direktchats gibt es nichts zu aendern - dort steht das Bild der Person.
-  $("room-avatar").addEventListener("click", () => {
+  // Farben zur Auswahl - dieselben Werte kennt der Server, damit niemand
+  // beliebige Angaben unterschiebt.
+  const CHATFARBEN = [
+    {wert: "", name: "Standard"},
+    {wert: "#1f4a48", name: "Petrol"},
+    {wert: "#3b4a6b", name: "Blau"},
+    {wert: "#4a3b5c", name: "Violett"},
+    {wert: "#5c4030", name: "Braun"},
+    {wert: "#2f5136", name: "Grün"},
+    {wert: "#5c3040", name: "Bordeaux"},
+    {wert: "#334a5c", name: "Stahl"},
+    {wert: "#4a4a2f", name: "Oliv"},
+  ];
+
+  function chatfarbeAnwenden(room) {
+    document.documentElement.style.setProperty(
+      "--self", (room && room.color) || "#1f4a48");
+  }
+
+  // Auf Bild oder Namen in der Kopfzeile tippen: Angaben zur Unterhaltung.
+  function chatInfo() {
     const room = roomById(currentRoom);
-    if (!room || !room.is_group) return;
-    const root = modal(`<h2>Gruppenbild</h2>
-      <p class="hint">für „${esc(room.name)}“</p>
+    if (!room) return;
+    const root = modal(`<h2>${esc(room.name)}</h2>
       <div class="avatar-vorschau">${raumAvatar(room, "riesig")}</div>
-      <div class="row"><button class="btn" id="a-neu">Bild wählen</button>
-      ${room.avatar ? '<button class="btn ghost" id="a-weg">Entfernen</button>' : ""}</div>
+      ${room.is_group ? `<div class="row schmal">
+        <button class="btn ghost" id="a-neu">Bild wählen</button>
+        ${room.avatar ? '<button class="btn ghost" id="a-weg">Bild entfernen</button>' : ""}
+      </div>` : ""}
+      <hr class="sep">
+      <h2>Farbe</h2>
+      <p class="hint">Gilt nur für dich – andere sehen ihre eigene Wahl.</p>
+      <div class="farbwahl">${CHATFARBEN.map((f) => `
+        <button class="farbe ${(room.color || "") === f.wert ? "aktiv" : ""}"
+                data-wert="${f.wert}" title="${f.name}"
+                style="background:${f.wert || "var(--surface-2)"}"></button>`).join("")}</div>
       <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
-    root.querySelector("#a-neu").addEventListener("click", () =>
+
+    root.querySelectorAll(".farbe").forEach((knopf) =>
+      knopf.addEventListener("click", async () => {
+        const wert = knopf.dataset.wert;
+        const res = await api(`/api/rooms/${room.id}/color`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({color: wert}),
+        });
+        if (!res.ok) { toast("Die Farbe ließ sich nicht setzen."); return; }
+        room.color = wert || null;
+        chatfarbeAnwenden(room);
+        root.querySelectorAll(".farbe").forEach((k) =>
+          k.classList.toggle("aktiv", k.dataset.wert === wert));
+      }));
+
+    const neu = root.querySelector("#a-neu");
+    if (neu) neu.addEventListener("click", () =>
       bildWaehlen(`/api/rooms/${room.id}/avatar`, () => {
         closeModal();
         if (currentRoom === room.id) openRoom(room.id);
@@ -508,7 +596,10 @@
       await loadState();
       if (currentRoom === room.id) openRoom(room.id);
     });
-  });
+  }
+
+  $("room-avatar").addEventListener("click", chatInfo);
+  $("room-title").addEventListener("click", chatInfo);
 
   $("btn-back").addEventListener("click", () => {
     $("app").classList.remove("room-open");

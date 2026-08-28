@@ -192,12 +192,21 @@ button { cursor: pointer; }
   color: var(--muted);
   margin: 14px 0 8px;
 }
-.msg { max-width: min(560px, 82%); align-self: flex-start; }
+/* Bild links, Sprechblase daneben - in Gruppen an jeder fremden Nachricht */
+.msg {
+  max-width: min(560px, 86%);
+  align-self: flex-start;
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+}
 .msg.mine { align-self: flex-end; }
+.msg > .avatar.klein { width: 28px; height: 28px; font-size: 11px; margin-bottom: 2px; }
+.msg .bubble { min-width: 0; }
 .msg .author {
-  font-size: 12px;
-  color: var(--accent);
-  margin: 8px 0 3px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 3px;
 }
 .bubble {
   display: flow-root;
@@ -652,3 +661,47 @@ button { cursor: pointer; }
   font-size: 12px;
   text-align: center;
 }
+
+/* ---------- Video und Ton ---------- */
+.abspieler {
+  display: block;
+  max-width: 100%;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+video.abspieler {
+  max-height: 320px;
+  background: #000;
+}
+audio.abspieler { width: min(260px, 100%); }
+.ton { margin-bottom: 4px; }
+.ton-name {
+  font-size: 13px;
+  margin-bottom: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bubble .bild { display: block; }
+
+/* Bilder in der Medienübersicht bleiben quadratisch, hier nicht */
+.bubble img { max-height: 340px; width: auto; object-fit: contain; }
+
+/* ---------- Farbwahl je Unterhaltung ---------- */
+.farbwahl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 10px 0 4px;
+}
+.farbe {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  padding: 0;
+}
+.farbe:hover { border-color: var(--muted); }
+.farbe.aktiv { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(242,166,90,0.25); }
+
+#room-title { cursor: pointer; }

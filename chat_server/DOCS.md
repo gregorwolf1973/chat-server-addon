@@ -128,6 +128,20 @@ zugeschnitten, bevor sie hochgeladen werden – aus einem Handyfoto werden so
 rund 30 KB statt mehrerer Megabyte. Ein ersetztes Bild wird vom Server
 gelöscht, es sammelt sich nichts an.
 
+## Wie Nachrichten aussehen
+
+In Gruppen steht an jeder fremden Nachricht das Bild des Absenders und sein
+Name in einer eigenen Farbe – dieselbe Person hat immer dieselbe Farbe.
+Eigene Nachrichten stehen rechts, ohne Bild und Namen. Im Direktchat
+entfällt beides, dort ist ohnehin klar, wer schreibt.
+
+Die Uhrzeit sitzt unten rechts in der Sprechblase.
+
+**Farbe je Unterhaltung:** Ein Tipp auf den Namen oben in der Kopfzeile
+öffnet die Angaben zur Unterhaltung. Dort lässt sich aus neun Tönen wählen,
+in welcher Farbe die eigenen Sprechblasen erscheinen. Die Wahl gilt nur für
+dich – alle anderen behalten ihre.
+
 ## Bilder und Dateien
 
 Der Knopf **Medien** unten links öffnet alles, was in deinen Unterhaltungen
@@ -137,6 +151,14 @@ einzelne Unterhaltung einschränken.
 
 Sichtbar ist nur, was ohnehin sichtbar wäre: Medien aus Unterhaltungen, in
 denen du Mitglied bist.
+
+**Videos und Musik** erscheinen mit Abspieler samt Vorschaubild und
+Abspielknopf; geladen wird zunächst nur der Anfang, nicht die ganze Datei.
+Alles Übrige bleibt ein Anhang zum Herunterladen.
+
+**Mehrere auf einmal:** Über die Büroklammer lassen sich mehrere Dateien
+zugleich auswählen. Jede wird eine eigene Nachricht, der Fortschritt steht
+währenddessen am unteren Rand.
 
 Beim Löschen verschwindet die Datei aus dem Verlauf **und vom Server** – die
 Bytes bleiben nicht liegen. Eigene Dateien darf jeder löschen, fremde nur ein

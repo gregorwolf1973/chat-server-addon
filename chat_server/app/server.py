@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS room_members (
     room_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     last_read INTEGER NOT NULL DEFAULT 0,
+    color TEXT,
     PRIMARY KEY (room_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS messages (
@@ -203,6 +204,9 @@ def migrate(conn):
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(rooms)")}
     if "avatar" not in cols:
         conn.execute("ALTER TABLE rooms ADD COLUMN avatar TEXT")
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(room_members)")}
+    if "color" not in cols:
+        conn.execute("ALTER TABLE room_members ADD COLUMN color TEXT")
     conn.commit()
 
 
@@ -345,11 +349,17 @@ def push_to_users(user_ids, title, body, url):
 # ein "text/html" wuerde als Seite auf unserem eigenen Origin laufen und das
 # Sitzungs-Cookie preisgeben. Alles Uebrige geht als Download raus.
 IMAGE_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"}
+# Video und Ton koennen im Abspieler laufen, ohne Skripte auszufuehren.
+VIDEO_MIMES = {"video/mp4", "video/webm", "video/ogg", "video/quicktime"}
+AUDIO_MIMES = {"audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "audio/webm",
+               "audio/aac", "audio/flac"}
+PLAY_MIMES = VIDEO_MIMES | AUDIO_MIMES
+INLINE_MIMES = IMAGE_MIMES | PLAY_MIMES
 
 
 def safe_mime(raw):
     mime = (raw or "").split(";")[0].strip().lower()
-    return mime if mime in IMAGE_MIMES else "application/octet-stream"
+    return mime if mime in INLINE_MIMES else "application/octet-stream"
 
 
 def statisch(dateiname):
@@ -451,12 +461,12 @@ def room_payload(room, uid, conn=None):
         " FROM messages m JOIN users u ON u.id=m.user_id"
         " WHERE m.room_id=? ORDER BY m.id DESC LIMIT 1",
         (room["id"],)).fetchone()
-    last_read = conn.execute(
-        "SELECT last_read FROM room_members WHERE room_id=? AND user_id=?",
+    eigenes = conn.execute(
+        "SELECT last_read, color FROM room_members WHERE room_id=? AND user_id=?",
         (room["id"], uid)).fetchone()
     unread = conn.execute(
         "SELECT COUNT(*) c FROM messages WHERE room_id=? AND id>? AND user_id<>?",
-        (room["id"], last_read["last_read"] if last_read else 0, uid)).fetchone()["c"]
+        (room["id"], eigenes["last_read"] if eigenes else 0, uid)).fetchone()["c"]
     with ONLINE_LOCK:
         online = [m["id"] for m in members if m["id"] in ONLINE]
     return {
@@ -464,6 +474,7 @@ def room_payload(room, uid, conn=None):
         "name": name,
         "is_group": bool(room["is_group"]),
         "avatar": room["avatar"],
+        "color": eigenes["color"] if eigenes else None,
         "members": [dict(m) for m in members],
         "online": online,
         "unread": unread,
@@ -1105,12 +1116,13 @@ def api_file(file_id):
     # safe_mime auch beim Ausliefern: Dateien aus aelteren Installationen
     # tragen noch den vom Client gesetzten Typ in der Datenbank.
     mime = safe_mime(row["mime"])
-    inline = mime in IMAGE_MIMES and request.args.get("dl") != "1"
+    inline = mime in INLINE_MIMES and request.args.get("dl") != "1"
     resp = send_file(os.path.join(UPLOAD_DIR, row["stored_name"]),
                      mimetype=mime,
                      download_name=row["orig_name"],
                      as_attachment=not inline)
-    resp.headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'"
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'none'; img-src 'self'; media-src 'self'")
     return resp
 
 
@@ -1222,6 +1234,27 @@ def api_set_room_avatar(room_id):
     socketio.emit("avatar_changed", {"kind": "r", "id": room_id, "avatar": name},
                   to=f"room:{room_id}")
     return jsonify({"avatar": name})
+
+
+# Die Farbe gilt nur fuer den, der sie setzt - jeder mag andere Toene, und
+# niemand soll sie den anderen aufdraengen.
+FARBEN = {"#1f4a48", "#3b4a6b", "#4a3b5c", "#5c4030", "#2f5136", "#5c3040",
+          "#334a5c", "#4a4a2f"}
+
+
+@app.post("/api/rooms/<int:room_id>/color")
+@login_required
+def api_set_room_color(room_id):
+    uid = session["uid"]
+    if not is_member(room_id, uid):
+        abort(403)
+    farbe = (request.get_json(force=True).get("color") or "").strip().lower()
+    if farbe and farbe not in FARBEN:
+        return jsonify({"error": "Diese Farbe steht nicht zur Auswahl."}), 400
+    db().execute("UPDATE room_members SET color=? WHERE room_id=? AND user_id=?",
+                 (farbe or None, room_id, uid))
+    db().commit()
+    return jsonify({"color": farbe or None})
 
 
 @app.delete("/api/rooms/<int:room_id>/avatar")

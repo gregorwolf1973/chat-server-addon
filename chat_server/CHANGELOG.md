@@ -1,5 +1,18 @@
 # Änderungsverlauf
 
+## 0.7.0
+
+- **Nachrichten sehen aus wie gewohnt:** In Gruppen trägt jede fremde
+  Nachricht das Bild des Absenders und seinen Namen in einer eigenen Farbe –
+  auch bei mehreren Nachrichten hintereinander. Eigene stehen rechts ohne
+  Bild und Namen, im Direktchat entfällt beides
+- **Videos und Musik** erscheinen mit Abspieler, Vorschaubild und
+  Abspielknopf statt als Anhang. Geladen wird nur der Anfang
+- **Mehrere Dateien auf einmal** auswählen und senden, mit Fortschrittsanzeige
+- **Farbe je Unterhaltung**: neun Töne für die eigenen Sprechblasen, über
+  einen Tipp auf den Namen in der Kopfzeile. Die Wahl gilt nur für einen
+  selbst, andere behalten ihre
+
 ## 0.6.2
 
 - Die Uhrzeit bleibt beim Antippen einer Nachricht an ihrem Platz. Sie hing an

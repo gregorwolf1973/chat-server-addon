@@ -103,6 +103,42 @@ def main():
         e.pruefe(nachher == vorher - 1,
                  f"auch hier sind die Bytes weg ({vorher} -> {nachher})")
 
+    e.abschnitt("Video und Ton laufen im Browser")
+    clip = hochladen(anna, "clip.mp4", bytes([0, 0, 0, 24]) + b"ftypmp42" * 40,
+                     "video/mp4").json()
+    e.pruefe(clip["mime"] == "video/mp4", f"Video behaelt seinen Typ: {clip['mime']}")
+    lied = hochladen(anna, "lied.mp3", b"ID3" + bytes([3, 0, 0, 0]) * 80,
+                     "audio/mpeg").json()
+    e.pruefe(lied["mime"] == "audio/mpeg", f"Ton behaelt seinen Typ: {lied['mime']}")
+    d = anna.get(f"{BASE}/files/{clip['id']}")
+    e.pruefe("attachment" not in d.headers.get("Content-Disposition", ""),
+             "Video wird zum Abspielen ausgeliefert, nicht als Download")
+    e.pruefe("media-src 'self'" in d.headers.get("Content-Security-Policy", ""),
+             "die CSP erlaubt das Abspielen")
+    boese = hochladen(anna, "trick.html", b"<script>1</script>", "text/html").json()
+    e.pruefe(boese["mime"] == "application/octet-stream",
+             "HTML bleibt trotzdem draussen")
+
+    e.abschnitt("Farbe je Unterhaltung - nur fuer einen selbst")
+    r = anna.post(f"{BASE}/api/rooms/{raum_anna}/color", json={"color": "#3b4a6b"})
+    e.pruefe(r.status_code == 200, f"Farbe setzen = {r.status_code}")
+    meiner = next(x for x in anna.get(f"{BASE}/api/state").json()["rooms"]
+                  if x["id"] == raum_anna)
+    e.pruefe(meiner["color"] == "#3b4a6b", "sie steht in Annas Zustand")
+    seiner = next((x for x in admin.get(f"{BASE}/api/state").json()["rooms"]
+                   if x["id"] == raum_anna), None)
+    e.pruefe(seiner is not None and seiner["color"] is None,
+             "der Administrator sieht davon nichts")
+    e.pruefe(anna.post(f"{BASE}/api/rooms/{raum_anna}/color",
+                       json={"color": "#ff0000"}).status_code == 400,
+             "eine nicht vorgesehene Farbe wird abgewiesen")
+    e.pruefe(anna.post(f"{BASE}/api/rooms/{raum_bert}/color",
+                       json={"color": "#3b4a6b"}).status_code == 403,
+             "in fremden Unterhaltungen geht es nicht")
+    r = anna.post(f"{BASE}/api/rooms/{raum_anna}/color", json={"color": ""})
+    e.pruefe(r.status_code == 200 and r.json()["color"] is None,
+             "zuruecksetzen auf Standard")
+
     verbindungen_schliessen()
     return e.bilanz()
 
