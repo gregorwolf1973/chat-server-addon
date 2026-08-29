@@ -88,9 +88,59 @@ def lauf():
     e.pruefe(len(admin.get(f"{BASE}/api/toene").json()["stumm"]) == 0,
              "eine aufgehobene nicht mehr")
 
+    e.abschnitt("Was ist neu?")
+    z = admin.get(f"{BASE}/api/state").json()["me"]["gesehen"]
+    e.pruefe(set(z) == {"karten", "stimmung", "termine", "tipps"},
+             f"der Startzustand nennt alle Abschnitte = {sorted(z)}")
+    e.pruefe(all(v == 0 for v in z.values()), "am Anfang wurde nichts gesehen")
+
+    r = admin.post(f"{BASE}/api/gesehen/termine")
+    e.pruefe(r.status_code == 200, f"ein Abschnitt laesst sich merken = {r.status_code}")
+    seit = r.json()["seit"]
+    e.pruefe(seit > 0, "mit einem Zeitpunkt")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["gesehen"]["termine"] == seit,
+             "der im Startzustand steht")
+    e.pruefe(anna.get(f"{BASE}/api/state").json()["me"]["gesehen"]["termine"] == 0,
+             "bei Anna aendert sich nichts")
+    e.pruefe(admin.post(f"{BASE}/api/gesehen/quatsch").status_code == 404,
+             "einen erfundenen Abschnitt gibt es nicht")
+
+    e.abschnitt("Eine Standortfreigabe merkt sich ihren Beginn")
+    admin.post(f"{BASE}/api/live", json={"room_id": raum, "lat": 49.0,
+                                         "lon": 8.4, "minuten": 30})
+    eintrag = anna.get(f"{BASE}/api/live").json()[0]
+    e.pruefe(eintrag.get("begonnen_at", 0) > 0,
+             f"der Beginn steht dabei = {eintrag.get('begonnen_at')}")
+    begonnen = eintrag["begonnen_at"]
+    time.sleep(1.2)
+    admin.post(f"{BASE}/api/live/ping", json={"lat": 49.1, "lon": 8.5})
+    nachher = anna.get(f"{BASE}/api/live").json()[0]
+    e.pruefe(nachher["begonnen_at"] == begonnen,
+             "ein Ping verschiebt ihn nicht - sonst waere sie immer wieder neu")
+    e.pruefe(nachher["updated_at"] > begonnen, "die Position ist aber neuer")
+    admin.delete(f"{BASE}/api/live", json={})
+
+    e.abschnitt("Farbe der eigenen Sprechblasen")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["blasenfarbe"] is None,
+             "voreingestellt ist keine")
+    farben = admin.get(f"{BASE}/api/blasenfarben").json()
+    e.pruefe(len(farben) >= 4, f"es gibt eine Auswahl = {len(farben)}")
+    r = admin.post(f"{BASE}/api/me/blasenfarbe", json={"farbe": farben[1]})
+    e.pruefe(r.status_code == 200 and r.json()["farbe"] == farben[1],
+             f"eine laesst sich setzen = {r.status_code}")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["blasenfarbe"] == farben[1],
+             "und steht im Startzustand")
+    e.pruefe(admin.post(f"{BASE}/api/me/blasenfarbe",
+                        json={"farbe": "#ff00ff"}).status_code == 400,
+             "eine nicht vorgesehene wird abgewiesen")
+    r = admin.post(f"{BASE}/api/me/blasenfarbe", json={"farbe": ""})
+    e.pruefe(r.json()["farbe"] is None, "und zuruecksetzen geht")
+
     e.abschnitt("Ohne Anmeldung geht gar nichts")
     for pfad, methode in (("/api/toene", requests.get),
                           ("/api/toene", requests.post),
+                          ("/api/gesehen/termine", requests.post),
+                          ("/api/me/blasenfarbe", requests.post),
                           (f"/api/rooms/{raum}/stumm", requests.post)):
         r = methode(BASE + pfad, json={}, allow_redirects=False)
         e.pruefe(r.status_code in (302, 401),

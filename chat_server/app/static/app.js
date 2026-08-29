@@ -1307,7 +1307,13 @@
     });
     const feld = document.querySelector(".seiten-scroll");
     if (feld) feld.scrollTop = 0;
+    bereichGesehen(name);
   }
+
+  // Die Zahlen zeigen, was seit dem letzten Blick dazugekommen ist. Eine
+  // Gesamtzahl, die sich nie aendert, sagt nichts - "3 neue Tipps" schon.
+  const seit = (bereich) =>
+    (state.me && state.me.gesehen && state.me.gesehen[bereich]) || 0;
 
   function reiterZahlen() {
     const setze = (id, zahl) => {
@@ -1320,12 +1326,27 @@
       .reduce((summe, r) => summe + (r.unread || 0), 0);
     const {personen, alleTermine} = kartenPunkte();
     const jetzt = Math.floor(Date.now() / 1000);
+    // Eigene Beitraege sind fuer einen selbst nie neu
     setze("zahl-chats", ungelesen);
-    setze("zahl-karten", personen.length);
-    setze("zahl-stimmung",
-          (state.stimmung || []).filter((s) => s.bis_at > jetzt).length);
-    setze("zahl-termine", (state.termine || []).length);
-    setze("zahl-tipps", (state.tipps || []).length);
+    setze("zahl-karten", personen.filter(
+      (p) => !p.ich && (p.begonnen_at || 0) > seit("karten")).length);
+    setze("zahl-stimmung", (state.stimmung || []).filter(
+      (s) => s.bis_at > jetzt && !s.meine
+             && (s.created_at || 0) > seit("stimmung")).length);
+    setze("zahl-termine", (state.termine || []).filter(
+      (ev) => ev.von.id !== ME && (ev.created_at || 0) > seit("termine")).length);
+    setze("zahl-tipps", (state.tipps || []).filter(
+      (x) => !x.meiner && (x.created_at || 0) > seit("tipps")).length);
+  }
+
+  /** Beim Oeffnen eines Reiters gilt sein Inhalt als gesehen. */
+  async function bereichGesehen(bereich) {
+    if (!["karten", "stimmung", "termine", "tipps"].includes(bereich)) return;
+    const res = await api(`/api/gesehen/${bereich}`, {method: "POST"});
+    if (!res.ok) return;
+    const daten = await res.json().catch(() => ({}));
+    if (state.me && state.me.gesehen) state.me.gesehen[bereich] = daten.seit;
+    reiterZahlen();
   }
 
 
@@ -2437,6 +2458,18 @@
 
   socket.on("tipps_geaendert", () => tippsLaden());
   $("btn-tipp").addEventListener("click", () => tippDialog());
+
+  // ---------- Sprechblasenfarbe ----------
+  // Gilt in allen Unterhaltungen. Die frueheren Farben je Chat waren
+  // umstaendlich zu pflegen; eine Farbe fuer alles reicht.
+  const BLASENFARBEN = ["#1f4a48", "#3b4a6b", "#4a3b5c", "#5c4030", "#2f5136",
+                        "#5c3040", "#334a5c", "#4a4a2f"];
+
+  function blasenfarbeAnwenden() {
+    const farbe = state.me && state.me.blasenfarbe;
+    if (farbe) document.documentElement.style.setProperty("--self", farbe);
+    else document.documentElement.style.removeProperty("--self");
+  }
 
   // ---------- Aussehen ----------
   // Hell, dunkel oder was das Geraet sagt. Die Wahl steht am Geraet: sie
@@ -3698,6 +3731,11 @@
       <div class="field"><label>Neues Passwort</label><input id="p-new" type="password"></div>
       <button class="btn" id="p-ok">Passwort ändern</button>
       <hr class="sep">
+      <h2>Sprechblasen</h2>
+      <p class="hint">Die Farbe deiner eigenen Nachrichten – in allen
+        Unterhaltungen.</p>
+      <div class="farbwahl" id="blasen-wahl"></div>
+      <hr class="sep">
       <h2>Töne</h2>
       <p class="hint">Gilt für alle deine Geräte. Einzelne Unterhaltungen
         lassen sich zusätzlich stummschalten – über das Bild oben in der
@@ -3750,6 +3788,27 @@
       closeModal();
       $("btn-settings").click();
     });
+    const blasenFeld = root.querySelector("#blasen-wahl");
+    const blasenZeichnen = () => {
+      const jetzt = (state.me && state.me.blasenfarbe) || "";
+      blasenFeld.innerHTML = ["", ...BLASENFARBEN].map((f) =>
+        `<button class="farbe ${jetzt === f ? "aktiv" : ""}" type="button"
+                 data-farbe="${f}" title="${f ? f : "Voreinstellung"}"
+                 style="background:${f || "var(--surface-2)"}"></button>`).join("");
+      blasenFeld.querySelectorAll("[data-farbe]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const res = await api("/api/me/blasenfarbe", {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({farbe: b.dataset.farbe}),
+          });
+          const daten = await res.json().catch(() => ({}));
+          if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+          if (state.me) state.me.blasenfarbe = daten.farbe;
+          blasenfarbeAnwenden();
+          blasenZeichnen();
+        }));
+    };
+    blasenZeichnen();
     const tonFeld = root.querySelector("#ton-wahl");
     const tonZeichnen = () => {
       const jetzt = tonStufe();
@@ -4210,6 +4269,7 @@
     state.stimmung = data.stimmung || [];
     state.freunde = data.freunde || [];
     if (state.me && data.me) state.me.ton_stufe = data.me.ton_stufe || "alle";
+    blasenfarbeAnwenden();
     state.freund_anfragen = data.freund_anfragen || 0;
     renderRooms();
     renderKarten();

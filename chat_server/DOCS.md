@@ -247,6 +247,14 @@ Der Browser gibt den Standort **nur über HTTPS** heraus – also über
 `external_url`, nicht über den Ingress im Heimnetz. Dort erscheint ein
 entsprechender Hinweis.
 
+## Farbe der Sprechblasen
+
+In den Einstellungen unter **Sprechblasen** wählst du die Farbe deiner
+eigenen Nachrichten. Sie gilt in allen Unterhaltungen und nur für dich.
+
+Die Auswahl ist eine feste Liste – bei freier Farbwahl landet man schnell bei
+Tönen, auf denen die eigene Schrift nicht mehr zu lesen ist.
+
 ## Töne
 
 In den Einstellungen unter **Töne** wählst du **Alle Töne**, **Nur Anrufe**
@@ -476,6 +484,11 @@ WhatsApp. Sichtbar ist immer genau einer:
 | **Stimmung** | worauf dein Kreis gerade Lust hat | gültige Meldungen |
 | **Termine** | alles Anstehende aus allen Unterhaltungen | Anzahl |
 | **Tipps** | Empfehlungen aus deinem Kreis | Anzahl |
+
+Die Zahl an einem Reiter zeigt, **was seit deinem letzten Blick dazugekommen
+ist** – nicht, wie viel es insgesamt gibt. Eine „12", die sich nie ändert,
+sagt schließlich nichts. Öffnest du den Reiter, ist sie weg. Eigene Beiträge
+zählen nie als neu.
 
 Der zuletzt gewählte Reiter bleibt am Gerät gespeichert und ist nach dem
 Neuladen wieder da. Das sagt nichts über deine Daten aus, sondern nur, worauf

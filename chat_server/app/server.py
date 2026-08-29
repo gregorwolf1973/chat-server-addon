@@ -132,6 +132,11 @@ CREATE TABLE IF NOT EXISTS users (
     zustimmung_at INTEGER,
     karten_kacheln INTEGER NOT NULL DEFAULT 1,
     ton_stufe TEXT,
+    blasenfarbe TEXT,
+    gesehen_karten INTEGER,
+    gesehen_stimmung INTEGER,
+    gesehen_termine INTEGER,
+    gesehen_tipps INTEGER,
     created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS rooms (
@@ -229,6 +234,7 @@ CREATE TABLE IF NOT EXISTS live_orte (
     lon REAL NOT NULL,
     genauigkeit REAL,
     bis_at INTEGER NOT NULL,
+    begonnen_at INTEGER,
     updated_at INTEGER NOT NULL,
     UNIQUE (user_id, room_id)
 );
@@ -358,9 +364,17 @@ def migrate(conn):
             conn.execute(f"ALTER TABLE users ADD COLUMN {spalte} TEXT")
     if "ton_stufe" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN ton_stufe TEXT")
+    if "blasenfarbe" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN blasenfarbe TEXT")
+    for bereich in ("karten", "stimmung", "termine", "tipps"):
+        if f"gesehen_{bereich}" not in cols:
+            conn.execute(f"ALTER TABLE users ADD COLUMN gesehen_{bereich} INTEGER")
     if "karten_kacheln" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN karten_kacheln"
                      " INTEGER NOT NULL DEFAULT 1")
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(live_orte)")}
+    if cols and "begonnen_at" not in cols:
+        conn.execute("ALTER TABLE live_orte ADD COLUMN begonnen_at INTEGER")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(rooms)")}
     if "avatar" not in cols:
         conn.execute("ALTER TABLE rooms ADD COLUMN avatar TEXT")
@@ -850,6 +864,7 @@ def live_sichtbar(uid, conn=None):
         raus.append({
             "id": r["id"],
             "user_id": r["user_id"],
+            "begonnen_at": r["begonnen_at"] or r["updated_at"],
             "name": r["display_name"],
             "avatar": r["avatar"],
             "room_id": r["room_id"],
@@ -1200,7 +1215,9 @@ def api_state():
                "is_admin": bool(me["is_admin"]), "avatar": me["avatar"],
                "kacheln": bool(me["karten_kacheln"]),
                "geburtstag": me["geburtstag"],
-               "ton_stufe": me["ton_stufe"] or "alle"},
+               "ton_stufe": me["ton_stufe"] or "alle",
+               "blasenfarbe": me["blasenfarbe"],
+               "gesehen": gesehen_lesen(me)},
         "rooms": payload,
         "users": [dict(u) for u in users],
         "online": online,
@@ -2172,6 +2189,58 @@ def api_tipp_loeschen(tipp_id):
 
 
 # --------------------------------------------------------------------------
+# Was ist neu?
+# --------------------------------------------------------------------------
+# Die Zahlen an den Reitern sollen zeigen, was seit dem letzten Blick
+# dazugekommen ist - nicht, wie viel es insgesamt gibt. Eine "12" an den
+# Tipps, die sich nie aendert, sagt naemlich gar nichts.
+BEREICHE = ("karten", "stimmung", "termine", "tipps")
+
+# Sprechblasenfarben: eine feste Liste. Freie Farbwahl fuehrt schnell zu
+# Toenen, auf denen die eigene Schrift nicht mehr zu lesen ist.
+BLASENFARBEN = ("#1f4a48", "#3b4a6b", "#4a3b5c", "#5c4030", "#2f5136",
+                "#5c3040", "#334a5c", "#4a4a2f")
+
+
+def gesehen_lesen(me):
+    return {b: (me[f"gesehen_{b}"] or 0) for b in BEREICHE}
+
+
+@app.post("/api/gesehen/<bereich>")
+@login_required
+def api_gesehen(bereich):
+    """Merkt sich, dass ich in diesen Abschnitt geschaut habe."""
+    if bereich not in BEREICHE:
+        return jsonify({"error": "Diesen Abschnitt gibt es nicht."}), 404
+    jetzt = int(time.time())
+    conn = db()
+    conn.execute(f"UPDATE users SET gesehen_{bereich}=? WHERE id=?",
+                 (jetzt, session["uid"]))
+    conn.commit()
+    return jsonify({"ok": True, "bereich": bereich, "seit": jetzt})
+
+
+@app.post("/api/me/blasenfarbe")
+@login_required
+def api_set_blasenfarbe():
+    """Die Farbe der eigenen Sprechblasen - in allen Unterhaltungen."""
+    farbe = (request.get_json(force=True).get("farbe") or "").strip().lower()
+    if farbe and farbe not in BLASENFARBEN:
+        return jsonify({"error": "Diese Farbe gibt es nicht."}), 400
+    conn = db()
+    conn.execute("UPDATE users SET blasenfarbe=? WHERE id=?",
+                 (farbe or None, session["uid"]))
+    conn.commit()
+    return jsonify({"ok": True, "farbe": farbe or None})
+
+
+@app.get("/api/blasenfarben")
+@login_required
+def api_blasenfarben():
+    return jsonify(list(BLASENFARBEN))
+
+
+# --------------------------------------------------------------------------
 # Toene und Stummschaltung
 # --------------------------------------------------------------------------
 # Die Einstellung haengt am Konto, nicht am Geraet: wer eine Gruppe
@@ -2786,11 +2855,11 @@ def api_live_starten():
     conn = db()
     conn.execute(
         "INSERT INTO live_orte (user_id, room_id, lat, lon, genauigkeit,"
-        " bis_at, updated_at) VALUES (?,?,?,?,?,?,?)"
+        " bis_at, begonnen_at, updated_at) VALUES (?,?,?,?,?,?,?,?)"
         " ON CONFLICT(user_id, room_id) DO UPDATE SET lat=excluded.lat,"
         " lon=excluded.lon, genauigkeit=excluded.genauigkeit,"
         " bis_at=excluded.bis_at, updated_at=excluded.updated_at",
-        (uid, room_id, punkt[0], punkt[1], _genauigkeit(data), bis, now))
+        (uid, room_id, punkt[0], punkt[1], _genauigkeit(data), bis, now, now))
     conn.commit()
     socketio.emit("live_geaendert", {"room_id": room_id}, to=f"room:{room_id}")
     return jsonify({"ok": True, "bis_at": bis})

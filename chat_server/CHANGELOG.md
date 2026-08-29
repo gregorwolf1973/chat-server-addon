@@ -1,5 +1,15 @@
 # Änderungsverlauf
 
+## 0.33.0
+
+- **Die Zahlen an den Reitern zeigen nur noch Neues** - was seit dem letzten
+  Blick dazugekommen ist. Beim Oeffnen des Reiters verschwinden sie; eigene
+  Beitraege zaehlen nie
+- **Farbe der eigenen Sprechblasen** in den Einstellungen, gueltig in allen
+  Unterhaltungen
+- Eine Standortfreigabe merkt sich, wann sie begonnen hat - ein Ping machte
+  sie sonst immer wieder zu etwas Neuem
+
 ## 0.32.0
 
 - **Sprachnachricht auf Knopfdruck**: gedrueckt halten nimmt auf, Loslassen
