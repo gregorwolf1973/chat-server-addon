@@ -1,5 +1,17 @@
 # Änderungsverlauf
 
+## 0.35.0
+
+- **Medienschau**: ein Tipp auf ein Bild oder Video oeffnet es
+  bildschirmfuellend. Wischen blaettert weiter, Wischen nach unten schliesst.
+  Darunter eine Zeitleiste mit allen Bildern und Videos der Unterhaltung -
+  aeltestes zuerst, so wie es passiert ist
+- **Umkreis in der Live-Karte**: 5, 25 oder 100 km um den eigenen Standort.
+  Termine und Empfehlungen ausserhalb bleiben aussen vor. Die Entfernung
+  rechnet der Browser, der Standort verlaesst das Geraet nicht
+- **Klick auf eine Person unter Stimmungen** oeffnet die Unterhaltung mit
+  ihr, notfalls eine neue
+
 ## 0.34.0
 
 - **Nachrichten und Anhaenge nach x Tagen loeschen**, ueber die neue Option

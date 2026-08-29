@@ -1907,3 +1907,97 @@ audio.abspieler { width: min(260px, 100%); }
 
 /* Stummgeschaltete Unterhaltungen */
 .stumm-zeichen { font-size: 11px; opacity: 0.75; }
+
+/* ---------- Medienschau ---------- */
+.schau {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--tief);
+  display: flex;
+  flex-direction: column;
+  /* Waagerechtes Wischen soll blaettern, nicht die Seite verschieben */
+  touch-action: pan-y;
+}
+body.schau-offen { overflow: hidden; }
+.schau-kopf {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px calc(12px + env(safe-area-inset-top));
+  color: var(--text);
+}
+.schau-wer { flex: 1; min-width: 0; }
+.schau-name { font-size: 13px; font-weight: 600; }
+.schau-zeit { font-size: 11px; color: var(--muted); }
+.schau-zaehler {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.schau-buehne {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 0 8px;
+  user-select: none;
+}
+.schau-medium {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+}
+.schau-pfeil {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 46px;
+  height: 64px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+}
+.schau-pfeil.links { left: 8px; }
+.schau-pfeil.rechts { right: 8px; }
+.schau-pfeil:disabled { opacity: 0.25; cursor: default; }
+
+/* Die Zeitleiste: alle Medien der Unterhaltung, aeltestes links */
+.schau-leiste {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  scrollbar-width: thin;
+}
+.schau-daumen {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  cursor: pointer;
+}
+.schau-daumen img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.schau-daumen.hier { border-color: var(--accent); }
+.schau-film { font-size: 22px; line-height: 54px; }
+
+/* Anklickbare Person in der Stimmung */
+.st-person.anklickbar { cursor: pointer; text-decoration: underline dotted; }
+.st-person.anklickbar:hover { color: var(--accent); }
+
+@media (pointer: coarse), (max-width: 720px) {
+  .schau-daumen { width: 62px; height: 62px; }
+  .schau-pfeil { width: 52px; height: 72px; }
+}

@@ -438,6 +438,17 @@ und **Filter aufheben** setzt ihn zurück. Der Filter bleibt beim Schließen
 erhalten. Die Standortfreigaben bleiben immer sichtbar – sie sind das, was
 gerade passiert, nicht etwas Geplantes.
 
+### Nur was in der Nähe ist
+
+Eine zweite Reihe schränkt nach **Entfernung** ein: 5 km, 25 km, 100 km oder
+*überall*. Einladungen und Empfehlungen weiter weg fallen aus der Karte und
+aus den Listen darunter.
+
+Dafür wird einmal der eigene Standort gebraucht; die Reihe beginnt deshalb mit
+**📍 Meinen Standort verwenden**. Danach rechnet der **Browser** die Luftlinie
+zu jedem Punkt – der Standort wird dabei nicht gesendet und nicht gespeichert.
+Ohne Standort bleibt es bei *überall*.
+
 Termine ohne Zeitpunkt erscheinen nur unter **Alles**; bei ihnen lässt sich
 nicht sagen, ob sie in einen Zeitraum fallen.
 
@@ -658,6 +669,10 @@ Je Person gilt immer nur **eine** Meldung – eine neue ersetzt die alte, sonst
 stünde die Pinnwand nach einer Woche voller alter Launen. Abgelaufene
 Meldungen verschwinden von selbst.
 
+Ein Tipp auf den **Namen** öffnet die Unterhaltung mit dieser Person; gibt es
+noch keine, wird sie angelegt. Genau das ist ja meist der nächste Schritt,
+wenn jemand schreibt, worauf er Lust hätte.
+
 ## Am Telefon
 
 Alle Schaltflächen sind auf Berührungsgeräten mindestens **44 Pixel** hoch –
@@ -731,6 +746,24 @@ während des Hochladens am unteren Rand.
 schaltet den Auswahlmodus ein. Angetippte Kacheln bekommen einen Haken,
 **Alle** markiert alles Sichtbare, **Löschen** entfernt die ganze Auswahl auf
 einmal. **Fertig** beendet den Modus.
+
+## Durch Bilder und Videos wischen
+
+Ein Tipp auf ein Bild oder Video im Verlauf öffnet es **bildschirmfüllend**.
+Von dort geht es durch alle Bilder und Videos derselben Unterhaltung:
+
+- **Wischen nach links oder rechts** blättert weiter, mit der Tastatur die
+  Pfeiltasten, mit der Maus die Pfeile links und rechts
+- **Wischen nach unten**, ein Tipp auf ✕ oder `Esc` schließt wieder
+- Unten läuft eine **Zeitleiste** mit allen Bildern und Videos, ältestes
+  zuerst – so, wie es passiert ist. Ein Tipp darauf springt hin, das aktuelle
+  Stück ist hervorgehoben und rückt von selbst in den sichtbaren Bereich
+
+Oben stehen Absender, Datum und die Stelle in der Reihe (*„3 / 12"*). Videos
+laufen von selbst und **halten an, sobald du weiterwischst** – sonst hörte man
+drei Filme gleichzeitig.
+
+## Löschen von Anhängen
 
 Beim Löschen verschwindet die Datei aus dem Verlauf **und vom Server** – die
 Bytes bleiben nicht liegen. Eigene Dateien darf jeder löschen, fremde nur ein

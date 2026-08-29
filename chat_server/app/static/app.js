@@ -1120,6 +1120,10 @@
   // Empfehlungen liegen still im Hintergrund - sie sind meist wenige und
   // stoeren nicht, lassen sich aber ausblenden.
   let kartenTipps = true;
+  // Umkreis fuer Einladungen und Empfehlungen auf der Karte. 0 heisst: alle.
+  // Gerechnet wird im Browser aus dem eigenen Standort - der bleibt hier.
+  let kartenUmkreis = 0;
+  const KARTEN_UMKREISE = [0, 5, 25, 100];
 
   const ZEITRAEUME = [["alle", "Alles"], ["heute", "Heute"],
                       ["morgen", "Morgen"], ["woche", "7 Tage"]];
@@ -1168,12 +1172,19 @@
                      ort_text: ev.ort_text, beginnt_at: ev.beginnt_at,
                      kategorien: ev.kategorien || [],
                      zusagen: (ev.wer.ja || []).length, meine: ev.meine}));
-    const termine = mitOrt.filter(terminPasst);
+    const imUmkreis = (p) => {
+      if (!kartenUmkreis || !meinOrt) return true;
+      if (typeof p.lat !== "number" || typeof p.lon !== "number") return true;
+      return entfernungKm(meinOrt, {lat: p.lat, lon: p.lon}) <= kartenUmkreis;
+    };
+    // mitOrt traegt lat/lon direkt am Objekt, kein verschachteltes ort
+    const termine = mitOrt.filter(terminPasst).filter(imUmkreis);
     const tipps = kartenTipps
       ? (state.tipps || []).filter((x) => x.ort).map((x) => ({
           art: "tipp", tipp_id: x.id, name: x.titel,
           lat: x.ort.lat, lon: x.ort.lon, ort_text: x.ort_text,
           sterne: x.sterne, tipp_art: x.art, von: x.name}))
+        .filter(imUmkreis)
       : [];
     return {personen, termine, tipps, alleTermine: mitOrt,
             alleTipps: (state.tipps || []).filter((x) => x.ort),
@@ -1198,6 +1209,15 @@
           `<button class="mini-btn ${kartenFilter.kategorien.has(k) ? "an" : ""}"
                    data-kat="${k}">${esc(KATEGORIEN[k])}</button>`).join("")}
       </div>` : ""}
+      <div class="kf-zeile">
+        <span class="kf-titel">Umkreis</span>
+        ${meinOrt
+          ? KARTEN_UMKREISE.map((km) =>
+              `<button class="mini-btn ${kartenUmkreis === km ? "an" : ""}"
+                       data-ukm="${km}">${km ? `${km} km` : "Überall"}</button>`).join("")
+            + '<button class="mini-btn" id="kf-ort-neu" title="Standort neu bestimmen">↻</button>'
+          : '<button class="mini-btn" id="kf-ort">📍 Meinen Standort verwenden</button>'}
+      </div>
       ${tippZahl ? `<div class="kf-zeile">
         <span class="kf-titel">Empfehlungen</span>
         <button class="mini-btn ${kartenTipps ? "an" : ""}" id="kf-tipps"
@@ -1284,6 +1304,24 @@
         const k = b.dataset.kat;
         if (kartenFilter.kategorien.has(k)) kartenFilter.kategorien.delete(k);
         else kartenFilter.kategorien.add(k);
+        kartenInhalt(root);
+      }));
+    const ortKnopf = behaelter.querySelector("#kf-ort")
+      || behaelter.querySelector("#kf-ort-neu");
+    if (ortKnopf) ortKnopf.addEventListener("click", async () => {
+      ortKnopf.textContent = "Standort wird bestimmt …";
+      try {
+        const gefunden = await standortHolen();
+        meinOrt = {lat: gefunden.lat, lon: gefunden.lon};
+        if (!kartenUmkreis) kartenUmkreis = 25;
+      } catch (err) {
+        toast(err.message);
+      }
+      kartenInhalt(root);
+    });
+    behaelter.querySelectorAll("[data-ukm]").forEach((b) =>
+      b.addEventListener("click", () => {
+        kartenUmkreis = parseInt(b.dataset.ukm, 10);
         kartenInhalt(root);
       }));
     const tippKnopf = behaelter.querySelector("#kf-tipps");
@@ -1502,7 +1540,8 @@
     liste.innerHTML = alle.map((s) => `<div class="stimmung-zeile" data-id="${s.id}">
       <span class="st-icon">${s.emoji || "💬"}</span>
       <div class="st-body">
-        <div class="st-kopf">${esc(s.name)}${s.meine ? " (du)" : ""}
+        <div class="st-kopf"><span class="st-person ${s.meine ? "" : "anklickbar"}"
+          data-person="${s.user_id}">${esc(s.name)}${s.meine ? " (du)" : ""}</span>
           <span class="st-zeit">${restzeit(s.bis_at)}</span></div>
         <div class="st-text">${esc(s.text)}</div>
         ${s.ort ? `<div class="st-ort">📍 ${s.ort.lat.toFixed(3)}, ${
@@ -1521,6 +1560,9 @@
         if (!res.ok) { toast("Das ging nicht."); return; }
         await stimmungLaden();
       }));
+    liste.querySelectorAll(".st-person.anklickbar").forEach((el) =>
+      el.addEventListener("click", () =>
+        chatMitOeffnen(parseInt(el.dataset.person, 10))));
   }
 
   // ---------- Termine ----------
@@ -1876,6 +1918,23 @@
     renderTermine();
   }
 
+  /** Die Unterhaltung mit einer Person oeffnen - und sie anlegen, wenn es
+   *  noch keine gibt. Sonst muesste man erst durch "+ Neu". */
+  async function chatMitOeffnen(userId) {
+    if (userId === ME) return;
+    const raum = (state.rooms || []).find((r) => !r.is_group
+      && r.members.some((m) => m.id === userId));
+    if (raum) { openRoom(raum.id); return; }
+    const res = await api("/api/rooms", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({members: [userId], is_group: false}),
+    });
+    const daten = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+    await loadState();
+    openRoom(daten.id);
+  }
+
   // ---------- Geburtstage ----------
   // Sie kommen als eigene Liste vom Server und werden erst hier unter die
   // Termine gemischt. Ein Geburtstag ist kein Termin: es gibt nichts
@@ -1969,18 +2028,7 @@
         // Zum Gratulieren: die Unterhaltung mit der Person oeffnen
         const raum = (state.rooms || []).find((r) => !r.is_group
           && r.members.some((m) => m.id === id));
-        if (raum) { openRoom(raum.id); return; }
-        // Noch kein Direktchat: einen anlegen, damit man gleich gratulieren
-        // kann, statt erst durch "+ Neu" zu gehen.
-        api("/api/rooms", {
-          method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({members: [id], is_group: false}),
-        }).then(async (res) => {
-          const daten = await res.json().catch(() => ({}));
-          if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
-          await loadState();
-          openRoom(daten.id);
-        });
+        chatMitOeffnen(id);
       }));
     reiterZahlen();
     renderKarten();
@@ -2890,6 +2938,142 @@
     klingelZeigen();
     renderRooms();
   });
+
+  // ---------- Medienschau ----------
+  // Bildschirmfüllend durch alle Bilder und Videos einer Unterhaltung
+  // wischen, mit einer Zeitleiste darunter. Videos laufen von selbst, sobald
+  // sie dran sind, und halten an, sobald man weiterwischt - sonst hört man
+  // drei Filme gleichzeitig.
+  const schau = {offen: false, stuecke: [], platz: 0, raum: null};
+
+  const SCHAU_ARTEN = ["image", "video"];
+
+  async function schauOeffnen(raumId, fileId) {
+    const res = await api(`/api/media?room=${raumId}`);
+    if (!res.ok) { toast("Die Medien ließen sich nicht laden."); return; }
+    const daten = await res.json();
+    // Älteste zuerst - so wischt man vorwärts durch die Zeit. Bei gleicher
+    // Sekunde entscheidet die Kennung: sonst bliebe die Reihenfolge des
+    // Servers stehen (neueste zuerst) und die Liste waere durcheinander.
+    const stuecke = (daten.items || daten || [])
+      .filter((m) => SCHAU_ARTEN.includes((m.mime || "").split("/")[0]))
+      .sort((a, b) => (a.at - b.at) || (a.id - b.id));
+    if (!stuecke.length) { toast("Hier gibt es noch keine Bilder oder Videos."); return; }
+    schau.stuecke = stuecke;
+    schau.raum = raumId;
+    const platz = stuecke.findIndex((m) => m.id === fileId);
+    schau.platz = platz >= 0 ? platz : 0;
+    schau.offen = true;
+    $("schau").hidden = false;
+    document.body.classList.add("schau-offen");
+    schauZeichnen();
+  }
+
+  function schauSchliessen() {
+    schau.offen = false;
+    $("schau").hidden = true;
+    document.body.classList.remove("schau-offen");
+    $("schau-buehne").innerHTML = "";
+  }
+
+  function schauGehe(richtung) {
+    const neu = schau.platz + richtung;
+    if (neu < 0 || neu >= schau.stuecke.length) return;
+    schau.platz = neu;
+    schauZeichnen();
+  }
+
+  function schauZeichnen() {
+    const m = schau.stuecke[schau.platz];
+    if (!m) return;
+    const buehne = $("schau-buehne");
+    // Laufende Videos anhalten, bevor das nächste kommt
+    buehne.querySelectorAll("video").forEach((v) => v.pause());
+    const url = `${BASE}/files/${m.id}`;
+    const art = (m.mime || "").split("/")[0];
+    buehne.innerHTML = art === "video"
+      ? `<video class="schau-medium" src="${url}" controls autoplay playsinline></video>`
+      : `<img class="schau-medium" src="${url}" alt="${esc(m.name || "")}">`;
+    $("schau-titel").textContent = m.author || "";
+    $("schau-datum").textContent = new Date(m.at * 1000)
+      .toLocaleString("de-DE", {day: "2-digit", month: "2-digit", year: "numeric",
+                                hour: "2-digit", minute: "2-digit"});
+    $("schau-zaehler").textContent = `${schau.platz + 1} / ${schau.stuecke.length}`;
+    $("schau-zurueck").disabled = schau.platz === 0;
+    $("schau-vor").disabled = schau.platz === schau.stuecke.length - 1;
+    schauLeisteZeichnen();
+  }
+
+  function schauLeisteZeichnen() {
+    const leiste = $("schau-leiste");
+    // Nur einmal aufbauen - sonst springt die Leiste bei jedem Wischen
+    if (leiste.childElementCount !== schau.stuecke.length) {
+      leiste.innerHTML = schau.stuecke.map((m, i) => {
+        const art = (m.mime || "").split("/")[0];
+        return `<button class="schau-daumen" data-platz="${i}"
+                        title="${esc(new Date(m.at * 1000).toLocaleDateString("de-DE"))}">`
+          + (art === "video"
+             ? '<span class="schau-film">🎬</span>'
+             : `<img src="${BASE}/files/${m.id}" alt="" loading="lazy">`)
+          + `</button>`;
+      }).join("");
+      leiste.querySelectorAll("[data-platz]").forEach((b) =>
+        b.addEventListener("click", () => {
+          schau.platz = parseInt(b.dataset.platz, 10);
+          schauZeichnen();
+        }));
+    }
+    leiste.querySelectorAll(".schau-daumen").forEach((b, i) =>
+      b.classList.toggle("hier", i === schau.platz));
+    const aktiv = leiste.querySelector(".schau-daumen.hier");
+    if (aktiv) aktiv.scrollIntoView({block: "nearest", inline: "center"});
+  }
+
+  // Wischen: waagerecht blättern, senkrecht schließen - wie man es von
+  // Bildergalerien kennt.
+  let wischStart = null;
+
+  $("schau-buehne").addEventListener("pointerdown", (e) => {
+    wischStart = {x: e.clientX, y: e.clientY, zeit: Date.now()};
+  });
+
+  $("schau-buehne").addEventListener("pointerup", (e) => {
+    if (!wischStart) return;
+    const dx = e.clientX - wischStart.x;
+    const dy = e.clientY - wischStart.y;
+    const schnell = Date.now() - wischStart.zeit < 600;
+    wischStart = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+      schauGehe(dx < 0 ? 1 : -1);
+    } else if (schnell && dy > 90 && Math.abs(dy) > Math.abs(dx)) {
+      schauSchliessen();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (!schau.offen) return;
+    if (e.key === "ArrowRight") schauGehe(1);
+    else if (e.key === "ArrowLeft") schauGehe(-1);
+    else if (e.key === "Escape") schauSchliessen();
+  });
+
+  $("schau-zu").addEventListener("click", schauSchliessen);
+  $("schau-vor").addEventListener("click", () => schauGehe(1));
+  $("schau-zurueck").addEventListener("click", () => schauGehe(-1));
+
+  // Ein Tipp auf ein Bild oder Video im Verlauf oeffnet die Schau
+  $("messages").addEventListener("click", (e) => {
+    const bild = e.target.closest(".bild, .abspieler");
+    if (!bild) return;
+    const msg = e.target.closest(".msg");
+    if (!msg) return;
+    const quelle = bild.tagName === "VIDEO" ? bild.src : bild.href;
+    const treffer = (quelle || "").match(/\/files\/(\d+)/);
+    if (!treffer) return;
+    e.preventDefault();
+    e.stopPropagation();
+    schauOeffnen(currentRoom, parseInt(treffer[1], 10));
+  }, true);
 
   // ---------- Klänge ----------
   // Alle Töne werden erzeugt, keiner geladen. Das hält das Add-on klein und
