@@ -1,5 +1,15 @@
 # Änderungsverlauf
 
+## 0.32.0
+
+- **Sprachnachricht auf Knopfdruck**: gedrueckt halten nimmt auf, Loslassen
+  schickt ab. Ein kurzer Ton meldet den Beginn, ein zweiter den Versand
+- **Toene** in den Einstellungen: alle, nur Anrufe oder stumm - am Konto,
+  also auf allen Geraeten
+- **Stummschaltung je Unterhaltung** fuer 1 Stunde, 8 Stunden oder fuer
+  immer, mit 🔕 in der Liste. Auch Push-Nachrichten bleiben dann aus
+- Klaenge fuer neue Nachrichten und Ereignisse, alle erzeugt statt geladen
+
 ## 0.31.0
 
 - **Abgelaufene Termine verschwinden.** Bisher blieben sie zwoelf Stunden

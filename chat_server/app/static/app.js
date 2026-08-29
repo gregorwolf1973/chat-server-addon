@@ -148,7 +148,8 @@
       const prev = r.last ? (r.is_group ? `${r.last.author}: ${r.last.text}` : r.last.text) : "Noch keine Nachricht";
       return `<div class="room ${currentRoom === r.id ? "active" : ""}" data-id="${r.id}">
         ${raumAvatar(r)}
-        <div class="name"><span class="dot ${online ? "on" : ""}"></span>${esc(r.name)}${r.is_group ? " ·" + r.members.length : ""}</div>
+        <div class="name"><span class="dot ${online ? "on" : ""}"></span>${esc(r.name)}${r.is_group ? " ·" + r.members.length : ""}${
+          stummText(r.stumm_bis) ? ' <span class="stumm-zeichen" title="stummgeschaltet">🔕</span>' : ""}</div>
         <div class="time">${shortTime(r.last ? r.last.at : 0)}</div>
         <div class="preview">${esc(prev)}</div>
         ${r.unread ? `<span class="badge">${r.unread}</span>` : ""}
@@ -434,6 +435,9 @@
   socket.on("message", (m) => {
     const room = roomById(m.room_id);
     if (room) {
+      if (m.user_id !== ME && darfKlingen(m.room_id, false)) {
+        klangSpielen("nachricht");
+      }
       room.last = {text: m.body || "Datei", author: m.author, at: m.at};
       if (m.room_id === currentRoom) {
         pushMessage(m);
@@ -484,6 +488,9 @@
   });
   socket.on("live_geaendert", () => liveLaden());
   socket.on("stimmung_geaendert", () => stimmungLaden());
+  socket.on("tipps_geaendert", () => {
+    if (tonStufe() === "alle") klangSpielen("ereignis", 0.09);
+  });
   socket.on("event_geaendert", (d) => {
     if (d.event_id) eventNeuZeichnen(d.event_id); else terminLaden();
   });
@@ -2823,6 +2830,98 @@
     renderRooms();
   });
 
+  // ---------- Klänge ----------
+  // Alle Töne werden erzeugt, keiner geladen. Das hält das Add-on klein und
+  // klingt auf jedem Gerät gleich. Der Tonkanal geht beim ersten Tippen auf
+  // (siehe tonkanalOeffnen), vorher lässt ihn kein Browser zu.
+  const KLAENGE = {
+    nachricht: [[880, 0, 0.07]],
+    gesendet: [[660, 0, 0.05]],
+    ereignis: [[720, 0, 0.09], [960, 0.1, 0.11]],
+    aufnahme: [[520, 0, 0.06], [780, 0.08, 0.08]],
+    fertig: [[780, 0, 0.06], [520, 0.07, 0.09]],
+  };
+
+  function klangSpielen(name, laut = 0.14) {
+    if (tonStufe() === "aus") return;
+    const noten = KLAENGE[name];
+    if (!noten) return;
+    try {
+      if (!klingelCtx) klingelCtx = new AudioContext();
+      if (klingelCtx.state === "suspended") klingelCtx.resume();
+      const t = klingelCtx.currentTime;
+      noten.forEach(([hz, versatz, dauer]) => {
+        const o = klingelCtx.createOscillator();
+        const g = klingelCtx.createGain();
+        o.type = "sine";
+        o.frequency.value = hz;
+        g.gain.setValueAtTime(0, t + versatz);
+        g.gain.linearRampToValueAtTime(laut, t + versatz + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + versatz + dauer);
+        o.connect(g);
+        g.connect(klingelCtx.destination);
+        o.start(t + versatz);
+        o.stop(t + versatz + dauer + 0.02);
+      });
+    } catch (err) { /* ohne Ton geht es auch */ }
+  }
+
+  const tonStufe = () => (state.me && state.me.ton_stufe) || "alle";
+
+  /** Darf es fuer diese Unterhaltung klingen? */
+  function darfKlingen(roomId, artIstAnruf) {
+    const stufe = tonStufe();
+    if (stufe === "aus") return false;
+    if (stufe === "nur_anrufe" && !artIstAnruf) return false;
+    const raum = roomById(roomId);
+    if (!raum || raum.stumm_bis === null || raum.stumm_bis === undefined) return true;
+    // 0 heisst "ohne Ende"
+    if (raum.stumm_bis === 0) return false;
+    return raum.stumm_bis <= Math.floor(Date.now() / 1000);
+  }
+
+  const stummText = (bis) => {
+    if (bis === 0) return "stumm";
+    if (!bis) return "";
+    const s = bis - Math.floor(Date.now() / 1000);
+    if (s <= 0) return "";
+    return s < 3600 ? `stumm, noch ${Math.round(s / 60)} Min`
+                    : `stumm, noch ${Math.round(s / 3600)} Std`;
+  };
+
+  function stummDialog(room) {
+    const jetzt = Math.floor(Date.now() / 1000);
+    const istStumm = room.stumm_bis === 0
+      || (room.stumm_bis && room.stumm_bis > jetzt);
+    const root = modal(`<h2>Töne für „${esc(room.name)}“</h2>
+      <p class="hint">Gilt nur für dich, dafür auf allen deinen Geräten.
+        ${istStumm ? `Zurzeit ${esc(stummText(room.stumm_bis))}.` : ""}</p>
+      <div class="kf-zeile">
+        <button class="mini-btn ${!istStumm ? "an" : ""}" data-stunden="">Ton an</button>
+        <button class="mini-btn" data-stunden="1">1 Stunde stumm</button>
+        <button class="mini-btn" data-stunden="8">8 Stunden</button>
+        <button class="mini-btn ${room.stumm_bis === 0 ? "an" : ""}"
+                data-stunden="0">Für immer</button>
+      </div>
+      <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelectorAll("[data-stunden]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const wert = b.dataset.stunden;
+        const res = await api(`/api/rooms/${room.id}/stumm`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({stunden: wert === "" ? null : parseInt(wert, 10)}),
+        });
+        const daten = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+        room.stumm_bis = daten.stumm_bis;
+        closeModal();
+        renderRooms();
+        toast(daten.stumm_bis === null ? "Ton wieder an."
+                                       : `Stumm (${stummText(daten.stumm_bis)}).`);
+      }));
+  }
+
   // ---------- Klingeln ----------
   // Der Ton wird erzeugt, nicht geladen: das spart eine Datei im Add-on und
   // klingt auf jedem Geraet gleich. Ein Browser laesst Ton allerdings erst
@@ -2921,7 +3020,9 @@
     if (zuletztGeklingelt !== kennung) {
       zuletztGeklingelt = kennung;
       klingelnStoppen();
-      klingelnStarten();
+      // Ein Anruf laeutet auch bei "nur Anrufe" - aber nicht, wenn genau
+      // diese Unterhaltung stummgeschaltet ist.
+      if (darfKlingen(raum.id, true)) klingelnStarten();
     }
   }
 
@@ -3067,6 +3168,10 @@
   }
 
   let aufnahme = null;   // {recorder, spur, teile, seit, uhr}
+  // Zwischen "Knopf gedrueckt" und "Mikrofon bereit" vergeht ein Moment.
+  // Wer in dieser Zeit schon wieder loslaesst, darf keine Aufnahme
+  // hinterlassen, die niemand mehr stoppt.
+  let aufnahmeGewollt = false;
 
   const dauerText = (sekunden) => {
     const s = Math.max(0, Math.round(sekunden));
@@ -3090,6 +3195,7 @@
       toast("Dieser Browser kann keine Sprachnachrichten aufnehmen.");
       return;
     }
+    aufnahmeGewollt = true;
     let spur;
     try {
       spur = await navigator.mediaDevices.getUserMedia({audio: true});
@@ -3097,6 +3203,11 @@
       toast(err.name === "NotAllowedError"
         ? "Du hast den Zugriff auf das Mikrofon abgelehnt."
         : "Kein Mikrofon gefunden.");
+      return;
+    }
+    if (!aufnahmeGewollt) {
+      // Schon wieder losgelassen - Mikrofon sofort zurueckgeben
+      spur.getTracks().forEach((s) => s.stop());
       return;
     }
     const format = tonFormat();
@@ -3110,6 +3221,8 @@
     recorder.start();
     aufnahmeLeisteZeigen(true);
     $("btn-mikro").classList.add("laeuft");
+    // Kurzer Ton, damit man weiss: ab jetzt wird aufgenommen
+    klangSpielen("aufnahme", 0.18);
     $("aufnahme-zeit").textContent = "0:00";
     aufnahme.uhr = setInterval(() => {
       const s = (Date.now() - aufnahme.seit) / 1000;
@@ -3120,6 +3233,7 @@
   }
 
   function aufnahmeStoppen(abbrechen = false) {
+    aufnahmeGewollt = false;
     if (!aufnahme) return;
     aufnahme.abgebrochen = abbrechen;
     clearInterval(aufnahme.uhr);
@@ -3139,6 +3253,7 @@
     // Das Mikrofon wieder freigeben - sonst leuchtet die Anzeige weiter
     spur.getTracks().forEach((t) => t.stop());
     if (abgebrochen || !teile.length) return;
+    klangSpielen("fertig", 0.14);
     const sekunden = Math.max(1, Math.round((Date.now() - seit) / 1000));
     const typ = recorder.mimeType || teile[0].type || "audio/webm";
     const endung = typ.includes("mp4") ? "m4a" : typ.includes("ogg") ? "ogg" : "webm";
@@ -3222,11 +3337,44 @@
     kasten.querySelector(".sn-zeit").textContent = dauerText(ton.currentTime);
   }, true);
 
-  $("btn-mikro").addEventListener("click", () => {
-    if (aufnahme) aufnahmeStoppen(); else aufnahmeStarten();
+  // Gedrueckt halten nimmt auf, Loslassen schickt ab - so wie bei WhatsApp.
+  // Ein kurzer Tipp waere sonst nicht zu unterscheiden und wuerde eine
+  // Aufnahme von einer Zehntelsekunde erzeugen.
+  let mikroGedrueckt = false;
+
+  function mikroLos(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    mikroGedrueckt = true;
+    aufnahmeStarten();
+  }
+
+  function mikroFrei() {
+    if (!mikroGedrueckt) return;
+    mikroGedrueckt = false;
+    if (!aufnahme) {
+      // Losgelassen, bevor das Mikrofon bereit war
+      aufnahmeGewollt = false;
+      toast("Zum Aufnehmen den Knopf gedrückt halten.");
+      return;
+    }
+    // Unter einer halben Sekunde war es ein Verrutscher, keine Nachricht
+    const zuKurz = Date.now() - aufnahme.seit < 500;
+    if (zuKurz) toast("Zum Aufnehmen den Knopf gedrückt halten.");
+    aufnahmeStoppen(zuKurz);
+  }
+
+  $("btn-mikro").addEventListener("pointerdown", mikroLos);
+  $("btn-mikro").addEventListener("pointerup", mikroFrei);
+  $("btn-mikro").addEventListener("pointercancel", mikroFrei);
+  // Wer mit dem Finger vom Knopf rutscht, soll die Aufnahme trotzdem
+  // beenden - sonst laeuft sie unbemerkt weiter.
+  $("btn-mikro").addEventListener("pointerleave", mikroFrei);
+  $("btn-mikro").addEventListener("contextmenu", (e) => e.preventDefault());
+  $("aufnahme-weg").addEventListener("click", () => {
+    mikroGedrueckt = false;
+    aufnahmeStoppen(true);
   });
-  $("aufnahme-senden").addEventListener("click", () => aufnahmeStoppen());
-  $("aufnahme-weg").addEventListener("click", () => aufnahmeStoppen(true));
 
   // ---------- Anhang-Menue ----------
   // Fuenf Knoepfe nebeneinander liessen im Eingabefeld kaum Platz. Alles,
@@ -3368,6 +3516,10 @@
         ${room.avatar ? '<button class="btn ghost" id="a-weg">Bild entfernen</button>' : ""}
       </div>` : ""}
       <hr class="sep">
+      <h2>Töne</h2>
+      <p class="hint" id="stumm-stand"></p>
+      <button class="btn ghost" id="stumm-ok">Töne für diese Unterhaltung</button>
+      <hr class="sep">
       <h2>Hintergrundmuster</h2>
       <p class="hint">Gilt nur für dich – andere sehen ihr eigenes Muster.</p>
       <div class="musterwahl" id="hg-wahl"></div>
@@ -3412,6 +3564,17 @@
       raumVerlassen(room.id);
     });
 
+    const stummStand = root.querySelector("#stumm-stand");
+    const stummZeigen = () => {
+      const text = stummText(room.stumm_bis);
+      stummStand.textContent = text
+        ? `Zurzeit ${text}.` : "Töne sind an.";
+    };
+    stummZeigen();
+    root.querySelector("#stumm-ok").addEventListener("click", () => {
+      closeModal();
+      stummDialog(room);
+    });
     musterWaehlen(room, root);
 
     const neu = root.querySelector("#a-neu");
@@ -3535,6 +3698,12 @@
       <div class="field"><label>Neues Passwort</label><input id="p-new" type="password"></div>
       <button class="btn" id="p-ok">Passwort ändern</button>
       <hr class="sep">
+      <h2>Töne</h2>
+      <p class="hint">Gilt für alle deine Geräte. Einzelne Unterhaltungen
+        lassen sich zusätzlich stummschalten – über das Bild oben in der
+        Unterhaltung.</p>
+      <div class="kf-zeile" id="ton-wahl"></div>
+      <hr class="sep">
       <h2>Geburtstag</h2>
       <p class="hint">Freiwillig. Wenn du ihn angibst, erscheint er bei den
         Leuten aus deinem Kreis unter „Termine“.</p>
@@ -3581,6 +3750,26 @@
       closeModal();
       $("btn-settings").click();
     });
+    const tonFeld = root.querySelector("#ton-wahl");
+    const tonZeichnen = () => {
+      const jetzt = tonStufe();
+      tonFeld.innerHTML = [["alle", "Alle Töne"], ["nur_anrufe", "Nur Anrufe"],
+                           ["aus", "Stumm"]].map(([wert, text]) =>
+        `<button class="mini-btn ${jetzt === wert ? "an" : ""}"
+                 data-ton="${wert}">${text}</button>`).join("");
+      tonFeld.querySelectorAll("[data-ton]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const res = await api("/api/toene", {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({stufe: b.dataset.ton}),
+          });
+          if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
+          if (state.me) state.me.ton_stufe = b.dataset.ton;
+          tonZeichnen();
+          if (b.dataset.ton !== "aus") klangSpielen("nachricht");
+        }));
+    };
+    tonZeichnen();
     root.querySelector("#geb-ok").addEventListener("click", async () => {
       const wert = root.querySelector("#me-geb").value;
       const res = await api("/api/me/geburtstag", {
@@ -4020,6 +4209,7 @@
     state.live = data.live || [];
     state.stimmung = data.stimmung || [];
     state.freunde = data.freunde || [];
+    if (state.me && data.me) state.me.ton_stufe = data.me.ton_stufe || "alle";
     state.freund_anfragen = data.freund_anfragen || 0;
     renderRooms();
     renderKarten();

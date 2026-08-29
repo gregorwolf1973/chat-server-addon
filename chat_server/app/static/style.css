@@ -1904,3 +1904,6 @@ audio.abspieler { width: min(260px, 100%); }
 }
 .wl-liste { max-height: 46vh; overflow-y: auto; }
 .wl-liste .pick { gap: 10px; }
+
+/* Stummgeschaltete Unterhaltungen */
+.stumm-zeichen { font-size: 11px; opacity: 0.75; }

@@ -247,6 +247,23 @@ Der Browser gibt den Standort **nur über HTTPS** heraus – also über
 `external_url`, nicht über den Ingress im Heimnetz. Dort erscheint ein
 entsprechender Hinweis.
 
+## Töne
+
+In den Einstellungen unter **Töne** wählst du **Alle Töne**, **Nur Anrufe**
+oder **Stumm**. Die Einstellung hängt am Konto, gilt also auf allen deinen
+Geräten.
+
+Einzelne Unterhaltungen lassen sich zusätzlich stummschalten: in den Angaben
+zur Unterhaltung unter *Töne* – für **1 Stunde**, **8 Stunden** oder **für
+immer**. In der Liste steht dann ein 🔕 hinter dem Namen. Auch die
+Push-Nachrichten bleiben dann aus.
+
+Ein Anruf klingelt auch bei „Nur Anrufe" – aber nicht, wenn genau diese
+Unterhaltung stummgeschaltet ist. Stummschaltung gilt immer nur für dich.
+
+Alle Töne werden erzeugt, keiner wird geladen: Das hält das Add-on klein und
+klingt überall gleich.
+
 ## Anrufe, Videoanrufe und Gruppenrunden
 
 Oben in der Unterhaltung stehen 📞 und 🎥. Ein Tipp startet den Anruf.
@@ -315,10 +332,15 @@ zu ihrer Unterhaltung, samt Stimmen und Zusagen.
 
 ## Sprachnachrichten
 
-Rechts im Eingabefeld steht 🎤. Ein Tipp startet die Aufnahme, ein zweiter
-beendet sie und schickt sie ab. Während der Aufnahme laufen darüber die
-Sekunden mit; **Verwerfen** wirft sie weg, ohne etwas zu senden. Nach einer
+Rechts im Eingabefeld steht 🎤. **Gedrückt halten** nimmt auf, **Loslassen**
+schickt ab – so wie bei WhatsApp. Ein kurzer Ton sagt dir, dass die Aufnahme
+läuft, ein zweiter, dass sie abgeschickt ist. Während der Aufnahme laufen
+darüber die Sekunden mit; **Verwerfen** wirft sie weg. Nach einer
 Viertelstunde endet sie von selbst.
+
+Ein Tipp unter einer halben Sekunde gilt als Verrutscher und sendet nichts.
+Wer schon loslässt, bevor das Mikrofon bereit ist, bekommt ebenfalls keine
+Aufnahme – die wird dann gar nicht erst begonnen.
 
 In der Unterhaltung erscheint ein schmaler Abspieler mit Knopf, Fortschritt
 und Länge – nicht das breite Standardfeld des Browsers, das in jedem Browser

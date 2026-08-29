@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS users (
     geburtstag TEXT,
     zustimmung_at INTEGER,
     karten_kacheln INTEGER NOT NULL DEFAULT 1,
+    ton_stufe TEXT,
     created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS rooms (
@@ -147,6 +148,7 @@ CREATE TABLE IF NOT EXISTS room_members (
     last_read INTEGER NOT NULL DEFAULT 0,
     color TEXT,
     hintergrund TEXT,
+    stumm_bis INTEGER,
     PRIMARY KEY (room_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS messages (
@@ -354,6 +356,8 @@ def migrate(conn):
     for spalte in ("email", "phone", "note", "avatar", "geburtstag"):
         if spalte not in cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN {spalte} TEXT")
+    if "ton_stufe" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN ton_stufe TEXT")
     if "karten_kacheln" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN karten_kacheln"
                      " INTEGER NOT NULL DEFAULT 1")
@@ -363,6 +367,8 @@ def migrate(conn):
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(room_members)")}
     if "color" not in cols:
         conn.execute("ALTER TABLE room_members ADD COLUMN color TEXT")
+    if "stumm_bis" not in cols:
+        conn.execute("ALTER TABLE room_members ADD COLUMN stumm_bis INTEGER")
     if "hintergrund" not in cols:
         conn.execute("ALTER TABLE room_members ADD COLUMN hintergrund TEXT")
     else:
@@ -627,7 +633,7 @@ def room_payload(room, uid, conn=None):
         " WHERE m.room_id=? ORDER BY m.id DESC LIMIT 1",
         (room["id"],)).fetchone()
     eigenes = conn.execute(
-        "SELECT last_read, hintergrund FROM room_members"
+        "SELECT last_read, hintergrund, stumm_bis FROM room_members"
         " WHERE room_id=? AND user_id=?",
         (room["id"], uid)).fetchone()
     unread = conn.execute(
@@ -641,6 +647,7 @@ def room_payload(room, uid, conn=None):
         "is_group": bool(room["is_group"]),
         "avatar": room["avatar"],
         "hintergrund": eigenes["hintergrund"] if eigenes else None,
+        "stumm_bis": eigenes["stumm_bis"] if eigenes else None,
         "members": [dict(m) for m in members],
         "online": online,
         "unread": unread,
@@ -1192,7 +1199,8 @@ def api_state():
         "me": {"id": uid, "name": me["display_name"],
                "is_admin": bool(me["is_admin"]), "avatar": me["avatar"],
                "kacheln": bool(me["karten_kacheln"]),
-               "geburtstag": me["geburtstag"]},
+               "geburtstag": me["geburtstag"],
+               "ton_stufe": me["ton_stufe"] or "alle"},
         "rooms": payload,
         "users": [dict(u) for u in users],
         "online": online,
@@ -2161,6 +2169,85 @@ def api_tipp_loeschen(tipp_id):
     for ziel in mein_kreis(uid, conn):
         socketio.emit("tipps_geaendert", {}, to=f"user:{ziel}")
     return jsonify({"ok": True})
+
+
+# --------------------------------------------------------------------------
+# Toene und Stummschaltung
+# --------------------------------------------------------------------------
+# Die Einstellung haengt am Konto, nicht am Geraet: wer eine Gruppe
+# stummschaltet, will das ueberall - nicht nur auf dem Telefon, mit dem er
+# gerade zufaellig angemeldet ist.
+TON_STUFEN = ("alle", "nur_anrufe", "aus")
+
+
+@app.get("/api/toene")
+@login_required
+def api_toene():
+    """Die allgemeine Einstellung und alles, was davon abweicht."""
+    uid = session["uid"]
+    conn = db()
+    me = conn.execute("SELECT ton_stufe FROM users WHERE id=?", (uid,)).fetchone()
+    stumm = conn.execute(
+        "SELECT room_id, stumm_bis FROM room_members"
+        " WHERE user_id=? AND stumm_bis IS NOT NULL", (uid,)).fetchall()
+    jetzt = int(time.time())
+    return jsonify({
+        "stufe": (me["ton_stufe"] if me and me["ton_stufe"] else "alle"),
+        "stumm": {str(r["room_id"]): r["stumm_bis"] for r in stumm
+                  if r["stumm_bis"] == 0 or r["stumm_bis"] > jetzt},
+    })
+
+
+@app.post("/api/toene")
+@login_required
+def api_set_toene():
+    """Wie laut es allgemein sein soll."""
+    stufe = (request.get_json(force=True).get("stufe") or "").strip().lower()
+    if stufe not in TON_STUFEN:
+        return jsonify({"error": "Diese Einstellung gibt es nicht."}), 400
+    conn = db()
+    conn.execute("UPDATE users SET ton_stufe=? WHERE id=?", (stufe, session["uid"]))
+    conn.commit()
+    return jsonify({"ok": True, "stufe": stufe})
+
+
+@app.post("/api/rooms/<int:room_id>/stumm")
+@login_required
+def api_stumm(room_id):
+    """Eine Unterhaltung stummschalten - fuer Stunden oder auf Dauer.
+
+    stunden=0 heisst "bis ich es wieder aufhebe"; ohne Angabe wird die
+    Stummschaltung beendet.
+    """
+    uid = session["uid"]
+    if not is_member(room_id, uid):
+        abort(403)
+    data = request.get_json(force=True)
+    if data.get("stunden") is None:
+        bis = None
+    else:
+        try:
+            stunden = int(data.get("stunden"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Die Dauer ist unbrauchbar."}), 400
+        # 0 steht fuer "ohne Ende" - so muss niemand eine Jahreszahl raten
+        bis = 0 if stunden <= 0 else int(time.time()) + min(stunden, 8760) * 3600
+    conn = db()
+    conn.execute("UPDATE room_members SET stumm_bis=? WHERE room_id=? AND user_id=?",
+                 (bis, room_id, uid))
+    conn.commit()
+    return jsonify({"ok": True, "stumm_bis": bis})
+
+
+def ist_stumm(room_id, uid, conn=None):
+    """Soll diese Person fuer diese Unterhaltung nichts hoeren?"""
+    conn = conn or db()
+    row = conn.execute(
+        "SELECT stumm_bis FROM room_members WHERE room_id=? AND user_id=?",
+        (room_id, uid)).fetchone()
+    if row is None or row["stumm_bis"] is None:
+        return False
+    return row["stumm_bis"] == 0 or row["stumm_bis"] > int(time.time())
 
 
 # --------------------------------------------------------------------------
@@ -3571,12 +3658,18 @@ def on_send(data):
     room = conn.execute("SELECT * FROM rooms WHERE id=?", (room_id,)).fetchone()
     members = [r["user_id"] for r in conn.execute(
         "SELECT user_id FROM room_members WHERE room_id=?", (room_id,)).fetchall()]
+    # Wer die Unterhaltung stummgeschaltet hat, bekommt keine Meldung. Das
+    # muss hier stehen, solange die Verbindung noch offen ist.
+    stumme = {r["user_id"] for r in conn.execute(
+        "SELECT user_id FROM room_members WHERE room_id=? AND stumm_bis IS NOT NULL"
+        " AND (stumm_bis=0 OR stumm_bis>?)", (room_id, now)).fetchall()}
     conn.close()
 
     socketio.emit("message", payload, to=f"room:{room_id}")
 
     with ONLINE_LOCK:
         offline = [m for m in members if m != uid and m not in ONLINE]
+    offline = [m for m in offline if m not in stumme]
     title = room["name"] if room["is_group"] else payload["author"]
     if room["is_group"]:
         text = f"{payload['author']}: {body or 'Datei'}"

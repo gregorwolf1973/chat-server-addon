@@ -28,8 +28,8 @@ kill %1
 
 Danach dasselbe für `tests/test_users.py`, `tests/test_media.py`,
 `tests/test_register.py`, `tests/test_avatars.py`, `tests/test_notify.py`,
-`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py`, `tests/test_anrufe.py`, `tests/test_freunde.py`, `tests/test_tipps.py` und
-`tests/test_geburtstage.py`.
+`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py`, `tests/test_anrufe.py`, `tests/test_freunde.py`, `tests/test_tipps.py`, `tests/test_geburtstage.py` und
+`tests/test_toene.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
 
@@ -99,6 +99,13 @@ das durch Altbestände fehl.
 * Die Liste zeigt nur den eigenen Kreis, nennt den nächsten Termin und das
   Alter, das erreicht wird.
 * Der 29. Februar fällt in Jahren ohne Schalttag auf den 1. März.
+
+`test_toene.py` (22 Prüfungen)
+
+* Die allgemeine Tonstufe: lesen, ändern, Unfug abweisen – und sie gehört
+  der Person, nicht dem Gerät.
+* Stummschalten für Stunden oder ohne Ende, wieder aufheben, und in fremden
+  Unterhaltungen geht es nicht.
 
 `test_polls.py` (22 Prüfungen)
 
