@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS messages (
     reply_to INTEGER,
     deleted INTEGER NOT NULL DEFAULT 0,
     album TEXT,
+    weitergeleitet INTEGER NOT NULL DEFAULT 0,
     poll_id INTEGER,
     event_id INTEGER,
     sprachdauer INTEGER,
@@ -329,6 +330,9 @@ def migrate(conn):
         conn.execute("ALTER TABLE messages ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
     if "album" not in cols:
         conn.execute("ALTER TABLE messages ADD COLUMN album TEXT")
+    if "weitergeleitet" not in cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN weitergeleitet"
+                     " INTEGER NOT NULL DEFAULT 0")
     for spalte in ("lat", "lon"):
         if spalte not in cols:
             conn.execute(f"ALTER TABLE messages ADD COLUMN {spalte} REAL")
@@ -685,6 +689,7 @@ def msg_payload(row):
         "user_id": row["user_id"],
         "author": row["display_name"],
         "album": row["album"],
+        "weitergeleitet": bool(row["weitergeleitet"]),
         "sprachdauer": row["sprachdauer"],
         "ort": ({"lat": row["lat"], "lon": row["lon"]}
                 if row["lat"] is not None and row["lon"] is not None else None),
@@ -2515,11 +2520,11 @@ def api_list_events():
     """Was ansteht - aus allen meinen Unterhaltungen, naechster zuerst.
 
     Ein Termin rutscht im Verlauf nach oben und ist dann weg; die Liste holt
-    ihn zurueck. Zwoelf Stunden nach Beginn faellt er heraus: die laufende
-    Feier soll noch zu sehen sein, die von vorletzter Woche nicht mehr.
+    ihn zurueck. Ist der Zeitpunkt vorbei, faellt er heraus - die Liste soll
+    zeigen, was noch kommt, nicht was war.
     """
     uid = session["uid"]
-    grenze = int(time.time()) - 12 * 3600
+    grenze = int(time.time())
     rows = db().execute(
         "SELECT id FROM events WHERE room_id IN"
         "   (SELECT room_id FROM room_members WHERE user_id=?)"
@@ -3031,6 +3036,65 @@ def api_push_subscribe():
     except (KeyError, sqlite3.Error) as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"ok": True})
+
+
+@app.post("/api/messages/<int:msg_id>/weiterleiten")
+@login_required
+def api_weiterleiten(msg_id):
+    """Eine Nachricht in eine andere Unterhaltung schicken.
+
+    Warum ein eigener Weg und nicht einfach neu senden: der Anhang gehoert
+    dem urspruenglichen Absender. Beim normalen Senden weist der Server eine
+    fremde Datei ab - und das soll er auch. Hier wird stattdessen geprueft,
+    dass ich die Nachricht ueberhaupt sehen darf, und die Datei danach
+    unveraendert mitgenommen.
+    """
+    uid = session["uid"]
+    conn = db()
+    quelle = conn.execute(
+        "SELECT m.*, u.display_name FROM messages m"
+        " JOIN users u ON u.id=m.user_id WHERE m.id=?", (msg_id,)).fetchone()
+    if quelle is None or not is_member(quelle["room_id"], uid):
+        abort(403)
+    if quelle["deleted"]:
+        return jsonify({"error": "Diese Nachricht wurde geloescht."}), 400
+    if quelle["poll_id"] or quelle["event_id"]:
+        return jsonify({"error": "Abstimmungen und Einladungen lassen sich"
+                                 " nicht weiterleiten."}), 400
+
+    try:
+        ziel = int(request.get_json(force=True).get("room_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Es fehlt die Unterhaltung."}), 400
+    if not is_member(ziel, uid):
+        abort(403)
+    if ziel == quelle["room_id"]:
+        return jsonify({"error": "Die Nachricht steht dort schon."}), 400
+
+    now = int(time.time())
+    cur = conn.execute(
+        "INSERT INTO messages (room_id, user_id, body, file_id, lat, lon,"
+        " sprachdauer, weitergeleitet, created_at) VALUES (?,?,?,?,?,?,?,1,?)",
+        (ziel, uid, quelle["body"], quelle["file_id"], quelle["lat"],
+         quelle["lon"], quelle["sprachdauer"], now))
+    neue_id = cur.lastrowid
+    conn.execute("UPDATE room_members SET last_read=? WHERE room_id=? AND user_id=?",
+                 (neue_id, ziel, uid))
+    conn.commit()
+
+    row = conn.execute(MSG_QUERY + " WHERE m.id=?", (neue_id,)).fetchone()
+    nutzlast = msg_payload(row)
+    socketio.emit("message", nutzlast, to=f"room:{ziel}")
+    mitglieder = [r["user_id"] for r in conn.execute(
+        "SELECT user_id FROM room_members WHERE room_id=?", (ziel,)).fetchall()]
+    with ONLINE_LOCK:
+        abwesend = [m for m in mitglieder if m != uid and m not in ONLINE]
+    url = f"{EXTERNAL_URL}/?room={ziel}" if EXTERNAL_URL else f"?room={ziel}"
+    push_to_users(abwesend, "Weitergeleitet",
+                  (quelle["body"] or "Datei")[:180], url)
+    log.info("Nutzer %s hat Nachricht %s nach Raum %s weitergeleitet",
+             uid, msg_id, ziel)
+    return jsonify({"ok": True, "id": neue_id})
 
 
 @app.delete("/api/messages/<int:msg_id>")

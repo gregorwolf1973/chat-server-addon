@@ -300,6 +300,19 @@ brauchbaren kostenlosen gibt es nicht; er muss selbst betrieben werden
 Mikrofon und Kamera gibt der Browser – wie den Standort – nur in einem
 sicheren Kontext frei: über HTTPS, also deine externe Adresse.
 
+## Nachrichten weiterleiten
+
+Ein Tipp auf eine Sprechblase zeigt **Weiterleiten**. Danach wählst du die
+Zielunterhaltung; die Nachricht erscheint dort mit dem Hinweis
+*↪ Weitergeleitet*.
+
+Der Anhang wird nicht kopiert, sondern derselbe bleibt bestehen – er belegt
+also keinen zusätzlichen Platz. Sichtbar wird er dadurch für die Mitglieder
+der Zielunterhaltung, was ja der Zweck ist.
+
+Abstimmungen und Einladungen lassen sich **nicht** weiterleiten: Sie gehören
+zu ihrer Unterhaltung, samt Stimmen und Zusagen.
+
 ## Sprachnachrichten
 
 Rechts im Eingabefeld steht 🎤. Ein Tipp startet die Aufnahme, ein zweiter
@@ -387,9 +400,8 @@ Im Abschnitt **Termine** der Seitenleiste stehen alle anstehenden Termine aus
 allen Unterhaltungen, der nächste zuerst. Darüber lässt sich einschränken:
 **Alle**, **Zugesagt** (wo du „Bin dabei“ bist) und **Offen** (was noch auf
 deine Antwort wartet). Jeder Knopf trägt seine Anzahl. Das ist nötig, weil eine Einladung
-im Verlauf sonst nach oben rutscht und aus dem Blick gerät. Zwölf Stunden
-nach Beginn fällt ein Termin aus der Liste – die laufende Feier ist noch zu
-sehen, die von vorletzter Woche nicht mehr.
+im Verlauf sonst nach oben rutscht und aus dem Blick gerät. Ist der Zeitpunkt vorbei,
+fällt ein Termin heraus – die Liste zeigt, was noch kommt, nicht was war.
 
 Wer die Unterhaltung gerade nicht offen hat, bekommt eine Benachrichtigung
 über die Einladung.

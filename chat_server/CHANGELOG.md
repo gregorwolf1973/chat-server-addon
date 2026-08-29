@@ -1,5 +1,15 @@
 # Änderungsverlauf
 
+## 0.31.0
+
+- **Abgelaufene Termine verschwinden.** Bisher blieben sie zwoelf Stunden
+  nach Beginn stehen; jetzt zeigt die Liste nur noch, was kommt
+- **Nachrichten weiterleiten** an eine andere Person oder Gruppe, mit dem
+  Hinweis *Weitergeleitet*. Abstimmungen und Einladungen nicht - sie gehoeren
+  zu ihrer Unterhaltung
+- Von einem Termin oder einer Empfehlung, die man **auf der Live-Karte**
+  geoeffnet hat, geht es mit *Zur Karte* wieder zurueck
+
 ## 0.30.0
 
 - **Geburtstag** bei der Registrierung (freiwillig) und nachtraeglich in den

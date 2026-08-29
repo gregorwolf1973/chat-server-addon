@@ -294,6 +294,9 @@
       return;
     }
 
+    if (m.weitergeleitet) {
+      inner += '<div class="weitergeleitet">↪ Weitergeleitet</div>';
+    }
     if (m.reply) {
       inner += `<div class="quote" data-target="${m.reply.id}">`
         + `<span class="q-author">${esc(m.reply.author)}</span>`
@@ -317,6 +320,8 @@
     inner += `<div class="inhalt"><span class="text">${esc(m.body)}</span>`
       + `<span class="meta">${timeOf(m.at)}</span></div>`
       + `<div class="actions"><button class="act" data-act="reply">Antworten</button>`
+      + (m.poll || m.event ? ""
+         : '<button class="act" data-act="weiter">Weiterleiten</button>')
       + (canDelete ? '<button class="act del" data-act="delete">Löschen</button>' : "")
       + `</div>`;
     blase.innerHTML = inner;
@@ -342,6 +347,7 @@
       const msg = act.closest(".msg");
       const id = parseInt(msg.dataset.id, 10);
       if (act.dataset.act === "reply") startReply(id, msg);
+      else if (act.dataset.act === "weiter") weiterleitenDialog(id);
       else deleteMessage(id);
       msg.classList.remove("open");
       return;
@@ -354,6 +360,32 @@
       if (!wasOpen) msg.classList.add("open");
     }
   });
+
+  function weiterleitenDialog(msgId) {
+    const ziele = (state.rooms || []).filter((r) => r.id !== currentRoom);
+    if (!ziele.length) {
+      toast("Es gibt keine andere Unterhaltung.");
+      return;
+    }
+    const root = modal(`<h2>Weiterleiten an</h2>
+      <div class="wl-liste">${ziele.map((r) => `<div class="pick" data-id="${r.id}">
+        ${raumAvatar(r)}<span>${esc(r.name)}</span></div>`).join("")}</div>
+      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button></div>`);
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelectorAll(".pick").forEach((el) =>
+      el.addEventListener("click", async () => {
+        const ziel = parseInt(el.dataset.id, 10);
+        const res = await api(`/api/messages/${msgId}/weiterleiten`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({room_id: ziel}),
+        });
+        const daten = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+        closeModal();
+        const raum = roomById(ziel);
+        toast(`Weitergeleitet an ${raum ? raum.name : "die Unterhaltung"}.`);
+      }));
+  }
 
   function startReply(id, msgEl) {
     const author = msgEl.querySelector(".author")?.textContent
@@ -899,9 +931,9 @@
     const marken = punkte.map((p) => {
       const marke = L.marker([p.lat, p.lon], {icon: nadelSymbol(p)}).addTo(karte);
       if (p.event_id) {
-        marke.on("click", () => terminAnsicht(p.event_id));
+        marke.on("click", () => terminAnsicht(p.event_id, kartenAnsicht));
       } else if (p.tipp_id) {
-        marke.on("click", () => tippAnsicht(p.tipp_id));
+        marke.on("click", () => tippAnsicht(p.tipp_id, kartenAnsicht));
       }
       return marke;
     });
@@ -1227,7 +1259,7 @@
     behaelter.querySelectorAll("[data-tipp]").forEach((z) =>
       z.addEventListener("click", (e) => {
         if (e.target.closest("a")) return;
-        tippAnsicht(parseInt(z.dataset.tipp, 10));
+        tippAnsicht(parseInt(z.dataset.tipp, 10), kartenAnsicht);
       }));
     const weg = behaelter.querySelector("#kf-weg");
     if (weg) weg.addEventListener("click", () => {
@@ -1240,7 +1272,7 @@
     behaelter.querySelectorAll("[data-termin]").forEach((z) =>
       z.addEventListener("click", (e) => {
         if (e.target.closest("a")) return;
-        terminAnsicht(parseInt(z.dataset.termin, 10));
+        terminAnsicht(parseInt(z.dataset.termin, 10), kartenAnsicht);
       }));
   }
 
@@ -1915,7 +1947,7 @@
     </div>`;
   }
 
-  async function terminAnsicht(eventId) {
+  async function terminAnsicht(eventId, zurueck) {
     const res = await api(`/api/events/${eventId}`);
     if (!res.ok) { toast("Der Termin ist nicht mehr da."); return; }
     const ev = await res.json();
@@ -1923,7 +1955,9 @@
       <span style="flex:1"></span>
       <button class="icon-btn" id="m-cancel">✕</button></div>
       ${eventHtml(ev)}
-      <div class="row"><button class="btn ghost" id="ev-zum-chat">Zur Unterhaltung</button></div>`);
+      <div class="row">${zurueck
+        ? '<button class="btn ghost" id="ev-zurueck">← Zur Karte</button>' : ""}
+      <button class="btn ghost" id="ev-zum-chat">Zur Unterhaltung</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     // In der ganzseitigen Ansicht lohnt die echte Karte - in der Sprechblase
     // bleibt es bei den Umrissen.
@@ -1935,6 +1969,8 @@
       karteZeichnen(flaeche, [{lat: ev.ort.lat, lon: ev.ort.lon,
                                name: ev.ort_text || ev.titel}]);
     }
+    const zurueckKnopf = root.querySelector("#ev-zurueck");
+    if (zurueckKnopf) zurueckKnopf.addEventListener("click", () => zurueck());
     root.querySelector("#ev-zum-chat").addEventListener("click", () => {
       closeModal();
       openRoom(ev.room_id);
@@ -2189,7 +2225,7 @@
   }
 
   /** Ein Tipp in ganzer Groesse - mit Strassenkarte, wenn ein Ort dranhaengt. */
-  async function tippAnsicht(tippId) {
+  async function tippAnsicht(tippId, zurueck) {
     const t = (state.tipps || []).find((x) => x.id === tippId);
     if (!t) { toast("Diese Empfehlung ist nicht mehr da."); return; }
     const osm = t.ort
@@ -2215,6 +2251,7 @@
                                        : `${t.gemerkt.length} haben es sich gemerkt`}</span>
         </div>` : ""}
       <div class="row">
+        ${zurueck ? '<button class="btn ghost" id="tp-zurueck">← Zur Karte</button>' : ""}
         <button class="btn ghost" id="tp-a-merken">${
           t.ich_merke ? "Nicht mehr merken" : "Merken"}</button>
         ${osm ? `<a class="btn ghost" id="tp-a-osm" target="_blank"
@@ -2229,6 +2266,8 @@
                     [{lat: t.ort.lat, lon: t.ort.lon,
                       name: t.ort_text || t.titel, art: "tipp"}]);
     }
+    const tippZurueck = root.querySelector("#tp-zurueck");
+    if (tippZurueck) tippZurueck.addEventListener("click", () => zurueck());
     root.querySelector("#tp-a-merken").addEventListener("click", async () => {
       const res = await api(`/api/tipps/${t.id}/merken`, {method: "POST"});
       if (!res.ok) { toast("Das ging nicht."); return; }

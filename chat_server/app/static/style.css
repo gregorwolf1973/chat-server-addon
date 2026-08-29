@@ -1894,3 +1894,13 @@ audio.abspieler { width: min(260px, 100%); }
 /* Geburtstage in der Terminliste */
 .termin-zeile.geburtstag .tz-datum { color: #e58fd0; }
 .termin-zeile.geburtstag .tz-titel { font-weight: 600; }
+
+/* Weitergeleitete Nachrichten und die Zielauswahl */
+.weitergeleitet {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  margin-bottom: 3px;
+}
+.wl-liste { max-height: 46vh; overflow-y: auto; }
+.wl-liste .pick { gap: 10px; }

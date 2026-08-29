@@ -33,6 +33,7 @@ def main():
     anna, _ = anmelden("anna", "start123")
     anna_id = eigene_id(anna)
     bert, _ = anmelden("bert", "start123")
+    bert_id = eigene_id(bert)
 
     raum_anna = anna.post(f"{BASE}/api/rooms",
                           json={"is_group": False, "members": [admin_id]}).json()["id"]
@@ -201,6 +202,37 @@ def main():
     e.pruefe(antwort and antwort.get("ok"), "unsinnige Werte kippen den Text nicht")
     letzte = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
     e.pruefe(letzte["ort"] is None, "werden aber verworfen")
+
+    e.abschnitt("Nachrichten weiterleiten")
+    quelle = hochladen(anna, "weiter.png", PNG, "image/png").json()
+    senden_mit_antwort(anna, raum_anna, "Schau mal", datei=quelle["id"])
+    msg = anna.get(f"{BASE}/api/rooms/{raum_anna}/messages").json()[-1]
+    eigener = anna.post(f"{BASE}/api/rooms",
+                        json={"is_group": False, "members": [bert_id]}).json()["id"]
+
+    r = anna.post(f"{BASE}/api/messages/{msg['id']}/weiterleiten",
+                  json={"room_id": eigener})
+    e.pruefe(r.status_code == 200, f"die Nachricht geht weiter = {r.status_code}")
+    ziel = anna.get(f"{BASE}/api/rooms/{eigener}/messages").json()[-1]
+    e.pruefe(ziel["body"] == "Schau mal", "der Text kommt mit")
+    e.pruefe(ziel["file"] and ziel["file"]["id"] == quelle["id"],
+             "der Anhang auch - und zwar derselbe, nicht eine Kopie")
+    e.pruefe(ziel["weitergeleitet"] is True, "sie ist als weitergeleitet vermerkt")
+    e.pruefe(bert.get(f"{BASE}/files/{quelle['id']}").status_code == 200,
+             "Bert sieht das Bild jetzt, weil es in seiner Unterhaltung haengt")
+
+    e.pruefe(anna.post(f"{BASE}/api/messages/{msg['id']}/weiterleiten",
+                       json={"room_id": raum_anna}).status_code == 400,
+             "in dieselbe Unterhaltung geht es nicht")
+    e.pruefe(anna.post(f"{BASE}/api/messages/{msg['id']}/weiterleiten",
+                       json={"room_id": raum_bert}).status_code == 403,
+             "in eine fremde auch nicht")
+    e.pruefe(bert.post(f"{BASE}/api/messages/{msg['id']}/weiterleiten",
+                       json={"room_id": raum_bert}).status_code == 403,
+             "und eine fremde Nachricht kann man nicht weiterleiten")
+    e.pruefe(anna.post(f"{BASE}/api/messages/999999/weiterleiten",
+                       json={"room_id": eigener}).status_code == 403,
+             "eine unbekannte ebenso wenig")
 
     e.abschnitt("Hintergrundmuster einer Unterhaltung")
     def muster(sitzung, raum, wert):
