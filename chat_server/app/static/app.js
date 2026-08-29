@@ -1017,10 +1017,27 @@
     const root = modal(`<h2>Standort teilen</h2>
       <p class="hint">Nur die Mitglieder der gewählten Unterhaltung sehen dich –
         und nur, solange die Freigabe läuft.</p>
-      <div class="field"><label for="live-raum">Unterhaltung</label>
+      <div class="field"><label>Wer soll dich sehen?</label>
+        <div class="kf-zeile" id="live-art">
+          <button class="mini-btn an" type="button" data-art="raum">Eine Unterhaltung</button>
+          <button class="mini-btn" type="button" data-art="freunde">Alle Freunde</button>
+          <button class="mini-btn" type="button" data-art="umkreis">In der Nähe</button>
+        </div></div>
+      <div class="field" id="live-raum-feld"><label for="live-raum">Unterhaltung</label>
         <select id="live-raum">${gruppen.map((r) =>
           `<option value="${r.id}" ${r.id === currentRoom ? "selected" : ""}>${
             esc(r.name)}</option>`).join("")}</select></div>
+      <div class="field" id="live-umkreis-feld" hidden>
+        <label for="live-umkreis">Umkreis</label>
+        <select id="live-umkreis">
+          <option value="1">1 km</option>
+          <option value="5" selected>5 km</option>
+          <option value="10">10 km</option>
+          <option value="25">25 km</option>
+        </select>
+        <p class="hint">Sichtbar für alle, die selbst gerade ihren Standort
+          teilen und so nah sind. Mehr als 25 km sind nicht möglich.</p>
+      </div>
       <div class="field"><label for="live-dauer">Dauer</label>
         <select id="live-dauer">
           <option value="15">15 Minuten</option>
@@ -1034,6 +1051,15 @@
       <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
       <button class="btn" id="live-ok">Teilen</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    let liveArt = "raum";
+    root.querySelectorAll("#live-art [data-art]").forEach((b) =>
+      b.addEventListener("click", () => {
+        liveArt = b.dataset.art;
+        root.querySelectorAll("#live-art [data-art]").forEach((x) =>
+          x.classList.toggle("an", x === b));
+        root.querySelector("#live-raum-feld").hidden = liveArt !== "raum";
+        root.querySelector("#live-umkreis-feld").hidden = liveArt !== "umkreis";
+      }));
     const stopp = root.querySelector("#live-stopp");
     if (stopp) stopp.addEventListener("click", () => liveBeenden());
     root.querySelector("#live-ok").addEventListener("click", async () => {
@@ -1045,7 +1071,9 @@
         const res = await api("/api/live", {
           method: "POST", headers: {"Content-Type": "application/json"},
           body: JSON.stringify(Object.assign({
+            art: liveArt,
             room_id: parseInt(root.querySelector("#live-raum").value, 10),
+            umkreis_km: parseInt(root.querySelector("#live-umkreis").value, 10),
             minuten: parseInt(root.querySelector("#live-dauer").value, 10),
           }, ort)),
         });

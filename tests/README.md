@@ -107,6 +107,15 @@ das durch Altbestände fehl.
 * Stummschalten für Stunden oder ohne Ende, wieder aufheben, und in fremden
   Unterhaltungen geht es nicht.
 
+`test_aufraeumen.py` (17 Prüfungen) – **braucht `RETENTION_DAYS=1`**
+
+* Altes verschwindet mitsamt Anhang, Junges bleibt.
+* Ein Anhang, an dem noch eine andere Nachricht hängt, bleibt liegen.
+* Aufräumen darf nur der Administrator.
+
+Diese Reihe datiert Nachrichten direkt in der Datenbank zurück – über die
+Schnittstelle lässt sich kein Datum von gestern erzeugen.
+
 `test_polls.py` (22 Prüfungen)
 
 * Abstimmung anlegen, mit den Fehlerfällen und fremden Unterhaltungen.

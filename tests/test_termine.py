@@ -199,6 +199,59 @@ def lauf():
     e.pruefe(len(anna.get(f"{BASE}/api/live").json()) == 0,
              "und ist sofort verschwunden")
 
+    e.abschnitt("Freigabe an alle Freunde")
+    # Bodo ist in keiner gemeinsamen Gruppe - ueber die Freundschaft sieht er
+    # den Standort trotzdem.
+    admin.delete(f"{BASE}/api/live", json={})
+    r = admin.post(f"{BASE}/api/live", json={
+        "art": "freunde", "lat": 49.0, "lon": 8.4, "minuten": 30})
+    e.pruefe(r.status_code == 200 and r.json()["art"] == "freunde",
+             f"die Freigabe an Freunde geht = {r.status_code}")
+    e.pruefe(len(bodo.get(f"{BASE}/api/live").json()) == 0,
+             "ohne Freundschaft sieht Bodo nichts")
+    admin.post(f"{BASE}/api/freunde/{bodo_id}")
+    bodo.post(f"{BASE}/api/freunde/{admin_id}")
+    sicht = bodo.get(f"{BASE}/api/live").json()
+    e.pruefe(len(sicht) == 1, f"als Freund schon = {len(sicht)}")
+    e.pruefe(sicht and sicht[0]["raum"] == "Freunde",
+             f"und sieht, worauf die Freigabe beruht = {sicht[0]['raum']}")
+
+    e.abschnitt("Freigabe im Umkreis")
+    admin.delete(f"{BASE}/api/live", json={})
+    r = admin.post(f"{BASE}/api/live", json={
+        "art": "umkreis", "umkreis_km": 5, "lat": 49.0135, "lon": 8.4044,
+        "minuten": 30})
+    e.pruefe(r.status_code == 200 and r.json()["umkreis_km"] == 5,
+             f"die Umkreisfreigabe geht = {r.json()}")
+    e.pruefe(len(bodo.get(f"{BASE}/api/live").json()) == 0,
+             "wer selbst nichts teilt, sieht sie nicht - sonst wuesste der"
+             " Server ja nicht, wo er ist")
+
+    # Bodo teilt nun selbst, aber weit weg (Muenchen)
+    bodo.post(f"{BASE}/api/live", json={"art": "freunde", "lat": 48.1372,
+                                        "lon": 11.5756, "minuten": 30})
+    fremd = [x for x in bodo.get(f"{BASE}/api/live").json() if not x["ich"]]
+    e.pruefe(len(fremd) == 0, "aus 250 km Entfernung sieht er sie nicht")
+
+    # Und jetzt in der Naehe (zwei Kilometer)
+    bodo.post(f"{BASE}/api/live", json={"art": "freunde", "lat": 49.0300,
+                                        "lon": 8.4100, "minuten": 30})
+    fremd = [x for x in bodo.get(f"{BASE}/api/live").json() if not x["ich"]]
+    e.pruefe(len(fremd) == 1, f"aus zwei Kilometern schon = {len(fremd)}")
+    e.pruefe(fremd and fremd[0]["raum"] == "5 km",
+             f"und sieht den Umkreis = {fremd[0]['raum'] if fremd else None}")
+
+    r = admin.post(f"{BASE}/api/live", json={
+        "art": "umkreis", "umkreis_km": 999, "lat": 49.0135, "lon": 8.4044})
+    e.pruefe(r.json()["umkreis_km"] == 25,
+             f"mehr als 25 km werden gedeckelt = {r.json()['umkreis_km']}")
+    e.pruefe(admin.post(f"{BASE}/api/live", json={
+        "art": "ueberall", "lat": 49.0, "lon": 8.4}).status_code == 400,
+        "eine erfundene Art wird abgewiesen")
+    admin.delete(f"{BASE}/api/live", json={})
+    bodo.delete(f"{BASE}/api/live", json={})
+    admin.delete(f"{BASE}/api/freunde/{bodo_id}")
+
     e.abschnitt("Wer die Gruppe verlaesst, teilt dort nicht weiter")
     anna.post(f"{BASE}/api/live", json={"room_id": raum, "lat": 49.0, "lon": 8.4})
     e.pruefe(len(admin.get(f"{BASE}/api/live").json()) == 1, "Anna teilt")

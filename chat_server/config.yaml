@@ -1,5 +1,5 @@
 name: Chat Server
-version: "0.33.0"
+version: "0.34.0"
 slug: chat_server
 description: Selbstgehosteter Messenger mit Gruppen, Dateiversand und Push-Benachrichtigungen
 url: https://github.com/gregorwolf1973/chat-server-addon
@@ -28,6 +28,7 @@ options:
   api_token: ""
   max_upload_mb: 25
   allow_registration: true
+  retention_days: 0
   stun_server: "stun:stun.l.google.com:19302"
   turn_server: ""
   turn_username: ""
@@ -40,6 +41,7 @@ schema:
   api_token: str?
   max_upload_mb: int(1,200)
   allow_registration: bool
+  retention_days: int(0,3650)
   stun_server: str?
   turn_server: str?
   turn_username: str?

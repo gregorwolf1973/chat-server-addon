@@ -7,6 +7,7 @@ import base64
 import json
 import datetime
 import logging
+import math
 import os
 import secrets
 import sqlite3
@@ -51,6 +52,13 @@ if STUN_SERVER.lower() in ("aus", "off", "none", "-"):
 TURN_SERVER = _opt("TURN_SERVER")
 TURN_BENUTZER = _opt("TURN_USERNAME")
 TURN_PASSWORT = _opt("TURN_PASSWORD")
+# Nachrichten und Anhaenge aelter als so viele Tage werden entfernt. 0 heisst
+# nie - ein Messenger, der ungefragt Erinnerungen wegwirft, waere eine
+# Zumutung.
+try:
+    AUFBEWAHRUNG_TAGE = max(0, int(_opt("RETENTION_DAYS") or 0))
+except ValueError:
+    AUFBEWAHRUNG_TAGE = 0
 
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO),
                     format="%(asctime)s %(levelname)s %(message)s")
@@ -234,6 +242,8 @@ CREATE TABLE IF NOT EXISTS live_orte (
     lon REAL NOT NULL,
     genauigkeit REAL,
     bis_at INTEGER NOT NULL,
+    art TEXT,
+    umkreis_km INTEGER,
     begonnen_at INTEGER,
     updated_at INTEGER NOT NULL,
     UNIQUE (user_id, room_id)
@@ -375,6 +385,10 @@ def migrate(conn):
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(live_orte)")}
     if cols and "begonnen_at" not in cols:
         conn.execute("ALTER TABLE live_orte ADD COLUMN begonnen_at INTEGER")
+    if cols and "art" not in cols:
+        conn.execute("ALTER TABLE live_orte ADD COLUMN art TEXT")
+    if cols and "umkreis_km" not in cols:
+        conn.execute("ALTER TABLE live_orte ADD COLUMN umkreis_km INTEGER")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(rooms)")}
     if "avatar" not in cols:
         conn.execute("ALTER TABLE rooms ADD COLUMN avatar TEXT")
@@ -845,21 +859,70 @@ def mein_kreis(uid, conn=None):
     return {r["user_id"] for r in rows} | meine_freunde(uid, conn)
 
 
+# Wer darf meinen Standort sehen? Bisher immer nur eine Unterhaltung. Jetzt
+# zusaetzlich der ganze Freundeskreis oder alle in einem Umkreis. Die
+# Entfernung wird beim Abrufen gerechnet - so wandert die Freigabe mit, wenn
+# man sich bewegt, und es liegt keine Liste von Personen herum.
+FREIGABE_ARTEN = ("raum", "freunde", "umkreis")
+UMKREIS_MAX_KM = 25
+
+
+def _entfernung_km(a_lat, a_lon, b_lat, b_lon):
+    """Luftlinie in Kilometern (Haversine)."""
+    r = 6371.0
+    p1, p2 = math.radians(a_lat), math.radians(b_lat)
+    dp = math.radians(b_lat - a_lat)
+    dl = math.radians(b_lon - a_lon)
+    x = (math.sin(dp / 2) ** 2
+         + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2)
+    return 2 * r * math.asin(min(1.0, math.sqrt(x)))
+
+
 def live_sichtbar(uid, conn=None):
-    """Laufende Standortfreigaben aus meinen Unterhaltungen."""
+    """Laufende Standortfreigaben, die ich sehen darf.
+
+    Drei Wege dorthin: die Freigabe gilt einer Unterhaltung, in der ich bin;
+    sie gilt allen Freunden und ich bin einer; oder sie gilt einem Umkreis
+    und ich stehe gerade darin. Fuer den Umkreis muss ich selbst einen
+    Standort teilen - sonst weiss der Server nicht, wo ich bin, und das soll
+    er auch nur dann wissen.
+    """
     conn = conn or db()
     jetzt = int(time.time())
     rows = conn.execute(
         "SELECT l.*, u.display_name, u.avatar, r.name AS raumname, r.is_group"
         " FROM live_orte l JOIN users u ON u.id=l.user_id"
-        " JOIN rooms r ON r.id=l.room_id"
-        " WHERE l.bis_at>? AND l.room_id IN"
-        "   (SELECT room_id FROM room_members WHERE user_id=?)"
-        " ORDER BY l.updated_at DESC", (jetzt, uid)).fetchall()
+        " LEFT JOIN rooms r ON r.id=l.room_id"
+        " WHERE l.bis_at>? ORDER BY l.updated_at DESC", (jetzt,)).fetchall()
+    meine_raeume = {r["room_id"] for r in conn.execute(
+        "SELECT room_id FROM room_members WHERE user_id=?", (uid,)).fetchall()}
+    freunde = meine_freunde(uid, conn)
+    # Der eigene Standort - Grundlage fuer die Umkreisfreigaben
+    meiner = next((r for r in rows if r["user_id"] == uid), None)
+
     raus = []
     for r in rows:
+        art = r["art"] or "raum"
+        if r["user_id"] == uid:
+            pass
+        elif art == "raum":
+            if r["room_id"] not in meine_raeume:
+                continue
+        elif art == "freunde":
+            if r["user_id"] not in freunde:
+                continue
+        elif art == "umkreis":
+            if meiner is None:
+                continue
+            weite = _entfernung_km(meiner["lat"], meiner["lon"], r["lat"], r["lon"])
+            if weite > (r["umkreis_km"] or UMKREIS_MAX_KM):
+                continue
+        else:
+            continue
         name = r["raumname"]
-        if not r["is_group"]:
+        if art != "raum":
+            name = "Freunde" if art == "freunde" else f"{r['umkreis_km']} km"
+        elif not r["is_group"]:
             name = "Direkt"
         raus.append({
             "id": r["id"],
@@ -869,6 +932,7 @@ def live_sichtbar(uid, conn=None):
             "avatar": r["avatar"],
             "room_id": r["room_id"],
             "raum": name,
+            "art": art,
             "lat": r["lat"],
             "lon": r["lon"],
             "genauigkeit": r["genauigkeit"],
@@ -2189,6 +2253,82 @@ def api_tipp_loeschen(tipp_id):
 
 
 # --------------------------------------------------------------------------
+# Altes automatisch loeschen
+# --------------------------------------------------------------------------
+# Ein Familienserver sammelt ueber Jahre Gigabyte an Bildern. Wer will, laesst
+# alles aelter als X Tage verschwinden. Voreingestellt ist 0, also nie - ein
+# Messenger, der ungefragt Erinnerungen wegwirft, waere eine Zumutung.
+AUFRAEUM_STUNDEN = 6
+
+
+def alt_aufraeumen(tage=None):
+    """Nachrichten und Anhaenge aelter als X Tage entfernen.
+
+    Gibt zurueck, wie viel weg ist. Termine, Empfehlungen und Konten bleiben
+    unberuehrt - hier geht es nur um den Verlauf.
+    """
+    tage = AUFBEWAHRUNG_TAGE if tage is None else tage
+    if not tage or tage <= 0:
+        return {"nachrichten": 0, "dateien": 0}
+    grenze = int(time.time()) - tage * 86400
+    conn = raw_db()
+    try:
+        dateien = [r["file_id"] for r in conn.execute(
+            "SELECT DISTINCT file_id FROM messages"
+            " WHERE created_at<? AND file_id IS NOT NULL", (grenze,)).fetchall()]
+        weg = conn.execute("SELECT COUNT(*) c FROM messages WHERE created_at<?",
+                           (grenze,)).fetchone()["c"]
+        if not weg:
+            return {"nachrichten": 0, "dateien": 0}
+        conn.execute("DELETE FROM messages WHERE created_at<?", (grenze,))
+        conn.commit()
+        # Erst nach dem Loeschen der Nachrichten: datei_aufraeumen prueft, ob
+        # noch etwas an der Datei haengt, und laesst sie sonst in Ruhe.
+        entfernt = sum(1 for f in dateien if datei_aufraeumen(conn, f))
+        log.info("Aufraeumen: %s Nachrichten und %s Dateien aelter als %s Tage"
+                 " entfernt", weg, entfernt, tage)
+        return {"nachrichten": weg, "dateien": entfernt}
+    finally:
+        conn.close()
+
+
+def aufraeum_schleife():
+    """Alle paar Stunden nachsehen. Ohne eingestellte Frist passiert nichts."""
+    while True:
+        time.sleep(AUFRAEUM_STUNDEN * 3600)
+        try:
+            if AUFBEWAHRUNG_TAGE > 0:
+                alt_aufraeumen()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Aufraeumen fehlgeschlagen: %s", exc)
+
+
+@app.get("/api/aufbewahrung")
+@login_required
+def api_aufbewahrung():
+    """Wie lange Nachrichten bleiben - und was ein Lauf jetzt entfernen wuerde."""
+    conn = db()
+    grenze = int(time.time()) - AUFBEWAHRUNG_TAGE * 86400
+    faellig = 0
+    if AUFBEWAHRUNG_TAGE > 0:
+        faellig = conn.execute("SELECT COUNT(*) c FROM messages WHERE created_at<?",
+                               (grenze,)).fetchone()["c"]
+    return jsonify({"tage": AUFBEWAHRUNG_TAGE, "faellig": faellig})
+
+
+@app.post("/api/aufbewahrung/jetzt")
+@login_required
+@admin_required
+def api_aufbewahrung_jetzt():
+    """Von Hand aufraeumen - damit man nicht Stunden warten muss."""
+    if AUFBEWAHRUNG_TAGE <= 0:
+        return jsonify({"error": "Es ist keine Frist eingestellt."}), 400
+    ergebnis = alt_aufraeumen()
+    socketio.emit("room_changed", {"id": 0})
+    return jsonify(ergebnis)
+
+
+# --------------------------------------------------------------------------
 # Was ist neu?
 # --------------------------------------------------------------------------
 # Die Zahlen an den Reitern sollen zeigen, was seit dem letzten Blick
@@ -2835,12 +2975,25 @@ def api_live_starten():
     """Freigabe starten oder verlaengern."""
     uid = session["uid"]
     data = request.get_json(force=True)
-    try:
-        room_id = int(data.get("room_id"))
-    except (TypeError, ValueError):
-        return jsonify({"error": "Es fehlt die Unterhaltung."}), 400
-    if not is_member(room_id, uid):
-        abort(403)
+    art = (data.get("art") or "raum").strip().lower()
+    if art not in FREIGABE_ARTEN:
+        return jsonify({"error": "Diese Art der Freigabe gibt es nicht."}), 400
+    umkreis = None
+    room_id = 0
+    if art == "raum":
+        try:
+            room_id = int(data.get("room_id"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Es fehlt die Unterhaltung."}), 400
+        if not is_member(room_id, uid):
+            abort(403)
+    elif art == "umkreis":
+        try:
+            umkreis = int(data.get("umkreis_km") or UMKREIS_MAX_KM)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Der Umkreis ist unbrauchbar."}), 400
+        # Mehr als 25 km waere keine Nachbarschaft mehr
+        umkreis = max(1, min(UMKREIS_MAX_KM, umkreis))
     punkt = _koordinaten(data)
     if punkt is None:
         return jsonify({"error": "Der Standort ist unbrauchbar."}), 400
@@ -2855,14 +3008,25 @@ def api_live_starten():
     conn = db()
     conn.execute(
         "INSERT INTO live_orte (user_id, room_id, lat, lon, genauigkeit,"
-        " bis_at, begonnen_at, updated_at) VALUES (?,?,?,?,?,?,?,?)"
+        " bis_at, art, umkreis_km, begonnen_at, updated_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?)"
         " ON CONFLICT(user_id, room_id) DO UPDATE SET lat=excluded.lat,"
         " lon=excluded.lon, genauigkeit=excluded.genauigkeit,"
-        " bis_at=excluded.bis_at, updated_at=excluded.updated_at",
-        (uid, room_id, punkt[0], punkt[1], _genauigkeit(data), bis, now, now))
+        " bis_at=excluded.bis_at, art=excluded.art,"
+        " umkreis_km=excluded.umkreis_km, updated_at=excluded.updated_at",
+        (uid, room_id, punkt[0], punkt[1], _genauigkeit(data), bis, art,
+         umkreis, now, now))
     conn.commit()
-    socketio.emit("live_geaendert", {"room_id": room_id}, to=f"room:{room_id}")
-    return jsonify({"ok": True, "bis_at": bis})
+    if art == "raum":
+        socketio.emit("live_geaendert", {"room_id": room_id}, to=f"room:{room_id}")
+    else:
+        # Eine weite Freigabe geht niemanden ueber einen Raum an - jeder
+        # Betroffene erfaehrt es einzeln.
+        ziele = meine_freunde(uid, conn) if art == "freunde" else set()
+        for ziel in ziele | {uid}:
+            socketio.emit("live_geaendert", {}, to=f"user:{ziel}")
+    return jsonify({"ok": True, "bis_at": bis, "art": art,
+                    "umkreis_km": umkreis})
 
 
 @app.post("/api/live/ping")
@@ -3749,6 +3913,12 @@ def on_send(data):
     # Rueckmeldung an den Absender: ohne sie verschwindet eine abgelehnte
     # Nachricht spurlos, und niemand weiss warum.
     return {"ok": True, "id": msg_id}
+
+
+if AUFBEWAHRUNG_TAGE > 0:
+    log.info("Nachrichten und Anhaenge werden nach %s Tagen entfernt",
+             AUFBEWAHRUNG_TAGE)
+    threading.Thread(target=aufraeum_schleife, daemon=True).start()
 
 
 if __name__ == "__main__":

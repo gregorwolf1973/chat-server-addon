@@ -1,5 +1,15 @@
 # Änderungsverlauf
 
+## 0.34.0
+
+- **Nachrichten und Anhaenge nach x Tagen loeschen**, ueber die neue Option
+  `retention_days`. Voreingestellt 0, also nie. Der Administrator kann den
+  Lauf auch sofort ausloesen
+- **Standort teilen an alle Freunde** oder **an alle in der Naehe** (1 bis
+  25 km), zusaetzlich zur Freigabe an eine Unterhaltung
+- Beim Umkreis sieht einen nur, wer selbst gerade teilt - sonst wuesste der
+  Server nicht, wo die Person ist
+
 ## 0.33.0
 
 - **Die Zahlen an den Reitern zeigen nur noch Neues** - was seit dem letzten

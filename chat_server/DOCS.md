@@ -325,6 +325,21 @@ brauchbaren kostenlosen gibt es nicht; er muss selbst betrieben werden
 Mikrofon und Kamera gibt der Browser – wie den Standort – nur in einem
 sicheren Kontext frei: über HTTPS, also deine externe Adresse.
 
+## Altes automatisch löschen
+
+In den Add-on-Optionen legt `retention_days` fest, nach wie vielen Tagen
+**Nachrichten und Anhänge** verschwinden. Voreingestellt ist **0**, also nie
+– ein Messenger, der ungefragt Erinnerungen wegwirft, wäre eine Zumutung.
+
+Ist eine Frist gesetzt, sieht der Server alle sechs Stunden nach. In den
+Einstellungen steht, wie viele Nachrichten gerade fällig wären, und der
+Administrator kann den Lauf sofort auslösen.
+
+Ein Anhang bleibt, solange noch **irgendeine** Nachricht daran hängt – eine
+weitergeleitete Datei verschwindet also nicht, weil das Original alt wurde.
+Termine, Empfehlungen und Konten bleiben unberührt; es geht nur um den
+Verlauf.
+
 ## Nachrichten weiterleiten
 
 Ein Tipp auf eine Sprechblase zeigt **Weiterleiten**. Danach wählst du die
@@ -442,8 +457,16 @@ Wer die Unterhaltung gerade nicht offen hat, bekommt eine Benachrichtigung
 gewählte Dauer frei: 15 Minuten, 1 Stunde, 3 Stunden oder 8 Stunden. Länger
 als acht Stunden geht nicht, und die Freigabe endet von selbst.
 
-Die Freigabe gehört immer zu **einer Unterhaltung**. Damit ist ohne weiteres
-Zutun klar, wer mitsehen darf: ihre Mitglieder. Wer eine Gruppe verlässt,
+Wer dich sehen darf, wählst du beim Teilen:
+
+* **Eine Unterhaltung** – ihre Mitglieder, wie bisher.
+* **Alle Freunde** – dein bestätigter Freundeskreis, auch ohne gemeinsame
+  Unterhaltung.
+* **In der Nähe** – alle im Umkreis von 1 bis höchstens 25 km. Sehen kann
+  dich dabei nur, wer **selbst gerade seinen Standort teilt**; sonst wüsste
+  der Server ja nicht, wo die Person ist – und das soll er nur dann wissen.
+  Die Entfernung wird bei jedem Abruf neu gerechnet, die Freigabe wandert
+  also mit. Wer eine Gruppe verlässt,
 teilt dort sofort nicht mehr. Über **Beenden** hörst du jederzeit auf.
 
 Solange eine Freigabe läuft, steht sie mit Name, Unterhaltung und Restzeit im
