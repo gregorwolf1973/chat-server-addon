@@ -68,6 +68,18 @@ Das `Bearer ` davor ist die übliche Form; das nackte Token allein wird
 ebenso angenommen. Die Anführungszeichen sind wichtig, wenn das Token
 Sonderzeichen wie `&` enthält.
 
+**Nur im Kopf, nicht in der Adresse.** Ein `?token=…` an der Adresse weist der
+Server ab. Der Zugriffsprotokollant schreibt jede Anfragezeile mit – das Token
+stünde damit im Klartext im Add-on-Log, und Protokolle werden weitergereicht.
+
+**Neues Token:** Unter *Einstellungen → Home Assistant* steht neben *Kopieren*
+der Knopf **Neu**. Er erzeugt ein frisches Token; das alte gilt sofort nicht
+mehr, jede Automation damit schlägt fehl, bis du dort das neue einträgst. Das
+ist der Weg, wenn das alte irgendwo aufgetaucht ist, wo es nicht hingehört –
+in einem Protokollauszug, einem Bildschirmfoto, einer Nachricht. Steht das
+Token in der Add-on-Option `api_token`, gehört es dorthin und der Knopf ist
+ausgeblendet.
+
 In `configuration.yaml` zwei Dienste – einer für den Alltag, einer für
 Dringendes:
 
@@ -999,6 +1011,13 @@ Kennung, die bei jedem Aufruf wechselt. Bilder kommen von hier – einzige
 Ausnahme sind die Kartenkacheln von OpenStreetMap. Sollte je ein fremder Text
 als HTML durchrutschen, kann er damit weder ein Skript starten noch etwas
 nachladen.
+
+**Der Datenstrom** (Socket.IO) nimmt nur Verbindungen an, deren Herkunft zur
+Adresse passt, unter der die Seite läuft. Nötig, weil die Oberfläche unter
+zwei Adressen zugleich erreichbar ist – über den Ingress und über die externe
+Adresse – und keine davon dem Add-on vorher bekannt ist; die übliche
+Einschränkung auf feste Ursprünge scheidet damit aus. `SameSite=Lax` hält
+fremde Seiten ohnehin schon vom Cookie fern, dies ist der zweite Riegel.
 
 **Woher eine Anfrage kommt**, lässt sich nur begrenzt feststellen:
 `X-Forwarded-For` schickt der Client selbst mit und kann dort schreiben, was er

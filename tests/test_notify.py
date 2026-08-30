@@ -33,19 +33,43 @@ def main():
     e.pruefe(requests.get(f"{BASE}/api/token").status_code == 401,
              "ohne Anmeldung erst recht nicht")
 
-    e.abschnitt("Das Token darf auf mehrere Arten kommen")
+    e.abschnitt("Das Token gehoert in den Kopf, nicht in die Adresse")
     e.pruefe(melde(token, room="rosa", message="mit Bearer").status_code == 200,
              "als 'Bearer <token>'")
     r = requests.post(f"{BASE}/api/notify", headers={"Authorization": token},
                       json={"room": "rosa", "message": "ohne Bearer"})
     e.pruefe(r.status_code == 200,
              f"auch nackt ohne 'Bearer ' davor = {r.status_code}")
+    # In der Adresse nicht mehr: der Zugriffsprotokollant schreibt die ganze
+    # Anfragezeile mit, das Token stuende damit im Klartext im Add-on-Log.
     r = requests.post(f"{BASE}/api/notify?token={token}",
                       json={"room": "rosa", "message": "in der Adresse"})
-    e.pruefe(r.status_code == 200, f"und als Parameter in der Adresse = {r.status_code}")
+    e.pruefe(r.status_code == 401,
+             f"in der Adresse wird abgewiesen = {r.status_code}")
+    e.pruefe("Authorization" in r.json().get("error", ""),
+             f"und die Meldung sagt, wohin es gehoert = {r.json()}")
     r = requests.post(f"{BASE}/api/notify", headers={"Authorization": ""},
                       json={"room": "rosa", "message": "leer"})
     e.pruefe(r.status_code == 401, "eine leere Kopfzeile wird abgewiesen")
+
+    e.abschnitt("Ein neues Token erzeugen")
+    admin_s = als_admin()
+    alt_token = admin_s.get(f"{BASE}/api/token").json()["token"]
+    r = admin_s.post(f"{BASE}/api/token/neu")
+    e.pruefe(r.status_code == 200, f"der Administrator kann das = {r.status_code}")
+    neu_token = r.json()["token"]
+    e.pruefe(neu_token != alt_token, "es ist wirklich ein anderes")
+    e.pruefe(len(neu_token) >= 32, f"und lang genug = {len(neu_token)}")
+    e.pruefe(melde(alt_token, room="rosa", message="alt").status_code == 401,
+             "das alte gilt sofort nicht mehr")
+    e.pruefe(melde(neu_token, room="rosa", message="neu").status_code == 200,
+             "das neue schon")
+    e.pruefe(admin_s.get(f"{BASE}/api/token").json()["token"] == neu_token,
+             "und die Oberflaeche zeigt es an")
+    e.pruefe(requests.post(f"{BASE}/api/token/neu",
+                           allow_redirects=False).status_code in (302, 401),
+             "ohne Anmeldung geht es nicht")
+    token = neu_token
 
     e.abschnitt("Nachricht aus Home Assistant")
     e.pruefe(melde("falsch", room="Rosa Rot", message="hallo").status_code == 401,

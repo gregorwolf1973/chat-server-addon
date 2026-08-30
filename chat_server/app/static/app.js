@@ -4925,6 +4925,7 @@
         <div class="token-zeile">
           <input id="ha-token" readonly value="wird geladen …">
           <button class="btn ghost" id="ha-kopieren">Kopieren</button>
+          <button class="btn ghost del" id="ha-neu">Neu</button>
         </div>
         <p class="hint" id="ha-herkunft"></p>` : ""}
       <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button>
@@ -5202,6 +5203,19 @@
       ? "Stammt aus der Add-on-Option api_token."
       : "Wurde beim ersten Start erzeugt und liegt in /data/api_token.txt. "
         + "Du kannst stattdessen die Add-on-Option api_token setzen.";
+    const neuKnopf = root.querySelector("#ha-neu");
+    neuKnopf.hidden = !!daten.aus_option;
+    neuKnopf.addEventListener("click", async () => {
+      if (!confirm("Ein neues Token erzeugen?" + "\n\n"
+            + "Das alte gilt danach nicht mehr. Jede Automation in Home "
+            + "Assistant, die es benutzt, schlägt fehl, bis du dort das neue "
+            + "einträgst.")) return;
+      const res2 = await api("/api/token/neu", {method: "POST"});
+      const d2 = await res2.json().catch(() => ({}));
+      if (!res2.ok) { toast(d2.error || "Das ging nicht."); return; }
+      feld.value = d2.token;
+      toast("Neues Token erzeugt – jetzt in Home Assistant eintragen.");
+    });
     root.querySelector("#ha-kopieren").addEventListener("click", async () => {
       feld.select();
       try {

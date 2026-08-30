@@ -1,5 +1,24 @@
 # Änderungsverlauf
 
+## 0.41.0
+
+**Achtung, eine Änderung, die etwas kaputt machen kann:** Das API-Token wird
+**nicht mehr in der Adresse** angenommen (`?token=…`). Wer es dort benutzt,
+bekommt ab jetzt 401 mit einem Hinweis. Grund: der Zugriffsprotokollant
+schreibt die ganze Anfragezeile mit – das Token stand damit im Klartext im
+Add-on-Log. Die dokumentierte Form über den Kopf `Authorization` ist nicht
+betroffen.
+
+- **Neues Token auf Knopfdruck**: Einstellungen → Home Assistant → *Neu*.
+  Nötig, wenn das alte irgendwo aufgetaucht ist, wo es nicht hingehört. Das
+  alte gilt sofort nicht mehr
+- **Der Datenstrom nimmt keine fremde Herkunft mehr an**: Socket.IO stand auf
+  `cors_allowed_origins="*"`, die ganze Absicherung hing damit allein an
+  SameSite. Jetzt weist der Server Verbindungen ab, deren Herkunft nicht zur
+  eigenen Adresse passt
+- **Push-Anmeldungen je Konto gedeckelt** (20). Wechselt eine Adresse zu einem
+  anderen Konto, steht das im Protokoll
+
 ## 0.40.0
 
 - **Der Name der Oberfläche ist einstellbar** – in den Einstellungen unter

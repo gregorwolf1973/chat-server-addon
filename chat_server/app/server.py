@@ -1870,6 +1870,31 @@ def api_token_lesen():
                     "aus_option": bool(_opt("API_TOKEN"))})
 
 
+@app.post("/api/token/neu")
+@admin_required
+def api_token_neu():
+    """Ein frisches Token erzeugen - das alte gilt sofort nicht mehr.
+
+    Noetig, wenn das alte irgendwo aufgetaucht ist, wo es nicht hingehoert:
+    in einem Protokollauszug, einem Bildschirmfoto, einer Nachricht. Steht
+    das Token in der Add-on-Option, gehoert es dorthin und wird hier nicht
+    angeruehrt.
+    """
+    global API_TOKEN
+    if _opt("API_TOKEN"):
+        return jsonify({"error": "Das Token steht in der Add-on-Option."
+                                 " Ändere es dort und starte das Add-on neu."}), 400
+    neu = secrets.token_urlsafe(32)
+    with open(TOKEN_PATH, "w") as fh:
+        fh.write(neu)
+    os.chmod(TOKEN_PATH, 0o600)
+    API_TOKEN = neu
+    log.warning("Token fuer die Home-Assistant-Schnittstelle neu erzeugt von"
+                " Nutzer %s - alte Automationen schlagen ab jetzt fehl",
+                session["uid"])
+    return jsonify({"ok": True, "token": neu})
+
+
 @app.post("/api/users/<int:user_id>/approve")
 @admin_required
 def api_approve_user(user_id):
@@ -4171,17 +4196,40 @@ def api_delete_media(file_id):
     return jsonify({"ok": True})
 
 
+# Ein Geraet, eine Anmeldung. Mehr als das sind alte Eintraege, die niemand
+# mehr abholt - der Browser wechselt die Adresse, wenn er die Erlaubnis neu
+# vergibt. Ohne Deckel wuechse die Tabelle still vor sich hin.
+PUSH_JE_KONTO_MAX = 20
+
+
 @app.post("/api/push/subscribe")
 @login_required
 def api_push_subscribe():
     sub = request.get_json(force=True)
     keys = sub.get("keys", {})
     try:
-        db().execute(
+        uid = session["uid"]
+        conn = db()
+        # Dieselbe Adresse kann vorher jemand anderem gehoert haben - etwa
+        # wenn zwei sich einen Browser teilen. Das ist erlaubt, soll aber im
+        # Protokoll stehen: von aussen ist es nicht zu unterscheiden von
+        # jemandem, der eine fremde Adresse an sich zieht.
+        vorher = conn.execute("SELECT user_id FROM push_subs WHERE endpoint=?",
+                              (sub["endpoint"],)).fetchone()
+        if vorher and vorher["user_id"] != uid:
+            log.info("Push-Adresse wechselt von Nutzer %s zu %s",
+                     vorher["user_id"], uid)
+        conn.execute(
             "INSERT OR REPLACE INTO push_subs (user_id, endpoint, p256dh, auth, created_at)"
             " VALUES (?,?,?,?,?)",
-            (session["uid"], sub["endpoint"], keys["p256dh"], keys["auth"],
+            (uid, sub["endpoint"], keys["p256dh"], keys["auth"],
              int(time.time())))
+        # Die aeltesten ueber der Grenze fallen weg
+        conn.execute(
+            "DELETE FROM push_subs WHERE user_id=? AND id NOT IN"
+            " (SELECT id FROM push_subs WHERE user_id=?"
+            "  ORDER BY created_at DESC LIMIT ?)",
+            (uid, uid, PUSH_JE_KONTO_MAX))
         db().commit()
     except (KeyError, TypeError, AttributeError, sqlite3.Error) as exc:
         # Der Wortlaut bleibt im Protokoll - nach draussen gehoert er nicht,
@@ -4280,14 +4328,22 @@ def api_notify():
     """
     # "Bearer <token>" ist die uebliche Form, aber wer in secrets.yaml nur das
     # nackte Token hinterlegt, soll nicht ratlos vor einem 401 stehen - beides
-    # wird angenommen, ebenso ?token= in der Adresse.
+    # wird angenommen.
+    #
+    # In der Adresse (?token=...) geht es bewusst nicht mehr: der
+    # Zugriffsprotokollant schreibt die ganze Anfragezeile mit, das Token
+    # stuende damit im Klartext im Add-on-Log - und Logs werden weitergereicht.
     auth = request.headers.get("Authorization", "").strip()
     if auth.lower().startswith("bearer "):
         token = auth[7:].strip()
-    elif auth:
-        token = auth
     else:
-        token = request.args.get("token", "").strip()
+        token = auth
+    if not token and request.args.get("token"):
+        log.warning("Nachricht aus Home Assistant abgelehnt: das Token stand in"
+                    " der Adresse. Es gehoert in den Kopf Authorization,"
+                    " sonst landet es im Protokoll.")
+        return jsonify({"error": "Das Token gehoert in den Kopf"
+                                 " 'Authorization', nicht in die Adresse."}), 401
     if not token or not secrets.compare_digest(token, API_TOKEN):
         # Home Assistant meldet einen rest_command auch dann als erfolgreich,
         # wenn wir ablehnen - deshalb steht der Grund hier im Protokoll.
@@ -4585,10 +4641,38 @@ def on_anruf_signal(data):
     return {"ok": True}
 
 
+def _gleiche_herkunft():
+    """Kommt die Verbindung von der eigenen Seite?
+
+    cors_allowed_origins steht auf "*", weil die Oberflaeche unter zwei
+    Adressen zugleich erreichbar ist - ueber den Ingress von Home Assistant
+    und ueber die externe Adresse - und keine davon hier bekannt ist. Damit
+    fehlt aber die Bremse, die sonst fremde Seiten abhaelt. SameSite=Lax
+    haelt das Cookie zwar schon zurueck; dies ist der zweite Riegel, falls
+    ein Browser das einmal anders sieht.
+
+    Ohne Origin (etwa aus einem Skript ohne Browser) wird nicht abgewiesen -
+    dort schuetzt ohnehin das Cookie, das eine fremde Seite nicht kennt.
+    """
+    herkunft = request.headers.get("Origin")
+    if not herkunft:
+        return True
+    gastgeber = request.headers.get("Host", "")
+    try:
+        from urllib.parse import urlsplit
+        return urlsplit(herkunft).netloc.lower() == gastgeber.lower()
+    except ValueError:
+        return False
+
+
 @socketio.on("connect")
 def on_connect():
     uid = session.get("uid")
     if not uid:
+        return False
+    if not _gleiche_herkunft():
+        log.warning("Datenstrom abgewiesen: Anfrage von %r, wir sind %r",
+                    request.headers.get("Origin"), request.headers.get("Host"))
         return False
     conn = raw_db()
     # Gesperrte Konten und veraltete Sitzungen kommen auch mit gueltigem

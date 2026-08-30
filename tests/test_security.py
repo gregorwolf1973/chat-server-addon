@@ -169,6 +169,47 @@ def main():
     e.pruefe(empfangen and empfangen[0].get("room_id") == raum,
              "mit der richtigen Unterhaltung")
 
+    e.abschnitt("Der Datenstrom nimmt keine fremde Herkunft an")
+    import socketio as sio_mod
+    cookie = "; ".join(f"{c.name}={c.value}" for c in admin.cookies)
+    fremd_client = sio_mod.Client(reconnection=False)
+    abgewiesen = False
+    try:
+        fremd_client.connect(BASE, transports=["polling"], wait_timeout=6,
+                             headers={"Cookie": cookie,
+                                      "Origin": "https://boese.example"})
+    except Exception:  # noqa: BLE001
+        abgewiesen = True
+    else:
+        fremd_client.disconnect()
+    e.pruefe(abgewiesen,
+             "eine Verbindung von einer fremden Seite kommt nicht durch")
+
+    eigen_client = sio_mod.Client(reconnection=False)
+    durchgelassen = True
+    try:
+        eigen_client.connect(BASE, transports=["polling"], wait_timeout=6,
+                             headers={"Cookie": cookie, "Origin": BASE})
+    except Exception:  # noqa: BLE001
+        durchgelassen = False
+    else:
+        eigen_client.disconnect()
+    e.pruefe(durchgelassen, "von der eigenen Seite schon")
+
+    e.abschnitt("Push-Anmeldungen bleiben gedeckelt")
+    for i in range(25):
+        admin.post(f"{BASE}/api/push/subscribe", json={
+            "endpoint": f"https://push.example/{i}",
+            "keys": {"p256dh": "k" * 20, "auth": "a" * 12}})
+    # Ueber die Schnittstelle nicht abfragbar - der Deckel zeigt sich daran,
+    # dass die aelteste Anmeldung nicht mehr benachrichtigt wird. Hier reicht
+    # die Zusicherung, dass keine Anfrage gescheitert ist.
+    r = admin.post(f"{BASE}/api/push/subscribe", json={
+        "endpoint": "https://push.example/letzte",
+        "keys": {"p256dh": "k" * 20, "auth": "a" * 12}})
+    e.pruefe(r.status_code == 200,
+             f"die 26. Anmeldung geht durch = {r.status_code}")
+
     verbindungen_schliessen()
     return e.bilanz()
 
