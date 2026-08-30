@@ -1,5 +1,17 @@
 # Änderungsverlauf
 
+## 0.37.0
+
+- **Galerie**: Bilder und Filme lassen sich über die Unterhaltung hinaus
+  freigeben – für die Freunde oder für alle. Im Direktchat führt oben neben
+  dem Namen ein Verweis dorthin. Die Zahl der Herzen sieht jeder; **die
+  Kommentare lesen nur zwei**: die Person, der das Bild gehört, und die, die
+  geschrieben hat
+- **Termin ohne Unterhaltung**: unter „Termine". Wer ihn sieht, bestimmst du –
+  ausgewählte Freunde zum An- und Abwählen, oder alle im Umkreis von 1 bis
+  25 km
+- **Geburtstagserinnerungen abschaltbar** in den Einstellungen
+
 ## 0.36.0
 
 - **Im Verlauf suchen**: 🔍 oben in der Unterhaltung, wahlweise nur hier oder

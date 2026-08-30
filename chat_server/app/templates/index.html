@@ -55,6 +55,8 @@
           <div id="stimmung-liste"></div>
         </section>
         <section class="abschnitt" data-inhalt="termine">
+          <div class="abschnitt-aktion">
+            <button class="mini-btn" id="btn-termin-frei">Termin ohne Unterhaltung</button></div>
           <div class="kf-zeile" id="termin-filter"></div>
           <div id="termin-liste"></div>
         </section>
@@ -79,8 +81,11 @@
       <div class="chat-header" id="chat-header" hidden>
         <button class="icon-btn back" id="btn-back">←</button>
         <span id="room-avatar"></span>
-        <div>
-          <div class="title" id="room-title"></div>
+        <div class="kopf-namen">
+          <div class="titelzeile">
+            <div class="title" id="room-title"></div>
+            <button class="galerie-link" id="btn-galerie" hidden>🖼 Galerie</button>
+          </div>
           <div class="sub" id="room-sub"></div>
         </div>
         <span style="flex:1"></span>
@@ -191,6 +196,16 @@
       <button class="anruf-knopf auflegen" id="btn-anruf-auflegen"
               title="Auflegen">📵</button>
     </div>
+  </div>
+
+  <div class="galerie" id="galerie" hidden>
+    <div class="galerie-kopf">
+      <span id="galerie-titel">Galerie</span>
+      <span style="flex:1"></span>
+      <button class="icon-btn" id="galerie-zu" title="Schließen">✕</button>
+    </div>
+    <div class="galerie-raster" id="galerie-raster"></div>
+    <div class="galerie-faden" id="galerie-faden" hidden></div>
   </div>
 
   <div id="modal-root"></div>

@@ -176,6 +176,14 @@
     hintergrundAnwenden(room);
     $("room-title").textContent = room.name;
     const others = room.members.filter((m) => m.id !== ME);
+    // Der Verweis auf die Galerie gilt nur der einen Person - in einer Gruppe
+    // waere nicht klar, wessen Bilder gemeint sind.
+    const galerieKnopf = $("btn-galerie");
+    galerieKnopf.hidden = room.is_group || !others.length;
+    if (!galerieKnopf.hidden) {
+      galerieKnopf.dataset.uid = others[0].id;
+      galerieKnopf.title = `Bilder und Filme von ${others[0].display_name}`;
+    }
     $("room-sub").textContent = room.is_group
       ? room.members.map((m) => m.display_name).join(", ")
       : (others.length && state.online.has(others[0].id) ? "online" : "offline");
@@ -2065,13 +2073,25 @@
     setTimeout(() => karte.invalidateSize(), 60);
   }
 
-  /** Neue Einladung, oder - mit ev - eine bestehende ändern. */
-  function terminDialog(ev) {
+  // Wie weit ein freier Termin reichen darf. Der Server laesst nicht mehr
+  // als 25 km zu - weiter waere keine Nachbarschaft mehr.
+  const TERMIN_UMKREISE = [1, 5, 10, 25];
+
+  /** Neue Einladung, oder - mit ev - eine bestehende ändern.
+   *
+   *  Ohne Unterhaltung geht es auch: dann entscheidet nicht die Mitgliedschaft,
+   *  wer den Termin sieht, sondern eine Auswahl von Freunden oder ein Umkreis.
+   */
+  function terminDialog(ev, frei) {
     const aendern = !!ev;
-    if (!aendern && !currentRoom) {
+    frei = aendern ? (ev.sicht || "raum") !== "raum" : !!frei;
+    if (!aendern && !frei && !currentRoom) {
       toast("Öffne zuerst eine Unterhaltung.");
       return;
     }
+    let sicht = aendern ? (ev.sicht || "raum") : (frei ? "freunde" : "raum");
+    let umkreis = (aendern && ev.umkreis_km) || 5;
+    const gaeste = new Set(aendern ? (ev.gaeste || []) : []);
     let bildDatei = null;
     let bildId = aendern ? ev.file_id : null;
     let ort = aendern && ev.ort ? {lat: ev.ort.lat, lon: ev.ort.lon} : null;
@@ -2084,7 +2104,10 @@
         + `T${p(d.getHours())}:${p(d.getMinutes())}`;
     })();
 
-    const root = modal(`<h2>${aendern ? "Einladung ändern" : "Einladung"}</h2>
+    const root = modal(`<h2>${aendern ? "Einladung ändern"
+      : frei ? "Termin ohne Unterhaltung" : "Einladung"}</h2>
+      ${frei && !aendern ? '<p class="hint">Er hängt an keiner Unterhaltung – '
+        + 'du bestimmst unten selbst, wer ihn sieht.</p>' : ""}
       <div class="field"><label for="ev-titel">Was ist geplant?</label>
         <input id="ev-titel" autocomplete="off" placeholder="Grillen im Garten"
                value="${aendern ? esc(ev.titel) : ""}"></div>
@@ -2105,6 +2128,16 @@
       </div>
       <div class="field"><label for="ev-text">Beschreibung</label>
         <textarea id="ev-text" rows="3">${aendern ? esc(ev.beschreibung) : ""}</textarea></div>
+      ${frei ? `<div class="field"><label>Wer soll es sehen?</label>
+        <div class="kf-zeile" id="ev-sicht">
+          <button type="button" class="mini-btn" data-sicht="freunde">Ausgewählte Freunde</button>
+          <button type="button" class="mini-btn" data-sicht="umkreis">Alle im Umkreis</button>
+        </div>
+        <div id="ev-freunde" class="ev-freunde"></div>
+        <div id="ev-umkreis" class="kf-zeile" hidden>${TERMIN_UMKREISE.map((km) =>
+          `<button type="button" class="mini-btn" data-km="${km}">${km} km</button>`).join("")}</div>
+        <p class="hint" id="ev-sicht-hint"></p>
+      </div>` : ""}
       <div class="field"><label>Was ist geboten?</label>
         <div class="ev-kats">${Object.entries(KATEGORIEN).map(([k, txt]) =>
           `<button type="button" class="ev-kat ${
@@ -2121,10 +2154,65 @@
       <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
       <button class="btn" id="ev-ok">${
         aendern ? "Änderungen speichern" : "Einladen"}</button></div>`);
+    if (frei) root.querySelector(".modal").classList.add("wide");
     root.querySelector(".modal").classList.add("hoch");
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelectorAll(".ev-kat").forEach((b) =>
       b.addEventListener("click", () => b.classList.toggle("gewaehlt")));
+
+    if (frei) {
+      const freundeFeld = root.querySelector("#ev-freunde");
+      const umkreisFeld = root.querySelector("#ev-umkreis");
+      const hinweis = root.querySelector("#ev-sicht-hint");
+
+      const freundeZeichnen = () => {
+        const liste = [...(state.freunde || [])]
+          .map((id) => (state.users || []).find((u) => u.id === id))
+          .filter(Boolean)
+          .sort((a, b) => a.display_name.localeCompare(b.display_name, "de"));
+        if (!liste.length) {
+          freundeFeld.innerHTML = '<p class="hint">Du hast noch keine '
+            + 'bestätigten Freunde. Über „Freunde“ unten links geht das.</p>';
+          return;
+        }
+        freundeFeld.innerHTML = liste.map((u) =>
+          `<button type="button" class="ev-freund ${
+            gaeste.has(u.id) ? "gewaehlt" : ""}" data-uid="${u.id}">
+            ${avatarHtml("u", u.id, u.display_name, u.avatar, "klein")}
+            <span>${esc(u.display_name)}</span></button>`).join("");
+        freundeFeld.querySelectorAll("[data-uid]").forEach((b) =>
+          b.addEventListener("click", () => {
+            const id = parseInt(b.dataset.uid, 10);
+            if (gaeste.has(id)) gaeste.delete(id); else gaeste.add(id);
+            b.classList.toggle("gewaehlt", gaeste.has(id));
+            sichtZeichnen();
+          }));
+      };
+
+      const sichtZeichnen = () => {
+        root.querySelectorAll("[data-sicht]").forEach((b) =>
+          b.classList.toggle("an", b.dataset.sicht === sicht));
+        root.querySelectorAll("[data-km]").forEach((b) =>
+          b.classList.toggle("an", parseInt(b.dataset.km, 10) === umkreis));
+        freundeFeld.hidden = sicht !== "freunde";
+        umkreisFeld.hidden = sicht !== "umkreis";
+        hinweis.textContent = sicht === "freunde"
+          ? `${gaeste.size} ${gaeste.size === 1 ? "Person" : "Personen"} ausgewählt.`
+          : "Sichtbar für alle in deinem Umkreis, die gerade selbst ihren "
+            + "Standort teilen – sonst wüsste der Server nicht, wo sie sind. "
+            + "Der Termin braucht dafür einen Ort auf der Karte.";
+      };
+
+      root.querySelectorAll("[data-sicht]").forEach((b) =>
+        b.addEventListener("click", () => { sicht = b.dataset.sicht; sichtZeichnen(); }));
+      root.querySelectorAll("[data-km]").forEach((b) =>
+        b.addEventListener("click", () => {
+          umkreis = parseInt(b.dataset.km, 10);
+          sichtZeichnen();
+        }));
+      freundeZeichnen();
+      sichtZeichnen();
+    }
 
     const status = root.querySelector("#ev-ort-status");
     const wegKnopf = root.querySelector("#ev-ort-weg");
@@ -2207,11 +2295,21 @@
           lat: ort ? ort.lat : null,
           lon: ort ? ort.lon : null,
         };
+        if (frei) {
+          nutzlast.sicht = sicht;
+          if (sicht === "freunde") {
+            if (!gaeste.size) { toast("Wähle mindestens eine Person aus."); return; }
+            nutzlast.gaeste = [...gaeste];
+          } else {
+            if (!ort) { toast("Ein Umkreis braucht einen Ort auf der Karte."); return; }
+            nutzlast.umkreis_km = umkreis;
+          }
+        }
         const res = aendern
           ? await api(`/api/events/${ev.id}`, {
               method: "PATCH", headers: {"Content-Type": "application/json"},
               body: JSON.stringify(nutzlast)})
-          : await api(`/api/rooms/${currentRoom}/event`, {
+          : await api(frei ? "/api/events" : `/api/rooms/${currentRoom}/event`, {
               method: "POST", headers: {"Content-Type": "application/json"},
               body: JSON.stringify(nutzlast)});
         const daten = await res.json().catch(() => ({}));
@@ -2220,6 +2318,10 @@
         if (aendern) {
           eventNeuZeichnen(ev.id);
           toast("Einladung geändert.");
+        } else if (frei) {
+          toast(sicht === "freunde"
+            ? "Eingeladen. Die Ausgewählten finden es unter „Termine“."
+            : "Eingeladen. Wer in der Nähe ist, sieht es unter „Termine“.");
         }
         terminLaden();
       } finally {
@@ -2229,7 +2331,11 @@
   }
 
   async function terminLaden() {
-    const res = await api("/api/events");
+    // Fuer Einladungen mit Umkreis muss der Server wissen, wo ich stehe. Der
+    // Wert kommt nur mit, wenn ich den Standort ohnehin schon geholt habe -
+    // gespeichert wird er dort nicht.
+    const anhang = meinOrt ? `?lat=${meinOrt.lat}&lon=${meinOrt.lon}` : "";
+    const res = await api("/api/events" + anhang);
     if (!res.ok) return;
     state.termine = await res.json();
     renderTermine();
@@ -2849,6 +2955,11 @@
 
   socket.on("tipps_geaendert", () => tippsLaden());
   $("btn-tipp").addEventListener("click", () => tippDialog());
+  $("btn-termin-frei").addEventListener("click", () => terminDialog(null, true));
+  $("btn-galerie").addEventListener("click", () => {
+    const uid = parseInt($("btn-galerie").dataset.uid, 10);
+    if (uid) galerieOeffnen(uid);
+  });
 
   // ---------- Sprechblasenfarbe ----------
   // Gilt in allen Unterhaltungen. Die frueheren Farben je Chat waren
@@ -3252,6 +3363,227 @@
     }
     klingelZeigen();
     renderRooms();
+  });
+
+  // ---------- Galerie ----------
+  // Bilder und Filme, die jemand ueber die Unterhaltung hinaus zeigt. Die
+  // Zahl der Herzen sieht jeder; die Kommentare bleiben zwischen zweien.
+  const FREI_ZEICHEN = {aus: "🔒", freunde: "👥", alle: "🌍"};
+  const FREI_TITEL = {
+    aus: "Nicht freigegeben – nur in der Unterhaltung sichtbar",
+    freunde: "Für deine Freunde freigegeben",
+    alle: "Für alle freigegeben",
+  };
+
+  /** Freigabe einer eigenen Datei setzen oder zurücknehmen. */
+  function freigabeDialog(m, danach) {
+    const jetzt = m.galerie || "aus";
+    const root = modal(`<h2>Wer darf das sehen?</h2>
+      <p class="hint">In der Unterhaltung sehen es die Mitglieder ohnehin.
+        Hier geht es darum, ob es zusätzlich in deiner Galerie steht – der
+        Sammlung, die andere über deinen Namen im Chat öffnen können.</p>
+      <div class="kf-zeile" id="fg-wahl">
+        <button class="mini-btn ${jetzt === "aus" ? "an" : ""}" data-art="aus">🔒 Niemand</button>
+        <button class="mini-btn ${jetzt === "freunde" ? "an" : ""}" data-art="freunde">👥 Meine Freunde</button>
+        <button class="mini-btn ${jetzt === "alle" ? "an" : ""}" data-art="alle">🌍 Alle</button>
+      </div>
+      <div class="field"><label for="fg-titel">Bildunterschrift (freiwillig)</label>
+        <input id="fg-titel" autocomplete="off" maxlength="200"
+               value="${esc(m.galerie_titel || "")}"></div>
+      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button></div>`);
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelectorAll("[data-art]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const art = b.dataset.art;
+        const titel = root.querySelector("#fg-titel").value.trim();
+        const res = art === "aus"
+          ? (m.galerie_id
+              ? await api(`/api/galerie/${m.galerie_id}`, {method: "DELETE"})
+              : {ok: true, json: async () => ({})})
+          : await api("/api/galerie", {
+              method: "POST", headers: {"Content-Type": "application/json"},
+              body: JSON.stringify({file_id: m.id, art, titel})});
+        const daten = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+        closeModal();
+        toast(art === "aus" ? "Freigabe zurückgenommen."
+              : art === "alle" ? "Für alle freigegeben."
+              : "Für deine Freunde freigegeben.");
+        if (danach) danach();
+      }));
+  }
+
+  const galerie = {person: null, eintraege: [], offen: null};
+
+  async function galerieOeffnen(userId) {
+    const res = await api(`/api/galerie/${userId}`);
+    if (!res.ok) { toast("Diese Galerie ließ sich nicht öffnen."); return; }
+    const daten = await res.json();
+    galerie.person = daten.person;
+    galerie.meine = daten.meine;
+    galerie.eintraege = daten.eintraege || [];
+    $("galerie").hidden = false;
+    galerieZeichnen();
+  }
+
+  function galerieSchliessen() {
+    $("galerie").hidden = true;
+    galerie.offen = null;
+    $("galerie-faden").hidden = true;
+  }
+
+  function galerieZeichnen() {
+    $("galerie-titel").textContent = galerie.meine
+      ? "Deine Galerie" : `Bilder von ${galerie.person.name}`;
+    const feld = $("galerie-raster");
+    if (!galerie.eintraege.length) {
+      feld.innerHTML = `<p class="hint">${galerie.meine
+        ? "Noch nichts freigegeben. Unter „Medien“ oben in einer Unterhaltung "
+          + "wählst du aus, was hier stehen soll."
+        : "Hier ist noch nichts freigegeben."}</p>`;
+      return;
+    }
+    feld.innerHTML = galerie.eintraege.map((g) => `
+      <figure class="ga-kachel" data-g="${g.id}">
+        ${(g.mime || "").startsWith("video/")
+          ? `<video src="${BASE}/files/${g.file_id}" preload="metadata"
+                    playsinline muted></video>`
+          : `<img src="${BASE}/files/${g.file_id}" alt="${esc(g.name)}" loading="lazy">`}
+        <figcaption>
+          <span class="ga-herz ${g.mein_herz ? "an" : ""}" data-herz="${g.id}"
+                title="Gefällt mir">${g.mein_herz ? "❤️" : "🤍"} ${g.herzen}</span>
+          <span class="ga-wort" data-wort="${g.id}" title="Kommentare">💬 ${g.worte}</span>
+          ${galerie.meine ? `<span class="ga-art"
+             title="${FREI_TITEL[g.art]}">${FREI_ZEICHEN[g.art]}</span>` : ""}
+        </figcaption>
+        ${g.titel ? `<div class="ga-titel">${esc(g.titel)}</div>` : ""}
+      </figure>`).join("");
+
+    feld.querySelectorAll("[data-herz]").forEach((el) =>
+      el.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const id = parseInt(el.dataset.herz, 10);
+        const res = await api(`/api/galerie/${id}/herz`, {method: "POST"});
+        if (!res.ok) { toast("Das ging nicht."); return; }
+        const neu = await res.json();
+        const i = galerie.eintraege.findIndex((g) => g.id === id);
+        if (i >= 0) galerie.eintraege[i] = {...galerie.eintraege[i], ...neu};
+        galerieZeichnen();
+      }));
+    feld.querySelectorAll("[data-wort]").forEach((el) =>
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        fadenOeffnen(parseInt(el.dataset.wort, 10));
+      }));
+    feld.querySelectorAll(".ga-kachel img, .ga-kachel video").forEach((el) =>
+      el.addEventListener("click", () => {
+        const id = parseInt(el.closest("[data-g]").dataset.g, 10);
+        fadenOeffnen(id);
+      }));
+  }
+
+  /** Das Zwiegespräch zu einem Bild. Nur zwei lesen es mit. */
+  async function fadenOeffnen(galerieId, mitId) {
+    galerie.offen = galerieId;
+    const g = galerie.eintraege.find((x) => x.id === galerieId);
+    const ziel = `/api/galerie/${galerieId}/worte`
+      + (mitId ? `?mit=${mitId}` : "");
+    const res = await api(ziel);
+    if (!res.ok) { toast("Die Kommentare ließen sich nicht laden."); return; }
+    const daten = await res.json();
+    const kasten = $("galerie-faden");
+    kasten.hidden = false;
+
+    // Der Besitzer ohne gewählten Faden bekommt erst die Übersicht: mit wem
+    // ein Gespräch läuft. Jeder Faden gehört genau zwei Leuten.
+    if (!daten.mit_id && daten.faeden.length) {
+      kasten.innerHTML = `<div class="gf-kopf">
+          <strong>Kommentare</strong><span style="flex:1"></span>
+          <button class="icon-btn" id="gf-zu">✕</button></div>
+        <div class="gf-liste">${daten.faeden.map((f) => `
+          <button class="gf-faden" data-mit="${f.mit_id}">
+            ${avatarHtml("u", f.mit_id, f.name, f.avatar, "klein")}
+            <span>${esc(f.name)}</span>
+            <span class="hint">${f.anzahl}</span></button>`).join("")}</div>`;
+      kasten.querySelectorAll("[data-mit]").forEach((b) =>
+        b.addEventListener("click", () =>
+          fadenOeffnen(galerieId, parseInt(b.dataset.mit, 10))));
+      $("gf-zu").addEventListener("click", () => { kasten.hidden = true; });
+      return;
+    }
+    if (!daten.mit_id && !daten.faeden.length) {
+      kasten.innerHTML = `<div class="gf-kopf"><strong>Kommentare</strong>
+          <span style="flex:1"></span>
+          <button class="icon-btn" id="gf-zu">✕</button></div>
+        <p class="hint">Hierzu hat noch niemand etwas geschrieben.</p>`;
+      $("gf-zu").addEventListener("click", () => { kasten.hidden = true; });
+      return;
+    }
+
+    const wer = galerie.meine
+      ? (daten.worte.find((w) => !w.meins) || {}).name || "Jemand"
+      : galerie.person.name;
+    kasten.innerHTML = `<div class="gf-kopf">
+        <strong>Nur du und ${esc(wer)}</strong>
+        <span style="flex:1"></span>
+        <button class="icon-btn" id="gf-zu">✕</button></div>
+      <div class="gf-liste">${daten.worte.length
+        ? daten.worte.map((w) => `<div class="gf-wort ${w.meins ? "mein" : ""}">
+            <div class="gf-wer">${esc(w.name)} · ${shortTime(w.at)}</div>
+            <div class="gf-text">${esc(w.text)}</div>
+            ${w.meins ? `<button class="mini-btn" data-weg="${w.id}">Löschen</button>` : ""}
+          </div>`).join("")
+        : '<p class="hint">Noch nichts geschrieben.</p>'}</div>
+      <div class="gf-schreiben">
+        <input id="gf-text" autocomplete="off" maxlength="2000"
+               placeholder="Etwas dazu schreiben …">
+        <button class="btn" id="gf-ok">Senden</button>
+      </div>`;
+    $("gf-zu").addEventListener("click", () => { kasten.hidden = true; });
+    kasten.querySelectorAll("[data-weg]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const res = await api(`/api/galerie/worte/${b.dataset.weg}`,
+                              {method: "DELETE"});
+        if (!res.ok) { toast("Das ging nicht."); return; }
+        await galerieNeu(galerieId, daten.mit_id);
+      }));
+    const senden = async () => {
+      const text = $("gf-text").value.trim();
+      if (!text) return;
+      const nutzlast = {text};
+      if (galerie.meine) nutzlast.mit_id = daten.mit_id;
+      const res = await api(`/api/galerie/${galerieId}/worte`, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(nutzlast)});
+      const antwort = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(antwort.error || "Das ging nicht."); return; }
+      $("gf-text").value = "";
+      await galerieNeu(galerieId, daten.mit_id);
+    };
+    $("gf-ok").addEventListener("click", senden);
+    $("gf-text").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); senden(); }
+    });
+    $("gf-text").focus();
+  }
+
+  /** Zahlen auffrischen und den Faden neu zeichnen. */
+  async function galerieNeu(galerieId, mitId) {
+    const res = await api(`/api/galerie/${galerie.person.id}`);
+    if (res.ok) {
+      const daten = await res.json();
+      galerie.eintraege = daten.eintraege || [];
+      galerieZeichnen();
+    }
+    await fadenOeffnen(galerieId, mitId);
+  }
+
+  $("galerie-zu").addEventListener("click", galerieSchliessen);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("galerie").hidden) galerieSchliessen();
+  });
+  socket.on("galerie_wort", () => {
+    if (galerie.offen) toast("Neuer Kommentar zu einem deiner Bilder.");
   });
 
   // ---------- Medienschau ----------
@@ -4279,6 +4611,9 @@
                value="${state.me && state.me.geburtstag ? state.me.geburtstag : ""}">
       </div>
       <button class="btn ghost" id="geb-ok">Geburtstag speichern</button>
+      <label class="check"><input type="checkbox" id="geb-an"
+        ${!state.me || state.me.geburtstage_an !== false ? "checked" : ""}>
+        Geburtstage anderer unter „Termine“ zeigen</label>
       <hr class="sep">
       <h2>Aussehen</h2>
       <div class="kf-zeile" id="thema-wahl"></div>
@@ -4412,6 +4747,17 @@
       if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
       if (state.me) state.me.karten_app = wahl;
       toast("Gespeichert.");
+    });
+    root.querySelector("#geb-an").addEventListener("change", async (e) => {
+      const an = e.target.checked;
+      const res = await api("/api/me/geburtstage-an", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({an}),
+      });
+      if (!res.ok) { toast("Das ließ sich nicht speichern."); e.target.checked = !an; return; }
+      if (state.me) state.me.geburtstage_an = an;
+      await geburtstageLaden();
+      toast(an ? "Geburtstage werden gezeigt." : "Geburtstage bleiben aus.");
     });
     pushEinstellung(root);
     root.querySelector("#p-ok").addEventListener("click", async () => {
@@ -4725,6 +5071,9 @@
                 <img src="${BASE}/files/${m.id}" alt="${esc(m.name)}" loading="lazy">
               </a>`}
           <figcaption>${herkunft(m)}</figcaption>
+          ${m.mine ? `<button class="media-frei" data-frei="${m.id}"
+             title="${FREI_TITEL[m.galerie || "aus"]}">${
+             FREI_ZEICHEN[m.galerie || "aus"]}</button>` : ""}
           ${m.can_delete ? '<button class="media-del" data-act="del" title="Löschen">✕</button>' : ""}
         </figure>`).join("")}</div>` : ""}
       ${dateien.length ? `<div class="media-files">${dateien.map((m) => `
@@ -4752,6 +5101,14 @@
         auswahlAnzeigen(root);
       });
     });
+
+    box.querySelectorAll("[data-frei]").forEach((btn) =>
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const m = alle.find((x) => x.id === parseInt(btn.dataset.frei, 10));
+        freigabeDialog(m, () => ladeMedien(root));
+      }));
 
     box.querySelectorAll('[data-act="del"]').forEach((btn) =>
       btn.addEventListener("click", async () => {

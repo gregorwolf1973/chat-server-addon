@@ -430,6 +430,29 @@ Der Administrator kann fremde Termine also **ändern, aber nicht absagen**.
 Wird ein Termin zum Problem, bleibt ihm die Unterhaltung selbst: Wer sie
 löscht, nimmt die Termine darin mit.
 
+## Ein Termin ohne Unterhaltung
+
+Unter **Termine** legt der Knopf **Termin ohne Unterhaltung** eine Einladung
+an, die an keiner Gruppe hängt. Wer sie sieht, entscheidest du:
+
+- **Ausgewählte Freunde** – eine Reihe mit deinen bestätigten Freunden, jeder
+  einzeln an- und abwählbar. Mindestens eine Person muss dabei sein. Nur
+  bestätigte Freunde lassen sich auswählen; der Server weist alles andere ab
+- **Alle im Umkreis** – 1, 5, 10 oder 25 km um den Ort der Einladung. Mehr als
+  25 km gibt es nicht, das wäre keine Nachbarschaft mehr. Dafür braucht der
+  Termin einen Ort auf der Karte
+
+Nachträglich lässt sich die Gästeliste ändern – aber nur von dem, der
+eingeladen hat. Ein Administrator darf einen Termin berichtigen, nicht
+umbesetzen. Absagen bleibt ohnehin beim Gastgeber.
+
+**Beim Umkreis muss der Server wissen, wo du bist**, sonst kann er die
+Entfernung nicht rechnen. Zwei Wege führen dahin: du teilst ohnehin gerade
+deinen Standort, oder die Oberfläche schickt die Koordinaten mit, sobald du
+sie einmal für den Umkreisfilter der Karte geholt hast. Gespeichert wird der
+Wert dabei nicht – er gilt nur für diese eine Antwort. Wer weder das eine noch
+das andere hat, sieht solche Einladungen nicht.
+
 ## Was ist wo los?
 
 Über der Live-Karte lässt sich einschränken, welche Einladungen sie zeigt:
@@ -632,6 +655,11 @@ Geburtstage nicht auf: Es gibt bei ihnen nichts zuzusagen.
 
 Der 29. Februar wird in Jahren ohne Schalttag am 1. März gezählt.
 
+**Abschalten:** In den Einstellungen unter *Geburtstag* nimmst du den Haken
+bei „Geburtstage anderer unter „Termine" zeigen" weg – dann verschwinden sie
+aus deiner Liste. Dein eigener Geburtstag bleibt dabei gespeichert und für
+andere sichtbar; die Einstellung betrifft nur, was **du** siehst.
+
 ## Einwilligung bei der Registrierung
 
 Ein Antrag lässt sich nur abschicken, wenn das Kästchen zur **Speicherung der
@@ -808,6 +836,45 @@ Rechts unten im Verlauf stehen zwei Pfeile:
 
 Wer einfach nach oben blättert, bekommt ältere Nachrichten ebenfalls
 nachgeladen – fünfzig auf einmal, und das Bild bleibt dabei stehen.
+
+## Galerie: Bilder über die Unterhaltung hinaus
+
+Was du in eine Unterhaltung schickst, sehen deren Mitglieder – mehr nicht. Wer
+ein Bild oder einen Film darüber hinaus zeigen will, gibt ihn frei: unter
+**Medien** trägt jede eigene Kachel oben links ein Zeichen, das den Stand
+verrät.
+
+| Zeichen | Bedeutung |
+| --- | --- |
+| 🔒 | nicht freigegeben – nur in der Unterhaltung sichtbar |
+| 👥 | für deine bestätigten Freunde |
+| 🌍 | für alle, die ein Konto haben |
+
+Ein Tipp darauf öffnet die Auswahl, dort lässt sich auch eine
+Bildunterschrift setzen. Zurücknehmen geht jederzeit; die Datei selbst bleibt,
+wo sie ist, und verschwindet nicht aus der Unterhaltung.
+
+**Hingelangen:** In einer Unterhaltung mit *einer* Person steht oben rechts
+neben dem Namen **🖼 Galerie**. In einer Gruppe nicht – dort wäre nicht klar,
+wessen Bilder gemeint sind.
+
+### Herzen und Kommentare
+
+Unter jedem Bild stehen zwei Zahlen. Sie bedeuten Verschiedenes:
+
+- **❤️ Herzen** sieht **jeder**, der das Bild sehen darf. Ein Tipp setzt eines,
+  ein zweiter nimmt es zurück
+- **💬 Kommentare** sind ein **Zwiegespräch**. Was du schreibst, lesen nur du
+  und die Person, der das Bild gehört – kein anderer Besucher, auch nicht mit
+  der richtigen Kennung in der Adresse. Auch die *Zahl* zeigt dir nur deinen
+  eigenen Faden; sonst wäre schon sie eine Auskunft darüber, wer sonst noch
+  geschrieben hat
+
+Wem das Bild gehört, sieht die Fäden getrennt nach Person und kann in jedem
+einzeln antworten. Den eigenen Kommentar darf jeder löschen, einen fremden
+niemand – auch nicht, wem das Bild gehört.
+
+Wird die Datei gelöscht, geht der Eintrag mit, samt Herzen und Kommentaren.
 
 ## Antworten und Löschen
 

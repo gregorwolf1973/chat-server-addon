@@ -2181,3 +2181,199 @@ a.btn {
     pointer-events: auto;
   }
 }
+
+/* ---------- Freier Termin: Freunde auswählen ---------- */
+.ev-freunde {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.ev-freund {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px 5px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ev-freund.gewaehlt {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.ev-freund.gewaehlt::after { content: "✓"; color: var(--accent); }
+
+/* ---------- Galerie ---------- */
+.titelzeile { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.kopf-namen { min-width: 0; }
+.galerie-link {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.galerie-link:hover { color: var(--text); border-color: var(--accent); }
+
+.galerie {
+  position: fixed;
+  inset: 0;
+  z-index: 88;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+.galerie-kopf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font-weight: 600;
+}
+.galerie-raster {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+.ga-kachel {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.ga-kachel img,
+.ga-kachel video {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+.ga-kachel figcaption {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.ga-herz, .ga-wort { cursor: pointer; color: var(--muted); }
+.ga-herz.an { color: var(--text); }
+.ga-herz:hover, .ga-wort:hover { color: var(--text); }
+.ga-art { margin-left: auto; }
+.ga-titel {
+  padding: 0 10px 9px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Der Faden legt sich an den Rand - das Bild bleibt daneben sichtbar */
+.galerie-faden {
+  position: absolute;
+  right: 0;
+  top: 52px;
+  bottom: 0;
+  width: min(380px, 100%);
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+.gf-kopf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.gf-liste {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gf-faden {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.gf-faden:hover { border-color: var(--accent); }
+.gf-faden .hint { margin-left: auto; }
+.gf-wort {
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.gf-wort.mein { background: var(--bubble-mine, var(--surface-2)); }
+.gf-wer { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.gf-text { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gf-schreiben {
+  display: flex;
+  gap: 8px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line);
+}
+.gf-schreiben input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+}
+.gf-schreiben .btn { flex: 0 0 auto; width: auto; padding: 8px 15px; }
+
+/* Freigabezeichen auf einer eigenen Kachel in der Medienliste */
+.media-frei {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(11, 16, 18, 0.66);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.media-frei:hover { background: rgba(11, 16, 18, 0.85); }
+
+@media (max-width: 720px) {
+  .galerie-faden {
+    top: 0;
+    width: 100%;
+    border-left: none;
+  }
+  .galerie-raster { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}

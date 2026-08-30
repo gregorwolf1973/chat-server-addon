@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS users (
     ton_stufe TEXT,
     blasenfarbe TEXT,
     karten_app TEXT,
+    geburtstage_an INTEGER NOT NULL DEFAULT 1,
     gesehen_karten INTEGER,
     gesehen_stimmung INTEGER,
     gesehen_termine INTEGER,
@@ -213,9 +214,47 @@ CREATE TABLE IF NOT EXISTS poll_votes (
     created_at INTEGER NOT NULL,
     PRIMARY KEY (poll_id, option_id, user_id)
 );
+-- Bilder und Filme, die jemand ueber die Unterhaltung hinaus freigibt.
+-- Ein Eintrag je Datei; wer sie sehen darf, steht in art.
+CREATE TABLE IF NOT EXISTS galerie (
+    id INTEGER PRIMARY KEY,
+    file_id INTEGER NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    art TEXT NOT NULL,
+    titel TEXT,
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS galerie_herzen (
+    galerie_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (galerie_id, user_id)
+);
+-- Ein Kommentar gehoert immer zu einem Zwiegespraech zwischen der Person,
+-- der das Bild gehoert, und genau einer anderen. mit_id sagt, wer diese
+-- andere ist - beim Schreiben der Besucher selbst, bei einer Antwort der
+-- Besitzerin die Person, der sie antwortet. Sonst waere nicht zu trennen,
+-- wer welchen Faden lesen darf.
+CREATE TABLE IF NOT EXISTS galerie_worte (
+    id INTEGER PRIMARY KEY,
+    galerie_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    mit_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS event_gaeste (
+    event_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    PRIMARY KEY (event_id, user_id)
+);
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY,
+    -- 0 heisst: haengt an keiner Unterhaltung. Wer den Termin sehen darf,
+    -- steht dann in sicht und in event_gaeste.
     room_id INTEGER NOT NULL,
+    sicht TEXT,
+    umkreis_km INTEGER,
     user_id INTEGER NOT NULL,
     titel TEXT NOT NULL,
     beschreibung TEXT,
@@ -379,6 +418,9 @@ def migrate(conn):
         conn.execute("ALTER TABLE users ADD COLUMN blasenfarbe TEXT")
     if "karten_app" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN karten_app TEXT")
+    if "geburtstage_an" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN geburtstage_an"
+                     " INTEGER NOT NULL DEFAULT 1")
     for bereich in ("karten", "stimmung", "termine", "tipps"):
         if f"gesehen_{bereich}" not in cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN gesehen_{bereich} INTEGER")
@@ -392,6 +434,11 @@ def migrate(conn):
         conn.execute("ALTER TABLE live_orte ADD COLUMN art TEXT")
     if cols and "umkreis_km" not in cols:
         conn.execute("ALTER TABLE live_orte ADD COLUMN umkreis_km INTEGER")
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(events)")}
+    if cols and "sicht" not in cols:
+        conn.execute("ALTER TABLE events ADD COLUMN sicht TEXT")
+    if cols and "umkreis_km" not in cols:
+        conn.execute("ALTER TABLE events ADD COLUMN umkreis_km INTEGER")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(rooms)")}
     if "avatar" not in cols:
         conn.execute("ALTER TABLE rooms ADD COLUMN avatar TEXT")
@@ -825,9 +872,15 @@ def event_payload(event_id, uid, conn=None):
                  "avatar": a["avatar"]})
         if a["user_id"] == uid:
             meine = a["antwort"]
+    gaeste = [r["user_id"] for r in conn.execute(
+        "SELECT user_id FROM event_gaeste WHERE event_id=?",
+        (event_id,)).fetchall()]
     return {
         "id": ev["id"],
         "room_id": ev["room_id"],
+        "sicht": ev["sicht"] or "raum",
+        "umkreis_km": ev["umkreis_km"],
+        "gaeste": gaeste,
         "titel": ev["titel"],
         "beschreibung": ev["beschreibung"] or "",
         "ort_text": ev["ort_text"] or "",
@@ -843,6 +896,80 @@ def event_payload(event_id, uid, conn=None):
         "wer": je_antwort,
         "created_at": ev["created_at"],
     }
+
+
+# Wer einen Termin sehen darf, der an keiner Unterhaltung haengt.
+# "raum" ist der alte Weg und bleibt die Voreinstellung.
+EVENT_SICHT = ("raum", "freunde", "umkreis")
+EVENT_UMKREIS_MAX_KM = 25
+
+
+def event_sichtbar(ev, uid, conn=None, ort=None):
+    """Darf ich diesen Termin sehen?
+
+    ev ist eine Zeile aus events. Fuer den Umkreis braucht es einen
+    Standpunkt: entweder den mitgeschickten (ort) oder den, den ich gerade
+    selbst teile. Ohne beides bleibt die Einladung unsichtbar - der Server
+    weiss dann schlicht nicht, ob ich in der Naehe bin.
+    """
+    conn = conn or db()
+    if ev["user_id"] == uid:
+        return True
+    sicht = ev["sicht"] or "raum"
+    if sicht == "raum":
+        return is_member(ev["room_id"], uid)
+    if sicht == "freunde":
+        return bool(conn.execute(
+            "SELECT 1 FROM event_gaeste WHERE event_id=? AND user_id=?",
+            (ev["id"], uid)).fetchone())
+    if sicht == "umkreis":
+        if ev["lat"] is None or ev["lon"] is None:
+            return False
+        wo = ort
+        if wo is None:
+            meiner = conn.execute(
+                "SELECT lat, lon FROM live_orte WHERE user_id=? AND bis_at>?"
+                " ORDER BY updated_at DESC LIMIT 1",
+                (uid, int(time.time()))).fetchone()
+            if meiner is None:
+                return False
+            wo = (meiner["lat"], meiner["lon"])
+        weite = _entfernung_km(wo[0], wo[1], ev["lat"], ev["lon"])
+        return weite <= (ev["umkreis_km"] or EVENT_UMKREIS_MAX_KM)
+    return False
+
+
+def event_gaeste_setzen(conn, event_id, uid, ids):
+    """Die ausgewaehlten Freunde eines Termins neu setzen.
+
+    Nur bestaetigte Freunde - eine erfundene Kennung soll niemanden
+    hineinschmuggeln, der gar nicht dazugehoert.
+    """
+    freunde = meine_freunde(uid, conn)
+    gewaehlt = set()
+    for roh in (ids or []):
+        try:
+            n = int(roh)
+        except (TypeError, ValueError):
+            continue
+        if n in freunde:
+            gewaehlt.add(n)
+    conn.execute("DELETE FROM event_gaeste WHERE event_id=?", (event_id,))
+    conn.executemany(
+        "INSERT INTO event_gaeste (event_id, user_id) VALUES (?,?)",
+        [(event_id, n) for n in sorted(gewaehlt)])
+    return gewaehlt
+
+
+def _standort_aus_anfrage():
+    """lat/lon aus der Abfrage - nur fuer diese eine Antwort, nie gespeichert."""
+    lat = request.args.get("lat", type=float)
+    lon = request.args.get("lon", type=float)
+    if lat is None or lon is None:
+        return None
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        return None
+    return (lat, lon)
 
 
 def mein_kreis(uid, conn=None):
@@ -1285,6 +1412,7 @@ def api_state():
                "ton_stufe": me["ton_stufe"] or "alle",
                "blasenfarbe": me["blasenfarbe"],
                "karten_app": me["karten_app"] or "geraet",
+               "geburtstage_an": bool(me["geburtstage_an"]),
                "gesehen": gesehen_lesen(me)},
         "rooms": payload,
         "users": [dict(u) for u in users],
@@ -1822,6 +1950,13 @@ def api_file(file_id):
         tipp = db().execute("SELECT user_id FROM tipps WHERE file_id=?",
                             (file_id,)).fetchone()
         if tipp and tipp["user_id"] in mein_kreis(session["uid"]) | {session["uid"]}:
+            ok = True
+    if not ok:
+        # Und was jemand fuer die Galerie freigegeben hat, sehen die, fuer die
+        # es freigegeben ist - auch ohne gemeinsame Unterhaltung.
+        eintrag = db().execute("SELECT * FROM galerie WHERE file_id=?",
+                               (file_id,)).fetchone()
+        if eintrag and galerie_sichtbar(eintrag, session["uid"]):
             ok = True
     if not ok and row["user_id"] != session["uid"]:
         abort(403)
@@ -2587,6 +2722,12 @@ def api_geburtstage():
     """Die naechsten Geburtstage aus meinem Kreis - meiner mit dabei."""
     uid = session["uid"]
     conn = db()
+    # Wer die Erinnerungen abgeschaltet hat, bekommt eine leere Liste. Der
+    # eigene Geburtstag bleibt dabei trotzdem gespeichert - andere sehen ihn
+    # weiter, es geht nur um die eigene Anzeige.
+    if not conn.execute("SELECT geburtstage_an FROM users WHERE id=?",
+                        (uid,)).fetchone()["geburtstage_an"]:
+        return jsonify([])
     erlaubt = mein_kreis(uid, conn) | {uid}
     marks = ",".join("?" * len(SYSTEM_USERS))
     rows = conn.execute(
@@ -2618,6 +2759,18 @@ def api_geburtstage():
         })
     raus.sort(key=lambda g: g["naechster_at"])
     return jsonify(raus)
+
+
+@app.post("/api/me/geburtstage-an")
+@login_required
+def api_set_geburtstage_an():
+    """Geburtstagserinnerungen ein- oder ausschalten."""
+    an = 1 if request.get_json(force=True).get("an") else 0
+    conn = db()
+    conn.execute("UPDATE users SET geburtstage_an=? WHERE id=?",
+                 (an, session["uid"]))
+    conn.commit()
+    return jsonify({"ok": True, "an": bool(an)})
 
 
 @app.post("/api/me/geburtstag")
@@ -2779,9 +2932,18 @@ def kategorien_saeubern(roh):
 
 
 def event_mitteilen(event_id, room_id):
-    """Alle in der Unterhaltung ueber eine Aenderung am Termin anstossen."""
-    socketio.emit("event_geaendert", {"event_id": event_id, "room_id": room_id},
-                  to=f"room:{room_id}")
+    """Ueber eine Aenderung am Termin anstossen.
+
+    Haengt der Termin an einer Unterhaltung, geht die Nachricht nur dorthin.
+    Ein freier Termin hat keinen solchen Kreis - dort erfahren es alle, und
+    jeder holt sich seine Liste neu; was er darin sehen darf, entscheidet
+    ohnehin der Server.
+    """
+    daten = {"event_id": event_id, "room_id": room_id}
+    if room_id:
+        socketio.emit("event_geaendert", daten, to=f"room:{room_id}")
+    else:
+        socketio.emit("event_geaendert", daten)
 
 
 @app.post("/api/rooms/<int:room_id>/event")
@@ -2853,15 +3015,99 @@ def api_create_event(room_id):
     return jsonify({"ok": True, "event_id": event_id, "message_id": msg_id})
 
 
+@app.post("/api/events")
+@login_required
+def api_create_freier_event():
+    """Ein Termin, der an keiner Unterhaltung haengt.
+
+    Wer ihn sehen darf, entscheidet sicht: ausgewaehlte Freunde oder alle
+    im Umkreis von X Kilometern. Es entsteht keine Sprechblase - der Termin
+    steht nur in der Liste und auf der Karte.
+    """
+    uid = session["uid"]
+    data = request.get_json(force=True)
+    titel = (data.get("titel") or "").strip()
+    if not titel:
+        return jsonify({"error": "Der Titel fehlt."}), 400
+
+    sicht = (data.get("sicht") or "freunde").strip().lower()
+    if sicht not in ("freunde", "umkreis"):
+        return jsonify({"error": "Wähle Freunde oder einen Umkreis."}), 400
+
+    beginnt = data.get("beginnt_at")
+    try:
+        beginnt = int(beginnt) if beginnt else None
+    except (TypeError, ValueError):
+        return jsonify({"error": "Der Zeitpunkt ist unbrauchbar."}), 400
+
+    punkt = _koordinaten(data) if data.get("lat") is not None else None
+    umkreis = None
+    if sicht == "umkreis":
+        if punkt is None:
+            return jsonify(
+                {"error": "Für einen Umkreis braucht der Termin einen Ort."}), 400
+        try:
+            umkreis = int(data.get("umkreis_km") or 5)
+        except (TypeError, ValueError):
+            umkreis = 5
+        umkreis = max(1, min(EVENT_UMKREIS_MAX_KM, umkreis))
+
+    conn = db()
+    file_id = data.get("file_id")
+    if file_id is not None:
+        try:
+            file_id = int(file_id)
+        except (TypeError, ValueError):
+            file_id = None
+        if file_id is not None and not conn.execute(
+                "SELECT 1 FROM files WHERE id=? AND user_id=?",
+                (file_id, uid)).fetchone():
+            file_id = None
+
+    now = int(time.time())
+    cur = conn.execute(
+        "INSERT INTO events (room_id, sicht, umkreis_km, user_id, titel,"
+        " beschreibung, ort_text, lat, lon, beginnt_at, file_id, kategorien,"
+        " created_at) VALUES (0,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (sicht, umkreis, uid, titel[:200],
+         (data.get("beschreibung") or "").strip()[:2000],
+         (data.get("ort_text") or "").strip()[:200],
+         punkt[0] if punkt else None, punkt[1] if punkt else None,
+         beginnt, file_id,
+         ",".join(kategorien_saeubern(data.get("kategorien"))), now))
+    event_id = cur.lastrowid
+    gaeste = set()
+    if sicht == "freunde":
+        gaeste = event_gaeste_setzen(conn, event_id, uid, data.get("gaeste"))
+        if not gaeste:
+            conn.execute("DELETE FROM events WHERE id=?", (event_id,))
+            conn.commit()
+            return jsonify({"error": "Wähle mindestens eine Person aus."}), 400
+    conn.execute(
+        "INSERT INTO event_antworten (event_id, user_id, antwort, created_at)"
+        " VALUES (?,?,'ja',?)", (event_id, uid, now))
+    conn.commit()
+
+    # Ausgewaehlte Freunde bekommen Bescheid; beim Umkreis waere das nicht zu
+    # beantworten, ohne alle Standorte durchzugehen - dort findet man den
+    # Termin ueber die Liste und die Karte.
+    if gaeste:
+        with ONLINE_LOCK:
+            abwesend = [g for g in gaeste if g not in ONLINE]
+        ziel = f"{EXTERNAL_URL}/" if EXTERNAL_URL else "?"
+        push_to_users(abwesend, "Einladung", titel[:180], ziel)
+    event_mitteilen(event_id, 0)
+    return jsonify({"ok": True, "event_id": event_id})
+
+
 @app.post("/api/events/<int:event_id>/antwort")
 @login_required
 def api_event_antwort(event_id):
     """Zusagen, absagen, vielleicht - oder die Antwort zuruecknehmen."""
     uid = session["uid"]
     conn = db()
-    ev = conn.execute("SELECT room_id, abgesagt FROM events WHERE id=?",
-                      (event_id,)).fetchone()
-    if ev is None or not is_member(ev["room_id"], uid):
+    ev = conn.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
+    if ev is None or not event_sichtbar(ev, uid, conn, _standort_aus_anfrage()):
         abort(403)
     if ev["abgesagt"]:
         return jsonify({"error": "Der Termin wurde abgesagt."}), 400
@@ -2886,11 +3132,11 @@ def api_event_antwort(event_id):
 @login_required
 def api_get_event(event_id):
     uid = session["uid"]
-    ev = db().execute("SELECT room_id FROM events WHERE id=?",
-                      (event_id,)).fetchone()
-    if ev is None or not is_member(ev["room_id"], uid):
+    conn = db()
+    ev = conn.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
+    if ev is None or not event_sichtbar(ev, uid, conn, _standort_aus_anfrage()):
         abort(403)
-    return jsonify(event_payload(event_id, uid))
+    return jsonify(event_payload(event_id, uid, conn))
 
 
 @app.get("/api/events")
@@ -2904,13 +3150,19 @@ def api_list_events():
     """
     uid = session["uid"]
     grenze = int(time.time())
-    rows = db().execute(
-        "SELECT id FROM events WHERE room_id IN"
-        "   (SELECT room_id FROM room_members WHERE user_id=?)"
-        " AND abgesagt=0 AND (beginnt_at IS NULL OR beginnt_at>?)"
-        " ORDER BY beginnt_at IS NULL, beginnt_at LIMIT 50",
-        (uid, grenze)).fetchall()
-    return jsonify([event_payload(r["id"], uid) for r in rows])
+    conn = db()
+    ort = _standort_aus_anfrage()
+    # Erst alles, was ueberhaupt in Frage kommt, dann die Sichtprüfung je
+    # Termin: die Umkreisfrage laesst sich in SQL nicht sauber stellen.
+    rows = conn.execute(
+        "SELECT * FROM events"
+        " WHERE abgesagt=0 AND (beginnt_at IS NULL OR beginnt_at>?)"
+        " AND (room_id IN (SELECT room_id FROM room_members WHERE user_id=?)"
+        "      OR user_id=? OR COALESCE(sicht,'raum')<>'raum')"
+        " ORDER BY beginnt_at IS NULL, beginnt_at LIMIT 300",
+        (grenze, uid, uid)).fetchall()
+    sichtbar = [r["id"] for r in rows if event_sichtbar(r, uid, conn, ort)][:50]
+    return jsonify([event_payload(i, uid, conn) for i in sichtbar])
 
 
 @app.patch("/api/events/<int:event_id>")
@@ -2925,7 +3177,7 @@ def api_update_event(event_id):
     me = current_user()
     conn = db()
     ev = conn.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
-    if ev is None or not is_member(ev["room_id"], uid):
+    if ev is None or not event_sichtbar(ev, uid, conn):
         abort(403)
     if ev["user_id"] != uid and not me["is_admin"]:
         return jsonify({"error": "Nur wer eingeladen hat, kann das aendern."}), 403
@@ -2948,6 +3200,24 @@ def api_update_event(event_id):
     if "kategorien" in data:
         felder.append("kategorien=?")
         werte.append(",".join(kategorien_saeubern(data.get("kategorien"))))
+    gaeste_neu = False
+    if "gaeste" in data and (ev["sicht"] or "raum") == "freunde":
+        # Nur der Gastgeber waehlt aus, wer eingeladen ist - der
+        # Administrator darf einen Termin berichtigen, nicht umbesetzen.
+        if ev["user_id"] != uid:
+            return jsonify(
+                {"error": "Nur wer eingeladen hat, kann die Gäste ändern."}), 403
+        if not event_gaeste_setzen(conn, event_id, uid, data.get("gaeste")):
+            conn.rollback()
+            return jsonify({"error": "Wähle mindestens eine Person aus."}), 400
+        gaeste_neu = True
+    if "umkreis_km" in data and (ev["sicht"] or "raum") == "umkreis":
+        try:
+            km = int(data.get("umkreis_km") or 5)
+        except (TypeError, ValueError):
+            km = 5
+        felder.append("umkreis_km=?")
+        werte.append(max(1, min(EVENT_UMKREIS_MAX_KM, km)))
     if "abgesagt" in data:
         # Absagen und Zuruecknehmen bleiben beim Gastgeber - sonst waere der
         # Weg ueber das Aendern eine Hintertuer um genau diese Regel herum.
@@ -3001,6 +3271,11 @@ def api_update_event(event_id):
         werte.append(neu_id)
 
     if not felder:
+        # Die Gaesteliste steht in einer eigenen Tabelle - sie waere sonst mit
+        # dem Ende der Anfrage wieder verworfen.
+        if gaeste_neu:
+            conn.commit()
+            event_mitteilen(event_id, ev["room_id"])
         return jsonify(event_payload(event_id, uid, conn))
 
     werte.append(event_id)
@@ -3026,9 +3301,8 @@ def api_delete_event(event_id):
     """
     uid = session["uid"]
     conn = db()
-    ev = conn.execute("SELECT room_id, user_id FROM events WHERE id=?",
-                      (event_id,)).fetchone()
-    if ev is None or not is_member(ev["room_id"], uid):
+    ev = conn.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
+    if ev is None or not event_sichtbar(ev, uid, conn):
         abort(403)
     if ev["user_id"] != uid:
         return jsonify({"error": "Nur wer eingeladen hat, kann absagen."}), 403
@@ -3277,6 +3551,264 @@ def api_clear_room_avatar(room_id):
 
 
 # --------------------------------------------------------------------------
+# Galerie
+# --------------------------------------------------------------------------
+# Bilder und Filme, die jemand ueber die Unterhaltung hinaus zeigen will -
+# entweder den Freunden oder allen. Herzen zaehlt jeder; Kommentare lesen nur
+# zwei: die Person, der das Bild gehoert, und die, die geschrieben hat.
+GALERIE_ARTEN = ("freunde", "alle")
+GALERIE_MIMES = ("image", "video")
+
+
+def galerie_sichtbar(eintrag, uid, conn=None):
+    """Darf ich diesen Eintrag sehen?"""
+    if eintrag["user_id"] == uid:
+        return True
+    if eintrag["art"] == "alle":
+        return True
+    if eintrag["art"] == "freunde":
+        return uid in meine_freunde(eintrag["user_id"], conn or db())
+    return False
+
+
+def galerie_payload(eintrag, uid, conn=None):
+    """Ein Eintrag mit Herzen und der Zahl der Kommentare, die ich sehe."""
+    conn = conn or db()
+    herzen = conn.execute(
+        "SELECT COUNT(*) c FROM galerie_herzen WHERE galerie_id=?",
+        (eintrag["id"],)).fetchone()["c"]
+    meins = bool(conn.execute(
+        "SELECT 1 FROM galerie_herzen WHERE galerie_id=? AND user_id=?",
+        (eintrag["id"], uid)).fetchone())
+    # Wie viele Kommentare ich sehe: als Besitzer alle, sonst nur den eigenen
+    # Faden. Die Gesamtzahl waere schon eine Auskunft darueber, wer sonst
+    # noch geschrieben hat.
+    if eintrag["user_id"] == uid:
+        worte = conn.execute(
+            "SELECT COUNT(*) c FROM galerie_worte WHERE galerie_id=?",
+            (eintrag["id"],)).fetchone()["c"]
+    else:
+        worte = conn.execute(
+            "SELECT COUNT(*) c FROM galerie_worte WHERE galerie_id=? AND mit_id=?",
+            (eintrag["id"], uid)).fetchone()["c"]
+    return {
+        "id": eintrag["id"],
+        "file_id": eintrag["file_id"],
+        "user_id": eintrag["user_id"],
+        "art": eintrag["art"],
+        "titel": eintrag["titel"] or "",
+        "mime": eintrag["mime"],
+        "name": eintrag["orig_name"],
+        "at": eintrag["created_at"],
+        "herzen": herzen,
+        "mein_herz": meins,
+        "worte": worte,
+        "meins": eintrag["user_id"] == uid,
+    }
+
+
+GALERIE_QUERY = ("SELECT g.*, f.orig_name, f.mime FROM galerie g"
+                 " JOIN files f ON f.id=g.file_id")
+
+
+@app.get("/api/galerie/<int:user_id>")
+@login_required
+def api_galerie(user_id):
+    """Was diese Person freigegeben hat - soweit ich es sehen darf."""
+    uid = session["uid"]
+    conn = db()
+    person = conn.execute("SELECT display_name, avatar FROM users WHERE id=?",
+                          (user_id,)).fetchone()
+    if person is None:
+        abort(404)
+    rows = conn.execute(GALERIE_QUERY + " WHERE g.user_id=?"
+                        " ORDER BY g.created_at DESC LIMIT 300",
+                        (user_id,)).fetchall()
+    sichtbar = [r for r in rows if galerie_sichtbar(r, uid, conn)]
+    return jsonify({
+        "person": {"id": user_id, "name": person["display_name"],
+                   "avatar": person["avatar"]},
+        "meine": user_id == uid,
+        "eintraege": [galerie_payload(r, uid, conn) for r in sichtbar],
+    })
+
+
+@app.post("/api/galerie")
+@login_required
+def api_galerie_freigeben():
+    """Eine eigene Datei freigeben - oder die Freigabe aendern."""
+    uid = session["uid"]
+    data = request.get_json(force=True)
+    try:
+        file_id = int(data.get("file_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Welche Datei denn?"}), 400
+    art = (data.get("art") or "").strip().lower()
+    if art not in GALERIE_ARTEN:
+        return jsonify(
+            {"error": "Freunde oder alle - etwas anderes gibt es nicht."}), 400
+    conn = db()
+    datei = conn.execute("SELECT * FROM files WHERE id=? AND user_id=?",
+                         (file_id, uid)).fetchone()
+    if datei is None:
+        return jsonify({"error": "Freigeben kannst du nur, was von dir ist."}), 403
+    if (datei["mime"] or "").split("/")[0] not in GALERIE_MIMES:
+        return jsonify({"error": "Nur Bilder und Filme."}), 400
+    titel = (data.get("titel") or "").strip()[:200]
+    now = int(time.time())
+    vorher = conn.execute("SELECT id FROM galerie WHERE file_id=?",
+                          (file_id,)).fetchone()
+    if vorher:
+        conn.execute("UPDATE galerie SET art=?, titel=? WHERE id=?",
+                     (art, titel, vorher["id"]))
+        eintrag_id = vorher["id"]
+    else:
+        eintrag_id = conn.execute(
+            "INSERT INTO galerie (file_id, user_id, art, titel, created_at)"
+            " VALUES (?,?,?,?,?)", (file_id, uid, art, titel, now)).lastrowid
+    conn.commit()
+    row = conn.execute(GALERIE_QUERY + " WHERE g.id=?", (eintrag_id,)).fetchone()
+    socketio.emit("galerie_geaendert", {"user_id": uid})
+    return jsonify(galerie_payload(row, uid, conn))
+
+
+@app.delete("/api/galerie/<int:eintrag_id>")
+@login_required
+def api_galerie_zuruecknehmen(eintrag_id):
+    """Die Freigabe zuruecknehmen. Die Datei selbst bleibt, wo sie ist."""
+    uid = session["uid"]
+    conn = db()
+    row = conn.execute("SELECT * FROM galerie WHERE id=?",
+                       (eintrag_id,)).fetchone()
+    if row is None:
+        abort(404)
+    if row["user_id"] != uid:
+        return jsonify({"error": "Das ist nicht deins."}), 403
+    conn.execute("DELETE FROM galerie_herzen WHERE galerie_id=?", (eintrag_id,))
+    conn.execute("DELETE FROM galerie_worte WHERE galerie_id=?", (eintrag_id,))
+    conn.execute("DELETE FROM galerie WHERE id=?", (eintrag_id,))
+    conn.commit()
+    socketio.emit("galerie_geaendert", {"user_id": uid})
+    return jsonify({"ok": True})
+
+
+@app.post("/api/galerie/<int:eintrag_id>/herz")
+@login_required
+def api_galerie_herz(eintrag_id):
+    """Herz setzen oder wieder wegnehmen. Die Zahl sieht jeder."""
+    uid = session["uid"]
+    conn = db()
+    row = conn.execute(GALERIE_QUERY + " WHERE g.id=?", (eintrag_id,)).fetchone()
+    if row is None or not galerie_sichtbar(row, uid, conn):
+        abort(403)
+    da = conn.execute(
+        "SELECT 1 FROM galerie_herzen WHERE galerie_id=? AND user_id=?",
+        (eintrag_id, uid)).fetchone()
+    if da:
+        conn.execute("DELETE FROM galerie_herzen WHERE galerie_id=? AND user_id=?",
+                     (eintrag_id, uid))
+    else:
+        conn.execute(
+            "INSERT INTO galerie_herzen (galerie_id, user_id, created_at)"
+            " VALUES (?,?,?)", (eintrag_id, uid, int(time.time())))
+    conn.commit()
+    socketio.emit("galerie_geaendert", {"user_id": row["user_id"]})
+    return jsonify(galerie_payload(row, uid, conn))
+
+
+@app.get("/api/galerie/<int:eintrag_id>/worte")
+@login_required
+def api_galerie_worte(eintrag_id):
+    """Die Kommentare, die ich lesen darf.
+
+    Als Besucher ist das mein eigener Faden mit der Person. Als Besitzer ein
+    bestimmter Faden (mit=...) oder die Uebersicht, wer geschrieben hat.
+    """
+    uid = session["uid"]
+    conn = db()
+    row = conn.execute(GALERIE_QUERY + " WHERE g.id=?", (eintrag_id,)).fetchone()
+    if row is None or not galerie_sichtbar(row, uid, conn):
+        abort(403)
+    mit = request.args.get("mit", type=int)
+    if row["user_id"] != uid:
+        mit = uid              # Besucher sehen immer nur ihren eigenen Faden
+    if mit is None:
+        faeden = conn.execute(
+            "SELECT w.mit_id, u.display_name, u.avatar, COUNT(*) c,"
+            " MAX(w.created_at) letzte FROM galerie_worte w"
+            " JOIN users u ON u.id=w.mit_id WHERE w.galerie_id=?"
+            " GROUP BY w.mit_id ORDER BY letzte DESC", (eintrag_id,)).fetchall()
+        return jsonify({"faeden": [
+            {"mit_id": f["mit_id"], "name": f["display_name"],
+             "avatar": f["avatar"], "anzahl": f["c"], "letzte": f["letzte"]}
+            for f in faeden], "worte": []})
+    worte = conn.execute(
+        "SELECT w.*, u.display_name, u.avatar FROM galerie_worte w"
+        " JOIN users u ON u.id=w.user_id WHERE w.galerie_id=? AND w.mit_id=?"
+        " ORDER BY w.created_at", (eintrag_id, mit)).fetchall()
+    return jsonify({"mit_id": mit, "faeden": [], "worte": [
+        {"id": w["id"], "user_id": w["user_id"], "name": w["display_name"],
+         "avatar": w["avatar"], "text": w["text"], "at": w["created_at"],
+         "meins": w["user_id"] == uid} for w in worte]})
+
+
+@app.post("/api/galerie/<int:eintrag_id>/worte")
+@login_required
+def api_galerie_wort_schreiben(eintrag_id):
+    """Einen Kommentar hinterlassen - oder als Besitzer antworten."""
+    uid = session["uid"]
+    conn = db()
+    row = conn.execute(GALERIE_QUERY + " WHERE g.id=?", (eintrag_id,)).fetchone()
+    if row is None or not galerie_sichtbar(row, uid, conn):
+        abort(403)
+    data = request.get_json(force=True)
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "Da steht nichts."}), 400
+    if row["user_id"] == uid:
+        # Der Besitzer antwortet in einem bestimmten Faden
+        try:
+            mit = int(data.get("mit_id"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Wem denn?"}), 400
+        if mit == uid or not conn.execute(
+                "SELECT 1 FROM galerie_worte WHERE galerie_id=? AND mit_id=?",
+                (eintrag_id, mit)).fetchone():
+            return jsonify({"error": "Diesen Faden gibt es nicht."}), 400
+    else:
+        mit = uid
+    now = int(time.time())
+    conn.execute(
+        "INSERT INTO galerie_worte (galerie_id, user_id, mit_id, text,"
+        " created_at) VALUES (?,?,?,?,?)",
+        (eintrag_id, uid, mit, text[:2000], now))
+    conn.commit()
+    # Nur die beiden Beteiligten erfahren davon - alle anderen geht der
+    # Faden nichts an.
+    gegen = row["user_id"] if uid != row["user_id"] else mit
+    socketio.emit("galerie_wort", {"galerie_id": eintrag_id, "mit_id": mit},
+                  to=f"user:{gegen}")
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/galerie/worte/<int:wort_id>")
+@login_required
+def api_galerie_wort_loeschen(wort_id):
+    """Den eigenen Kommentar zuruecknehmen."""
+    uid = session["uid"]
+    conn = db()
+    row = conn.execute("SELECT * FROM galerie_worte WHERE id=?",
+                       (wort_id,)).fetchone()
+    if row is None:
+        abort(404)
+    if row["user_id"] != uid:
+        return jsonify({"error": "Das hast du nicht geschrieben."}), 403
+    conn.execute("DELETE FROM galerie_worte WHERE id=?", (wort_id,))
+    conn.commit()
+    return jsonify({"ok": True})
+
+
+# --------------------------------------------------------------------------
 # Medien
 # --------------------------------------------------------------------------
 def datei_aufraeumen(conn, file_id):
@@ -3297,6 +3829,13 @@ def datei_aufraeumen(conn, file_id):
                        (file_id,)).fetchone()
     if row is None:
         return False
+    # Ein freigegebenes Bild verliert mit der Datei auch seinen Platz in der
+    # Galerie - samt Herzen und Kommentaren.
+    for g in conn.execute("SELECT id FROM galerie WHERE file_id=?",
+                          (file_id,)).fetchall():
+        conn.execute("DELETE FROM galerie_herzen WHERE galerie_id=?", (g["id"],))
+        conn.execute("DELETE FROM galerie_worte WHERE galerie_id=?", (g["id"],))
+    conn.execute("DELETE FROM galerie WHERE file_id=?", (file_id,))
     conn.execute("DELETE FROM files WHERE id=?", (file_id,))
     conn.commit()
     pfad = os.path.join(UPLOAD_DIR, row["stored_name"])
@@ -3339,8 +3878,16 @@ def api_media():
     sql += " ORDER BY m.id DESC LIMIT ?"
     args.append(grenze)
     rows = db().execute(sql, args).fetchall()
+    # Was ich selbst freigegeben habe, steht gleich mit dabei - sonst braeuchte
+    # die Uebersicht je Kachel eine eigene Anfrage.
+    frei = {g["file_id"]: g for g in db().execute(
+        "SELECT file_id, id, art, titel FROM galerie WHERE user_id=?",
+        (me["id"],)).fetchall()}
     return jsonify([{
         "id": r["id"],
+        "galerie": (frei[r["id"]]["art"] if r["id"] in frei else None),
+        "galerie_id": (frei[r["id"]]["id"] if r["id"] in frei else None),
+        "galerie_titel": (frei[r["id"]]["titel"] if r["id"] in frei else ""),
         "name": r["orig_name"],
         "mime": r["mime"],
         "size": r["size"],
