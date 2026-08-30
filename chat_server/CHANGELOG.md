@@ -1,5 +1,22 @@
 # Änderungsverlauf
 
+## 0.38.0
+
+- **Bilder direkt in die Galerie legen**: ＋ Bild hinzufügen, ohne Umweg über
+  eine Unterhaltung. In die eigene Galerie führt der Knopf *Galerie* unten
+  links. Eine Freigabe hält die Datei jetzt fest – ein gelöschter Chat nimmt
+  sie nicht mehr mit
+- **Die Nadel saß daneben.** Symbol und Beschriftung wurden zusammen auf den
+  Punkt zentriert, dadurch stand das Symbol rund 15 Meter zu weit nördlich.
+  Jetzt sitzt es genau auf der Koordinate
+- **„In Karten öffnen" traf den falschen Ort.** Der Verweis war eine *Suche*;
+  Google und Android antworten darauf mit dem nächstgelegenen bekannten Ort.
+  Jetzt zeigen sie auf den Punkt selbst
+- **Die Suchleiste blieb nicht stehen**: die Trefferliste legte sich über den
+  Kopf der Unterhaltung mit. Jetzt tritt sie an die Stelle des Verlaufs
+- **Abgesagte Termine verschwinden aus der Unterhaltung** und aus der Suche.
+  Absagen ist dadurch endgültig – die Nachfrage sagt es vorher
+
 ## 0.37.0
 
 - **Galerie**: Bilder und Filme lassen sich über die Unterhaltung hinaus

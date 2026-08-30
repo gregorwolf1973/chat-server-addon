@@ -135,6 +135,28 @@ def lauf():
                        json={"antwort": "ja"}).status_code == 400,
              "und nimmt keine Zusagen mehr an")
 
+    e.abschnitt("Ein abgesagter Termin verlaesst den Verlauf")
+    verlauf = admin.get(f"{BASE}/api/rooms/{raum}/messages").json()
+    e.pruefe(not [m for m in verlauf if m.get("event")
+                  and m["event"]["id"] == event_id],
+             "seine Sprechblase ist aus der Unterhaltung verschwunden")
+    e.pruefe(not [m for m in anna.get(f"{BASE}/api/rooms/{raum}/messages").json()
+                  if m.get("event") and m["event"]["id"] == event_id],
+             "bei Anna ebenso")
+    e.pruefe(admin.get(f"{BASE}/api/events/{event_id}").status_code == 200,
+             "einzeln abrufbar bleibt er - die Zusagen haengen daran")
+    # Auch beim Blaettern und beim Springen darf er nicht wieder auftauchen
+    e.pruefe(not [m for m in admin.get(
+        f"{BASE}/api/rooms/{raum}/messages?um=1&limit=60").json()
+        if m.get("event") and m["event"]["id"] == event_id],
+        "beim Springen an eine Stelle auch nicht")
+    e.pruefe(not admin.get(f"{BASE}/api/suche?q=Grillen&room={raum}"
+                           ).json()["treffer"]
+             or all(not (m.get("event") and m["event"]["id"] == event_id)
+                    for m in admin.get(f"{BASE}/api/suche?q=Grillen"
+                                       f"&room={raum}").json()["treffer"]),
+             "und die Suche foerdert ihn nicht zutage")
+
     e.abschnitt("Das Bild einer Einladung")
     datei = hochladen(admin, "einladung.png", PNG, "image/png").json()["id"]
     r = admin.post(f"{BASE}/api/rooms/{raum}/event",

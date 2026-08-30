@@ -1134,16 +1134,24 @@ audio.abspieler { width: min(260px, 100%); }
   border: 1px dashed var(--line);
   border-radius: 10px;
 }
+/* Der Punkt sitzt genau auf der Koordinate. Wichtig: die Beschriftung haengt
+   absolut darunter und zaehlt nicht zum Kasten - sonst zentriert sich der
+   Kasten aus Symbol UND Namen auf den Punkt, und das Symbol selbst rutscht um
+   die halbe Namenshoehe nach oben. Das waren gemessene 9,5 Pixel, bei
+   Zoomstufe 16 rund 15 Meter daneben. */
 .karten-punkt {
   position: absolute;
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
 }
 .karten-punkt .avatar { border: 2px solid #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.6); }
 .karten-name {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 10px;
   background: rgba(14, 20, 22, 0.82);
   padding: 1px 5px;
@@ -2033,15 +2041,13 @@ body.schau-offen { overflow: hidden; }
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-/* Die Treffer legen sich ueber den Verlauf - der bleibt darunter stehen und
-   ist sofort wieder da, sobald die Suche zugeht. */
+/* Die Treffer treten an die Stelle des Verlaufs, statt sich darueberzulegen.
+   Als Ueberlagerung deckten sie den Kopf und die Suchleiste mit ab - man sah
+   dann nicht mehr, wonach man gesucht hatte, und konnte es auch nicht mehr
+   aendern. */
 .suchtreffer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 12;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 10px 14px 18px;
   background: var(--bg);

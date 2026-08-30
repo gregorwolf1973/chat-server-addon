@@ -1135,6 +1135,13 @@ def stimmungen_sichtbar(uid, conn=None):
             if r["user_id"] in erlaubt]
 
 
+# Ein abgesagter Termin verschwindet aus dem Verlauf. Die Nachricht bleibt
+# in der Datenbank - die Zu- und Absagen haengen daran -, sie wird nur nicht
+# mehr ausgeliefert. Sonst stuende eine durchgestrichene Einladung fuer
+# immer da.
+OHNE_ABGESAGTE = (" AND (m.event_id IS NULL OR m.event_id NOT IN"
+                  " (SELECT id FROM events WHERE abgesagt=1))")
+
 MSG_QUERY = (
     "SELECT m.*, u.display_name, f.orig_name, f.mime, f.size,"
     " p.body AS q_body, p.file_id AS q_file, p.deleted AS q_deleted,"
@@ -1439,20 +1446,20 @@ def api_messages(room_id):
         # steht und man sieht, worum es ging.
         halb = max(1, limit // 2)
         davor = db().execute(MSG_QUERY + " WHERE m.room_id=? AND m.id<=?"
-                             " ORDER BY m.id DESC LIMIT ?",
+                             + OHNE_ABGESAGTE + " ORDER BY m.id DESC LIMIT ?",
                              (room_id, um, halb)).fetchall()
         danach = db().execute(MSG_QUERY + " WHERE m.room_id=? AND m.id>?"
-                              " ORDER BY m.id LIMIT ?",
+                              + OHNE_ABGESAGTE + " ORDER BY m.id LIMIT ?",
                               (room_id, um, halb)).fetchall()
         rows = list(reversed(davor)) + list(danach)
         return jsonify([msg_payload(r) for r in rows])
     if before:
         rows = db().execute(MSG_QUERY + " WHERE m.room_id=? AND m.id<?"
-                            " ORDER BY m.id DESC LIMIT ?",
+                            + OHNE_ABGESAGTE + " ORDER BY m.id DESC LIMIT ?",
                             (room_id, before, limit)).fetchall()
     else:
         rows = db().execute(MSG_QUERY + " WHERE m.room_id=?"
-                            " ORDER BY m.id DESC LIMIT ?",
+                            + OHNE_ABGESAGTE + " ORDER BY m.id DESC LIMIT ?",
                             (room_id, limit)).fetchall()
     return jsonify([msg_payload(r) for r in reversed(rows)])
 
@@ -1480,7 +1487,8 @@ def api_suche():
     args = [uid]
     sql = (MSG_QUERY + " JOIN room_members rm ON rm.room_id=m.room_id"
            " AND rm.user_id=? WHERE m.deleted=0"
-           " AND (m.body LIKE ? ESCAPE '\\' OR f.orig_name LIKE ? ESCAPE '\\')")
+           " AND (m.body LIKE ? ESCAPE '\\' OR f.orig_name LIKE ? ESCAPE '\\')"
+           + OHNE_ABGESAGTE)
     args += [muster, muster]
     if raum:
         if not is_member(raum, uid):
@@ -3571,6 +3579,15 @@ def galerie_sichtbar(eintrag, uid, conn=None):
     return False
 
 
+def galerie_eintrag_loeschen(conn, file_id):
+    """Freigabe, Herzen und Kommentare zu einer Datei entfernen."""
+    for g in conn.execute("SELECT id FROM galerie WHERE file_id=?",
+                          (file_id,)).fetchall():
+        conn.execute("DELETE FROM galerie_herzen WHERE galerie_id=?", (g["id"],))
+        conn.execute("DELETE FROM galerie_worte WHERE galerie_id=?", (g["id"],))
+    conn.execute("DELETE FROM galerie WHERE file_id=?", (file_id,))
+
+
 def galerie_payload(eintrag, uid, conn=None):
     """Ein Eintrag mit Herzen und der Zahl der Kommentare, die ich sehe."""
     conn = conn or db()
@@ -3688,6 +3705,10 @@ def api_galerie_zuruecknehmen(eintrag_id):
     conn.execute("DELETE FROM galerie_worte WHERE galerie_id=?", (eintrag_id,))
     conn.execute("DELETE FROM galerie WHERE id=?", (eintrag_id,))
     conn.commit()
+    # Ein Bild, das gleich hier hineingelegt wurde, haengt an keiner Nachricht.
+    # Ohne die Freigabe haelt es nichts mehr fest - dann sollen auch die Bytes
+    # nicht in /data liegen bleiben. Kam es aus einer Unterhaltung, bleibt es.
+    datei_aufraeumen(conn, row["file_id"])
     socketio.emit("galerie_geaendert", {"user_id": uid})
     return jsonify({"ok": True})
 
@@ -3825,17 +3846,18 @@ def datei_aufraeumen(conn, file_id):
     if conn.execute("SELECT 1 FROM tipps WHERE file_id=?",
                     (file_id,)).fetchone():
         return False
+    # Eine Freigabe in der Galerie haelt die Datei ebenfalls fest. Sonst waere
+    # ein Bild aus der Sammlung verschwunden, nur weil jemand die Nachricht
+    # geloescht hat, mit der es einmal gekommen ist - oder weil die Frist fuer
+    # alte Nachrichten abgelaufen ist. Wer es wirklich weghaben will, loescht
+    # es unter "Medien"; das nimmt die Freigabe vorher heraus.
+    if conn.execute("SELECT 1 FROM galerie WHERE file_id=?",
+                    (file_id,)).fetchone():
+        return False
     row = conn.execute("SELECT stored_name FROM files WHERE id=?",
                        (file_id,)).fetchone()
     if row is None:
         return False
-    # Ein freigegebenes Bild verliert mit der Datei auch seinen Platz in der
-    # Galerie - samt Herzen und Kommentaren.
-    for g in conn.execute("SELECT id FROM galerie WHERE file_id=?",
-                          (file_id,)).fetchall():
-        conn.execute("DELETE FROM galerie_herzen WHERE galerie_id=?", (g["id"],))
-        conn.execute("DELETE FROM galerie_worte WHERE galerie_id=?", (g["id"],))
-    conn.execute("DELETE FROM galerie WHERE file_id=?", (file_id,))
     conn.execute("DELETE FROM files WHERE id=?", (file_id,))
     conn.commit()
     pfad = os.path.join(UPLOAD_DIR, row["stored_name"])
@@ -3915,6 +3937,9 @@ def medium_loeschen(conn, me, file_id):
         return False, "gehoert jemand anderem", []
     conn.execute("UPDATE messages SET deleted=1, body='', file_id=NULL"
                  " WHERE file_id=?", (file_id,))
+    # Wer eine Datei loescht, will sie los sein - auch aus der Galerie, samt
+    # Herzen und Kommentaren.
+    galerie_eintrag_loeschen(conn, file_id)
     conn.commit()
     datei_aufraeumen(conn, file_id)
     return True, None, [dict(n) for n in nachrichten]

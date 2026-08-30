@@ -231,6 +231,43 @@ def lauf():
                       ).status_code == 403,
              "und ihre Kommentare sind mit weg")
 
+    e.abschnitt("Ein Bild direkt in die Galerie legen")
+    # Ohne Umweg ueber eine Unterhaltung: hochladen und gleich freigeben
+    direkt = hochladen(anna, "direkt.png", PNG, "image/png").json()
+    r = anna.post(f"{BASE}/api/galerie", json={"file_id": direkt["id"],
+                                               "art": "alle",
+                                               "titel": "Ohne Chat"})
+    e.pruefe(r.status_code == 200, f"das geht = {r.status_code}")
+    direkt_g = r.json()["id"]
+    e.pruefe(len(cara.get(f"{BASE}/api/galerie/{anna_id}").json()
+                 ["eintraege"]) == 1, "Cara sieht es")
+    e.pruefe(cara.get(f"{BASE}/files/{direkt['id']}").status_code == 200,
+             "und kann es laden, obwohl es in keiner Unterhaltung steht")
+
+    e.abschnitt("Die Freigabe haelt die Datei fest")
+    haltbar = hochladen(anna, "haltbar.png", PNG, "image/png").json()
+    msg = senden_mit_antwort(anna, raum, "", datei=haltbar["id"])
+    anna.post(f"{BASE}/api/galerie", json={"file_id": haltbar["id"],
+                                           "art": "alle"})
+    e.pruefe(anna.delete(f"{BASE}/api/messages/{msg['id']}").status_code == 200,
+             "die Nachricht laesst sich loeschen")
+    e.pruefe(anna.get(f"{BASE}/files/{haltbar['id']}").status_code == 200,
+             "die Datei bleibt - die Freigabe haelt sie")
+    e.pruefe(len([x for x in anna.get(f"{BASE}/api/galerie/{anna_id}").json()
+                  ["eintraege"] if x["file_id"] == haltbar["id"]]) == 1,
+             "und sie steht weiter in der Galerie")
+
+    e.abschnitt("Zuruecknehmen raeumt ein einsames Bild weg")
+    e.pruefe(anna.delete(f"{BASE}/api/galerie/{direkt_g}").status_code == 200,
+             "die Freigabe laesst sich zuruecknehmen")
+    e.pruefe(anna.get(f"{BASE}/files/{direkt['id']}").status_code == 404,
+             "das direkt hochgeladene Bild ist fort - nichts hielt es mehr")
+    uebrig = [x for x in anna.get(f"{BASE}/api/galerie/{anna_id}").json()
+              ["eintraege"] if x["file_id"] == haltbar["id"]][0]
+    anna.delete(f"{BASE}/api/galerie/{uebrig['id']}")
+    e.pruefe(anna.get(f"{BASE}/files/{haltbar['id']}").status_code == 404,
+             "das aus der Unterhaltung ebenfalls - dort war die Nachricht ja weg")
+
     e.abschnitt("Ohne Anmeldung geht gar nichts")
     for pfad, methode in ((f"/api/galerie/{anna_id}", requests.get),
                           ("/api/galerie", requests.post),

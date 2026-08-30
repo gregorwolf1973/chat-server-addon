@@ -422,9 +422,16 @@ mit einem Knopf, der sie einschaltet – auf der Umrisskarte läge ein Punkt
 leicht mehrere Kilometer daneben, die taugt dafür nicht.
 
 **Absagen** darf allein, wer eingeladen hat – bewusst auch der Administrator
-nicht. Wer zu einer Feier lädt, entscheidet auch, ob sie stattfindet. Der
-Termin bleibt danach sichtbar, nimmt aber keine Zusagen mehr an; über
-**Absage zurücknehmen** steht er wieder, mit allen Zusagen von vorher.
+nicht. Wer zu einer Feier lädt, entscheidet auch, ob sie stattfindet.
+
+Ein abgesagter Termin **verschwindet aus der Unterhaltung**, aus den
+Terminlisten und aus der Suche. Damit ist Absagen **endgültig**: Es bleibt
+keine Karte mehr stehen, auf die man tippen könnte, um es zurückzunehmen –
+wer sich anders entscheidet, lädt neu ein. Die Nachfrage vor dem Absagen sagt
+das ausdrücklich.
+
+Die Nachricht selbst bleibt in der Datenbank, denn die Zu- und Absagen hängen
+daran; sie wird nur nicht mehr ausgeliefert.
 
 Der Administrator kann fremde Termine also **ändern, aber nicht absagen**.
 Wird ein Termin zum Problem, bleibt ihm die Unterhaltung selbst: Wer sie
@@ -610,6 +617,12 @@ unter *Einstellungen → Karten*: voreingestellt die **Standard-App des Geräts*
 (unter Android fragt das Telefon selbst, welche es sein soll), wahlweise fest
 Google Maps, Apple Karten oder OpenStreetMap. Auf dem Rechner gibt es keine
 App zum Aufrufen – dort führt die Voreinstellung zu Google Maps im Browser.
+
+**Punkt, nicht Suche.** Der Verweis nennt die Koordinate ausdrücklich als Ort
+(`q=loc:` bei Google, eine Beschriftung beim `geo:`-Verweis unter Android).
+Das ist kein Schönheitsfehler: Eine bloße Suche nach „49.0094,8.4044" beant­
+worten beide mit dem **nächstgelegenen bekannten Ort** – die Nadel stünde dann
+auf dem Lokal nebenan statt auf dem Punkt, den jemand gesetzt hat.
 
 Empfehlungen mit Ort stehen außerdem auf der **Live-Karte**, mit einem ⭐ als
 Nadel. Ein Tipp darauf öffnet sie. Über der Karte lassen sie sich ausblenden,
@@ -823,7 +836,9 @@ zwei Zeichen, im Text **und in Dateinamen**; Groß- und Kleinschreibung ist
 egal. Mit dem Haken **Alle Unterhaltungen** geht es über alles, was du sehen
 darfst – fremde Unterhaltungen bleiben außen vor, auch für den Administrator.
 
-Die Treffer legen sich über den Verlauf, die Fundstelle ist hervorgehoben. Ein
+Die Treffer treten an die Stelle des Verlaufs; Kopf und Suchfeld bleiben
+sichtbar, auch wenn nichts gefunden wurde – man will ja gleich etwas anderes
+eintippen. Die Fundstelle ist hervorgehoben. Ein
 Tipp springt hin: die Nachricht rückt in die Mitte, mit dreißig davor und
 dreißig danach, und leuchtet zwei Sekunden lang auf. Gelöschte Nachrichten
 tauchen in der Suche nicht auf.
@@ -856,7 +871,21 @@ wo sie ist, und verschwindet nicht aus der Unterhaltung.
 
 **Hingelangen:** In einer Unterhaltung mit *einer* Person steht oben rechts
 neben dem Namen **🖼 Galerie**. In einer Gruppe nicht – dort wäre nicht klar,
-wessen Bilder gemeint sind.
+wessen Bilder gemeint sind. Zur **eigenen** Galerie führt der Knopf *Galerie*
+unten links neben *Freunde*.
+
+### Ohne Umweg hineinlegen
+
+In der eigenen Galerie legt **＋ Bild hinzufügen** ein Bild oder einen Film
+direkt hinein: Datei wählen, Unterschrift, Freigabe – fertig. Es landet in
+**keiner** Unterhaltung; niemand bekommt es geschickt.
+
+Eine Freigabe **hält die Datei fest**. Löschst du die Nachricht, mit der ein
+Bild einmal kam, bleibt es in der Galerie; auch die Frist für alte Nachrichten
+räumt es nicht weg. Erst wenn du die Freigabe zurücknimmst, ist es wieder ein
+gewöhnlicher Anhang – und wenn dann nichts mehr daran hängt, verschwindet es
+ganz. Wer es sofort loswerden will, löscht es unter **Medien**; das nimmt die
+Freigabe mit.
 
 ### Herzen und Kommentare
 

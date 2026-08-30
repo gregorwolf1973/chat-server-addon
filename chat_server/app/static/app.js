@@ -541,9 +541,16 @@
 
   function sucheSchliessen() {
     $("suchleiste").hidden = true;
-    $("suchtreffer").hidden = true;
+    trefferZeigen(false);
     $("suchtreffer").innerHTML = "";
     $("suche-zahl").textContent = "";
+  }
+
+  /** Treffer statt Verlauf - oder wieder zurueck. */
+  function trefferZeigen(an) {
+    $("suchtreffer").hidden = !an;
+    $("messages").hidden = an;
+    if (an) $("sprung").hidden = true; else sprungZeigen();
   }
 
   /** Den Treffer im Text hervorheben - der Rest bleibt maskiert. */
@@ -569,7 +576,7 @@
     const frage = $("suche-feld").value.trim();
     const feld = $("suchtreffer");
     if (frage.length < 2) {
-      feld.hidden = true;
+      trefferZeigen(false);
       $("suche-zahl").textContent = frage ? "mind. 2 Zeichen" : "";
       return;
     }
@@ -586,9 +593,14 @@
       ? `${treffer.length}${daten.mehr ? "+" : ""} ${
           treffer.length === 1 ? "Treffer" : "Treffer"}`
       : "nichts gefunden";
-    feld.hidden = false;
+    trefferZeigen(true);
     if (!treffer.length) {
-      feld.innerHTML = '<p class="hint">Dazu steht nichts im Verlauf.</p>';
+      // Das Suchfeld bleibt stehen - man will ja gleich etwas anderes
+      // eintippen, nicht erst die Suche neu aufmachen.
+      feld.innerHTML = `<p class="hint">Zu „${esc(frage)}" steht nichts im `
+        + `Verlauf${ueberall ? "" : " dieser Unterhaltung"}.</p>`
+        + (ueberall ? "" : '<p class="hint">Setz den Haken oben, um in allen '
+          + 'Unterhaltungen zu suchen.</p>');
       return;
     }
     feld.innerHTML = treffer.map((m) => {
@@ -968,25 +980,41 @@
   const istApple = () => /iphone|ipad|ipod/i.test(navigator.userAgent)
     || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
+  // Google und Android verstehen zwei verschiedene Dinge unter einem Ort:
+  // eine *Suche* und einen *Punkt*. Eine Suche nach "49.0094,8.4044" beantwortet
+  // Google mit dem naechstgelegenen bekannten Ort - also mit der Nadel auf dem
+  // Restaurant nebenan statt auf der Koordinate. Deshalb hier ueberall die
+  // Punktform: "q=loc:" bei Google, und beim geo:-Verweis immer eine
+  // Beschriftung, denn erst sie macht aus der Suche einen Punkt.
+  const GOOGLE_ZOOM = 17;
+
+  function googleZiel(lat, lon) {
+    return `https://www.google.com/maps?q=loc:${lat},${lon}&z=${GOOGLE_ZOOM}`;
+  }
+
+  function appleZiel(lat, lon, name) {
+    // ll setzt den Ausschnitt, q die Nadel - beides mit denselben Werten,
+    // damit Apple nicht selbst nach etwas in der Naehe sucht.
+    return `https://maps.apple.com/?ll=${lat},${lon}&q=${
+      encodeURIComponent(name || "Ort")}&t=m`;
+  }
+
   function kartenZiel(lat, lon, name) {
     const wahl = (state.me && state.me.karten_app) || "geraet";
     const paar = `${lat},${lon}`;
-    const beschriftet = name ? `(${name})` : "";
     if (wahl === "geraet") {
       // Auf dem Telefon die Standardanwendung, sonst die passende Netzkarte
-      if (istAndroid()) return `geo:${paar}?q=${paar}${encodeURIComponent(beschriftet)}`;
-      if (istApple()) {
-        return `https://maps.apple.com/?ll=${paar}&q=${
-          encodeURIComponent(name || "Ort")}`;
+      if (istAndroid()) {
+        // Irgendeine Beschriftung muss sein - ohne sie liest Android das q=
+        // als Suchbegriff und landet beim naechsten bekannten Ort.
+        const schild = name || "Standort";
+        return `geo:${paar}?q=${paar}(${encodeURIComponent(schild)})`;
       }
-      return `https://www.google.com/maps/search/?api=1&query=${paar}`;
+      if (istApple()) return appleZiel(lat, lon, name);
+      return googleZiel(lat, lon);
     }
-    if (wahl === "google") {
-      return `https://www.google.com/maps/search/?api=1&query=${paar}`;
-    }
-    if (wahl === "apple") {
-      return `https://maps.apple.com/?ll=${paar}&q=${encodeURIComponent(name || "Ort")}`;
-    }
+    if (wahl === "google") return googleZiel(lat, lon);
+    if (wahl === "apple") return appleZiel(lat, lon, name);
     return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
   }
 
@@ -1915,7 +1943,9 @@
     const darfAendern = meiner || IS_ADMIN;
     const knoepfe = [];
     if (ev.abgesagt) {
-      if (meiner) knoepfe.push('<button class="act ev-zurueck">Absage zurücknehmen</button>');
+      // Zum Zuruecknehmen gibt es keinen Weg mehr: die Karte verlaesst mit der
+      // Absage den Verlauf und die Listen, es waere also nichts mehr da, worauf
+      // man tippen koennte. Deshalb warnt die Nachfrage vorher.
     } else {
       if (darfAendern) knoepfe.push('<button class="act ev-bearbeiten">Bearbeiten</button>');
       if (meiner) knoepfe.push('<button class="act del ev-absagen">Termin absagen</button>');
@@ -1962,6 +1992,16 @@
     const res = await api(`/api/events/${eventId}`);
     if (!res.ok) return;
     const ev = await res.json();
+    if (ev.abgesagt) {
+      // Ein abgesagter Termin verlaesst den Verlauf. Beim naechsten Laden
+      // schickt der Server ihn ohnehin nicht mehr mit - hier nur, damit es
+      // sofort geschieht und nicht erst beim Neuoeffnen.
+      const blase = kasten && kasten.closest(".msg");
+      if (blase) blase.remove();
+      else if (kasten) kasten.remove();
+      terminLaden();
+      return;
+    }
     if (kasten) kasten.outerHTML = eventHtml(ev);
     // Nachladen statt nur neu zeichnen: sagt jemand anders einen Termin ab,
     // stuende er sonst weiter in meiner Seitenleiste.
@@ -1996,27 +2036,15 @@
       terminDialog(await res.json());
       return;
     }
-    const zurueck = e.target.closest(".ev-zurueck");
-    if (zurueck) {
-      e.preventDefault();
-      e.stopPropagation();
-      const id = zurueck.closest(".event").dataset.event;
-      const res = await api(`/api/events/${id}`, {
-        method: "PATCH", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({abgesagt: false}),
-      });
-      if (!res.ok) { toast("Das ging nicht."); return; }
-      eventNeuZeichnen(id);
-      terminLaden();
-      toast("Der Termin steht wieder.");
-      return;
-    }
     const absagen = e.target.closest(".ev-absagen");
     if (absagen) {
       e.preventDefault();
       e.stopPropagation();
       const kasten = absagen.closest(".event");
-      if (!confirm("Den Termin für alle absagen?")) return;
+      if (!confirm("Den Termin für alle absagen?" + "\n\n"
+                   + "Die Einladung verschwindet danach aus der Unterhaltung "
+                   + "und aus allen Terminlisten. Zurücknehmen geht dann "
+                   + "nicht mehr – du müsstest neu einladen.")) return;
       const res = await api(`/api/events/${kasten.dataset.event}`, {method: "DELETE"});
       if (!res.ok) { toast("Das Absagen ging nicht."); return; }
       eventNeuZeichnen(kasten.dataset.event);
@@ -3435,11 +3463,13 @@
   function galerieZeichnen() {
     $("galerie-titel").textContent = galerie.meine
       ? "Deine Galerie" : `Bilder von ${galerie.person.name}`;
+    $("galerie-neu").hidden = !galerie.meine;
     const feld = $("galerie-raster");
     if (!galerie.eintraege.length) {
       feld.innerHTML = `<p class="hint">${galerie.meine
-        ? "Noch nichts freigegeben. Unter „Medien“ oben in einer Unterhaltung "
-          + "wählst du aus, was hier stehen soll."
+        ? "Noch nichts hier. Über „＋ Bild hinzufügen“ oben legst du etwas "
+          + "hinein – oder du gibst unter „Medien“ frei, was du ohnehin schon "
+          + "verschickt hast."
         : "Hier ist noch nichts freigegeben."}</p>`;
       return;
     }
@@ -3578,6 +3608,77 @@
     await fadenOeffnen(galerieId, mitId);
   }
 
+  /** Ein Bild oder einen Film direkt in die eigene Galerie legen.
+   *
+   *  Der Umweg über eine Unterhaltung entfällt: die Datei geht auf demselben
+   *  Weg hoch wie ein Anhang, wird aber an keine Nachricht gehängt.
+   */
+  function galerieHinzufuegen() {
+    let datei = null;
+    const root = modal(`<h2>Bild oder Film hinzufügen</h2>
+      <p class="hint">Es landet nur in deiner Galerie – in keiner
+        Unterhaltung.</p>
+      <div class="field">
+        <button class="btn ghost" type="button" id="gn-datei">Datei wählen</button>
+        <span class="hint" id="gn-name"></span>
+      </div>
+      <div class="field"><label for="gn-titel">Bildunterschrift (freiwillig)</label>
+        <input id="gn-titel" autocomplete="off" maxlength="200"></div>
+      <div class="field"><label>Wer darf es sehen?</label>
+        <div class="kf-zeile" id="gn-wahl">
+          <button type="button" class="mini-btn an" data-art="freunde">👥 Meine Freunde</button>
+          <button type="button" class="mini-btn" data-art="alle">🌍 Alle</button>
+        </div></div>
+      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
+      <button class="btn" id="gn-ok">Hinzufügen</button></div>`);
+    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    let art = "freunde";
+    root.querySelectorAll("[data-art]").forEach((b) =>
+      b.addEventListener("click", () => {
+        art = b.dataset.art;
+        root.querySelectorAll("[data-art]").forEach((x) =>
+          x.classList.toggle("an", x === b));
+      }));
+    const waehlen = () => {
+      const feld = document.createElement("input");
+      feld.type = "file";
+      feld.accept = "image/*,video/*";
+      feld.addEventListener("change", () => {
+        datei = feld.files[0] || null;
+        root.querySelector("#gn-name").textContent = datei ? datei.name : "";
+      });
+      feld.click();
+    };
+    root.querySelector("#gn-datei").addEventListener("click", waehlen);
+    waehlen();
+
+    root.querySelector("#gn-ok").addEventListener("click", async () => {
+      if (!datei) { toast("Wähle zuerst ein Bild oder einen Film."); return; }
+      const knopf = root.querySelector("#gn-ok");
+      knopf.disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append("file", datei);
+        const hoch = await api("/api/upload", {method: "POST", body: fd});
+        const daten = await hoch.json().catch(() => ({}));
+        if (!hoch.ok) { toast(daten.error || "Das ging nicht durch."); return; }
+        const res = await api("/api/galerie", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({file_id: daten.id, art,
+            titel: root.querySelector("#gn-titel").value.trim()})});
+        const antwort = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(antwort.error || "Das ging nicht."); return; }
+        closeModal();
+        toast(art === "alle" ? "Für alle sichtbar." : "Für deine Freunde sichtbar.");
+        await galerieOeffnen(ME);
+      } finally {
+        knopf.disabled = false;
+      }
+    });
+  }
+
+  $("galerie-neu").addEventListener("click", galerieHinzufuegen);
+  $("btn-meine-galerie").addEventListener("click", () => galerieOeffnen(ME));
   $("galerie-zu").addEventListener("click", galerieSchliessen);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !$("galerie").hidden) galerieSchliessen();
