@@ -162,6 +162,19 @@ Die Seite steht offen im Netz, deshalb nimmt sie höchstens drei Anträge je
 Stunde und Absender an. Ganz abschalten lässt sie sich mit der Option
 `allow_registration`.
 
+## Woran du einen neuen Antrag merkst
+
+Drei Wege, und nur die ersten beiden melden sich von selbst:
+
+1. **Push-Nachricht** an alle aktiven Administratoren: „Neuer Zugangsantrag –
+   <Name>". Der einzige Weg, der dich auch bei geschlossener App erreicht.
+   Setzt eingeschaltete Benachrichtigungen und HTTPS voraus
+2. **Ein kurzer Hinweis** unten im Bild, solange die App offen ist – der
+   verschwindet nach ein paar Sekunden wieder
+3. **Eine rote Zahl am Zahnrad** unten links. Sie bleibt stehen, bis der
+   Antrag beantwortet ist, und ist damit der verlässliche Hinweis. Nur
+   Administratoren sehen sie
+
 ## Benutzer verwalten
 
 Administratoren finden unter **… → Benutzer verwalten** alle Konten mit ihren

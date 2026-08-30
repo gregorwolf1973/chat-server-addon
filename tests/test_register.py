@@ -70,6 +70,8 @@ def main():
     e.pruefe(eintrag and eintrag["note"] == "Wohne nebenan",
              "die Begruendung steht dabei")
     e.pruefe(liste[0]["pending"], "Antraege stehen oben in der Liste")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["antraege"] == 1,
+             "und die Zahl am Zahnrad steht auf eins")
 
     e.abschnitt("Freigeben")
     uid = eintrag["id"]
@@ -83,6 +85,11 @@ def main():
              "ein zweites Freigeben wird abgewiesen")
     sichtbar = [u["username"] for u in admin.get(f"{BASE}/api/state").json()["users"]]
     e.pruefe("neuling" in sichtbar, "jetzt taucht das Konto in der Nutzerliste auf")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["antraege"] == 0,
+             "und die Zahl am Zahnrad ist wieder weg")
+    e.pruefe(anmelden("neuling", "start123")[0]
+             .get(f"{BASE}/api/state").json()["me"]["antraege"] == 0,
+             "wer kein Administrator ist, sieht die Zahl nie")
 
     e.abschnitt("Ablehnen entfernt den Antrag")
     antrag(username="unerwuenscht", display="Jemand", email="a@b.de",

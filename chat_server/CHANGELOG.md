@@ -1,5 +1,13 @@
 # Änderungsverlauf
 
+## 0.39.1
+
+- **Offene Zugangsanträge stehen jetzt am Zahnrad** unten links – eine rote
+  Zahl, die bleibt, bis der Antrag beantwortet ist. Bisher gab es nur die
+  Push-Nachricht und einen kurzen Hinweis, der nach Sekunden verschwand; wer
+  beides verpasste, merkte einen Antrag nur beim Nachsehen. Sichtbar
+  ausschließlich für Administratoren
+
 ## 0.39.0
 
 - **Der Chat heißt jetzt Wosislos** – in der Seitenleiste, im Fenstertitel und

@@ -756,7 +756,10 @@
   socket.on("room_removed", (d) => raumVerlassen(d.id));
   socket.on("room_changed", () => loadState());
   socket.on("user_pending", (u) => {
-    if (IS_ADMIN) toast(`Neuer Zugangsantrag von ${u.display_name}.`);
+    if (!IS_ADMIN) return;
+    toast(`Neuer Zugangsantrag von ${u.display_name}.`);
+    // Die kurze Meldung ist gleich wieder weg - die Zahl am Zahnrad bleibt
+    loadState();
   });
   socket.on("user_removed", () => loadState());
 
@@ -5380,6 +5383,24 @@
       }));
   }
 
+  /** Wie viele Zugangsantraege offen sind - nur der Administrator sieht das.
+   *
+   *  Die Meldung beim Eintreffen verschwindet nach Sekunden; wer sie verpasst,
+   *  merkte einen Antrag bisher nur beim Nachsehen. Die Zahl bleibt stehen,
+   *  bis er beantwortet ist.
+   */
+  function antraegeZeigen() {
+    const zahl = $("antrags-zahl");
+    if (!zahl) return;
+    const offen = (state.me && state.me.antraege) || 0;
+    zahl.hidden = !offen;
+    zahl.textContent = offen || "";
+    $("btn-settings").title = offen
+      ? `Einstellungen – ${offen} ${offen === 1 ? "Zugangsantrag wartet"
+          : "Zugangsanträge warten"}`
+      : "Einstellungen";
+  }
+
   // ---------- Push ----------
   const b64 = (s) => {
     const pad = "=".repeat((4 - (s.length % 4)) % 4);
@@ -5530,6 +5551,7 @@
     state.freunde = data.freunde || [];
     if (state.me && data.me) state.me.ton_stufe = data.me.ton_stufe || "alle";
     blasenfarbeAnwenden();
+    antraegeZeigen();
     state.freund_anfragen = data.freund_anfragen || 0;
     renderRooms();
     renderKarten();

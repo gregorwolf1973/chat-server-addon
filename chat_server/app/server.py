@@ -976,6 +976,19 @@ def _standort_aus_anfrage():
     return (lat, lon)
 
 
+def offene_antraege(conn=None):
+    """Wie viele Zugangsantraege noch auf eine Antwort warten.
+
+    Nur fuer Administratoren gedacht: die Zahl steht am Zahnrad, damit ein
+    Antrag nicht liegen bleibt, weil man die kurze Meldung verpasst hat.
+    """
+    conn = conn or db()
+    marks = ",".join("?" * len(SYSTEM_USERS))
+    return conn.execute(
+        f"SELECT COUNT(*) c FROM users WHERE pending=1"
+        f" AND username NOT IN ({marks})", SYSTEM_USERS).fetchone()["c"]
+
+
 def mein_kreis(uid, conn=None):
     """Alle, mit denen ich etwas zu tun habe.
 
@@ -1424,6 +1437,7 @@ def api_state():
                "blasenfarbe": me["blasenfarbe"],
                "karten_app": me["karten_app"] or "geraet",
                "klingelton": me["klingelton"] or "klassisch",
+               "antraege": offene_antraege(conn) if me["is_admin"] else 0,
                "geburtstage_an": bool(me["geburtstage_an"]),
                "gesehen": gesehen_lesen(me)},
         "rooms": payload,
