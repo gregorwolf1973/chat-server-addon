@@ -191,8 +191,12 @@
     const res = await api(`/api/rooms/${id}/messages?limit=${VERLAUF_SCHRITT}`);
     const msgs = await res.json();
     amAnfang = msgs.length < VERLAUF_SCHRITT;
+    amBoden = true;
     verlaufZeichnen(msgs);
     scrollDown();
+    // Bilder ohne feste Groesse wachsen erst nach dem Zeichnen - dann noch
+    // einmal nachfassen, damit die letzte Nachricht wirklich unten steht.
+    requestAnimationFrame(scrollDown);
     room.unread = 0;
     renderRooms();
     api(`/api/rooms/${id}/read`, {method: "POST"});
@@ -200,11 +204,51 @@
     $("input").focus();
   }
 
+  // Wollen wir gerade unten stehen? Beim Oeffnen einer Unterhaltung ja; wer
+  // von Hand hochrollt, will dort bleiben. Bilder laden nach und machen den
+  // Verlauf hoeher - ohne dieses Merkmal rutschte die letzte Nachricht dann
+  // aus dem Bild.
+  let amBoden = true;
+
   function scrollDown() {
     const box = $("messages");
     box.scrollTop = box.scrollHeight;
+    amBoden = true;
     sprungZeigen();
   }
+
+  // load steigt nicht auf, wird aber beim Hinuntergehen sichtbar - so faengt
+  // ein einziger Zuhoerer jedes nachgeladene Bild und Video ab.
+  $("messages").addEventListener("load", () => {
+    if (amBoden) scrollDown();
+  }, true);
+
+  /**
+   * Die nutzbare Hoehe an das Fenster binden, das man wirklich sieht.
+   *
+   * Auf dem Telefon verkleinert die Tastatur nur dieses "visuelle Fenster";
+   * 100dvh bleibt, wie es war. Der Browser rollt dann die ganze Seite hoch,
+   * damit das Schreibfeld zu sehen ist - und der Kopf mit Name, Anruf und
+   * Medien verschwindet nach oben.
+   */
+  function hoeheSetzen() {
+    const sicht = window.visualViewport;
+    const hoehe = sicht ? sicht.height : window.innerHeight;
+    document.documentElement.style.setProperty("--app-hoehe", `${hoehe}px`);
+    // Die Seite selbst gehoert immer ganz nach oben - gerollt wird im Verlauf
+    if (window.scrollY) window.scrollTo(0, 0);
+    if (amBoden) {
+      const box = $("messages");
+      box.scrollTop = box.scrollHeight;
+    }
+  }
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", hoeheSetzen);
+    window.visualViewport.addEventListener("scroll", hoeheSetzen);
+  }
+  window.addEventListener("orientationchange", () => setTimeout(hoeheSetzen, 120));
+  hoeheSetzen();
 
   // ---------- Der geladene Verlauf ----------
   // Bisher stand nur der letzte Schwung im Fenster. Fuers Zurueckblaettern
@@ -3403,8 +3447,17 @@
     alle: "Für alle freigegeben",
   };
 
-  /** Freigabe einer eigenen Datei setzen oder zurücknehmen. */
-  function freigabeDialog(m, danach) {
+  /** Freigabe einer eigenen Datei setzen oder zurücknehmen.
+   *
+   *  zurueck wird immer aufgerufen, wenn dieser Dialog wieder zugeht - auch
+   *  beim Abbrechen. Ein Dialog ersetzt hier ja den vorigen, statt sich
+   *  darüberzulegen; ohne den Rückweg stünde man danach vor nichts.
+   */
+  function freigabeDialog(m, zurueck) {
+    const schliessen = () => {
+      closeModal();
+      if (zurueck) zurueck();
+    };
     const jetzt = m.galerie || "aus";
     const root = modal(`<h2>Wer darf das sehen?</h2>
       <p class="hint">In der Unterhaltung sehen es die Mitglieder ohnehin.
@@ -3419,7 +3472,7 @@
         <input id="fg-titel" autocomplete="off" maxlength="200"
                value="${esc(m.galerie_titel || "")}"></div>
       <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button></div>`);
-    root.querySelector("#m-cancel").addEventListener("click", closeModal);
+    root.querySelector("#m-cancel").addEventListener("click", schliessen);
     root.querySelectorAll("[data-art]").forEach((b) =>
       b.addEventListener("click", async () => {
         const art = b.dataset.art;
@@ -3433,11 +3486,10 @@
               body: JSON.stringify({file_id: m.id, art, titel})});
         const daten = await res.json().catch(() => ({}));
         if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
-        closeModal();
         toast(art === "aus" ? "Freigabe zurückgenommen."
               : art === "alle" ? "Für alle freigegeben."
               : "Für deine Freunde freigegeben.");
-        if (danach) danach();
+        schliessen();
       }));
   }
 
@@ -3483,8 +3535,9 @@
           <span class="ga-herz ${g.mein_herz ? "an" : ""}" data-herz="${g.id}"
                 title="Gefällt mir">${g.mein_herz ? "❤️" : "🤍"} ${g.herzen}</span>
           <span class="ga-wort" data-wort="${g.id}" title="Kommentare">💬 ${g.worte}</span>
-          ${galerie.meine ? `<span class="ga-art"
-             title="${FREI_TITEL[g.art]}">${FREI_ZEICHEN[g.art]}</span>` : ""}
+          ${galerie.meine ? `<button class="ga-art" data-frei="${g.id}"
+             title="${FREI_TITEL[g.art]} – zum Ändern tippen">${
+             FREI_ZEICHEN[g.art]}</button>` : ""}
         </figcaption>
         ${g.titel ? `<div class="ga-titel">${esc(g.titel)}</div>` : ""}
       </figure>`).join("");
@@ -3499,6 +3552,18 @@
         const i = galerie.eintraege.findIndex((g) => g.id === id);
         if (i >= 0) galerie.eintraege[i] = {...galerie.eintraege[i], ...neu};
         galerieZeichnen();
+      }));
+    feld.querySelectorAll("[data-frei]").forEach((el) =>
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const g = galerie.eintraege.find(
+          (x) => x.id === parseInt(el.dataset.frei, 10));
+        if (!g) return;
+        // Der Dialog denkt in Dateien, die Galerie in Einträgen - hier die
+        // Übersetzung, damit beide Wege denselben Dialog benutzen.
+        freigabeDialog({id: g.file_id, galerie: g.art, galerie_id: g.id,
+                        galerie_titel: g.titel},
+                       () => galerieOeffnen(galerie.person.id));
       }));
     feld.querySelectorAll("[data-wort]").forEach((el) =>
       el.addEventListener("click", (e) => {
@@ -5208,7 +5273,9 @@
         e.preventDefault();
         e.stopPropagation();
         const m = alle.find((x) => x.id === parseInt(btn.dataset.frei, 10));
-        freigabeDialog(m, () => ladeMedien(root));
+        // Nicht ladeMedien(root): dieser root ist gleich nicht mehr im
+        // Dokument, weil der Freigabedialog ihn ersetzt.
+        freigabeDialog(m, () => medienDialog());
       }));
 
     box.querySelectorAll('[data-act="del"]').forEach((btn) =>
@@ -5414,8 +5481,10 @@
   // Oben angekommen den naechsten Schwung holen - so blaettert man einfach
   // weiter zurueck, ohne einen Knopf zu suchen.
   $("messages").addEventListener("scroll", () => {
+    const box = $("messages");
+    amBoden = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
     sprungZeigen();
-    if ($("messages").scrollTop < 80) aeltereLaden();
+    if (box.scrollTop < 80) aeltereLaden();
   });
 
   document.querySelectorAll(".reiter-knopf").forEach((b) =>

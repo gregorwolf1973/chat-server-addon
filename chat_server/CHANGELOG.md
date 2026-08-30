@@ -1,5 +1,20 @@
 # Änderungsverlauf
 
+## 0.38.1
+
+- **Freigeben ging nicht.** Der Freigabedialog ersetzte die Medienliste, statt
+  sich darüberzulegen; danach lief die Anzeige auf einen Fehler und das
+  Zeichen an der Kachel änderte sich nie. Jetzt kommt die Liste zurück – nach
+  dem Wählen wie nach dem Abbrechen
+- **Freigeben geht auch aus der Galerie**: ein Tipp auf 🔒/👥/🌍 an der Kachel
+- **HEIC und HEIF** werden als Bilder erkannt – iPhone-Fotos landeten sonst als
+  gewöhnlicher Anhang und ließen sich nicht freigeben. Passt ein Format gar
+  nicht, sagt die Meldung jetzt, woran es liegt
+- **Der Kopf der Unterhaltung bleibt stehen**, auch wenn die Tastatur aufgeht:
+  die Höhe richtet sich nach dem sichtbaren Fenster, nicht nach 100dvh
+- **Die letzte Nachricht bleibt unten** – beim Öffnen, beim Nachladen von
+  Bildern und mit aufgeklappter Tastatur
+
 ## 0.38.0
 
 - **Bilder direkt in die Galerie legen**: ＋ Bild hinzufügen, ohne Umweg über

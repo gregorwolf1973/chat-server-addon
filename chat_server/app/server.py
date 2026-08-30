@@ -597,7 +597,8 @@ def push_to_users(user_ids, title, body, url):
 # Uploads kommt aus dem Multipart-Header des Clients, ist also frei waehlbar -
 # ein "text/html" wuerde als Seite auf unserem eigenen Origin laufen und das
 # Sitzungs-Cookie preisgeben. Alles Uebrige geht als Download raus.
-IMAGE_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"}
+IMAGE_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp",
+               "image/avif", "image/heic", "image/heif"}
 # Video und Ton koennen im Abspieler laufen, ohne Skripte auszufuehren.
 VIDEO_MIMES = {"video/mp4", "video/webm", "video/ogg", "video/quicktime"}
 AUDIO_MIMES = {"audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "audio/webm",
@@ -3669,8 +3670,19 @@ def api_galerie_freigeben():
                          (file_id, uid)).fetchone()
     if datei is None:
         return jsonify({"error": "Freigeben kannst du nur, was von dir ist."}), 403
-    if (datei["mime"] or "").split("/")[0] not in GALERIE_MIMES:
-        return jsonify({"error": "Nur Bilder und Filme."}), 400
+    # Nicht "art" nennen: so hiess schon die Freigabeart aus der Anfrage, und
+    # der Eintrag bekaeme dann "image" statt "freunde" - sichtbar waere er
+    # danach fuer niemanden mehr.
+    dateiart = (datei["mime"] or "").split("/")[0]
+    if dateiart not in GALERIE_MIMES:
+        # Was der Chat nicht kennt, liegt als "application/octet-stream" da -
+        # dann sieht es aus wie eine beliebige Datei, auch wenn es ein Foto
+        # ist. Das soll die Meldung sagen, statt "nur Bilder und Filme".
+        bekannt = ", ".join(sorted(
+            m.split("/")[1].upper() for m in IMAGE_MIMES))
+        return jsonify({"error": "Dieses Format kennt der Chat nicht, deshalb"
+                        " liegt die Datei als gewöhnlicher Anhang da."
+                        f" Bilder gehen als {bekannt}."}), 400
     titel = (data.get("titel") or "").strip()[:200]
     now = int(time.time())
     vorher = conn.execute("SELECT id FROM galerie WHERE file_id=?",

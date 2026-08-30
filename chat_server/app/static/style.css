@@ -181,7 +181,17 @@ button { cursor: pointer; }
 }
 
 /* ---------- Layout ---------- */
-.app { display: flex; height: 100dvh; overflow: hidden; }
+/* Die Hoehe kommt vom Skript, sobald der Browser ein "visuelles Fenster"
+   kennt: 100dvh schrumpft naemlich nicht, wenn die Tastatur aufgeht. Ohne das
+   schiebt der Browser die ganze Seite nach oben, um das Schreibfeld zu zeigen,
+   und nimmt dabei den Kopf der Unterhaltung mit aus dem Bild. */
+.app {
+  display: flex;
+  height: var(--app-hoehe, 100dvh);
+  overflow: hidden;
+}
+/* Die Seite selbst darf nicht rollen - sonst wandert der Kopf trotzdem weg */
+html, body { overscroll-behavior: none; }
 
 .sidebar {
   width: 300px;

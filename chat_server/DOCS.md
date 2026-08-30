@@ -738,6 +738,14 @@ Maus bleibt die Oberfläche kompakt.
 darunter: bei liegendem Telefon bleibt sonst nicht genug Höhe, und die Kacheln
 schoben die Leiste aus dem Bild.
 
+**Wenn die Tastatur aufgeht**, richtet sich die Höhe des Fensters nach dem,
+was wirklich zu sehen ist – nicht nach `100dvh`, das dabei unverändert bleibt.
+Sonst schöbe der Browser die ganze Seite nach oben, um das Schreibfeld zu
+zeigen, und nähme den Kopf mit Name, Anruf und Medien mit aus dem Bild. So
+bleibt der Kopf oben stehen, das Schreibfeld sitzt über der Tastatur, und die
+letzte Nachricht bleibt sichtbar – auch dann, wenn Bilder erst nachträglich
+geladen werden und den Verlauf höher machen.
+
 Zwei Anpassungen fallen auf:
 
 * Auf dem Telefon ist der **Emoji-Knopf ausgeblendet**. Die Tastatur bringt
@@ -866,8 +874,15 @@ verrät.
 | 🌍 | für alle, die ein Konto haben |
 
 Ein Tipp darauf öffnet die Auswahl, dort lässt sich auch eine
-Bildunterschrift setzen. Zurücknehmen geht jederzeit; die Datei selbst bleibt,
-wo sie ist, und verschwindet nicht aus der Unterhaltung.
+Bildunterschrift setzen. Dasselbe Zeichen steht in der eigenen Galerie an
+jeder Kachel – auch von dort aus lässt sich die Freigabe ändern. Zurücknehmen
+geht jederzeit; die Datei selbst bleibt, wo sie ist, und verschwindet nicht
+aus der Unterhaltung.
+
+**Formate:** Freigeben lassen sich Bilder als JPEG, PNG, GIF, WebP, AVIF, HEIC
+und HEIF sowie Filme als MP4, WebM, Ogg und QuickTime. Was der Chat nicht
+kennt, liegt als gewöhnlicher Anhang da und lässt sich nicht in die Galerie
+legen – die Meldung sagt das dann auch.
 
 **Hingelangen:** In einer Unterhaltung mit *einer* Person steht oben rechts
 neben dem Namen **🖼 Galerie**. In einer Gruppe nicht – dort wäre nicht klar,
