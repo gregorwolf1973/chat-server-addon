@@ -217,6 +217,13 @@ CREATE TABLE IF NOT EXISTS poll_votes (
 );
 -- Bilder und Filme, die jemand ueber die Unterhaltung hinaus freigibt.
 -- Ein Eintrag je Datei; wer sie sehen darf, steht in art.
+-- Serverweite Einstellungen. Bisher steht nur der Anzeigename darin; die
+-- Tabelle ist der Platz fuer alles Weitere, was allen gemeinsam gehoert und
+-- nicht am einzelnen Konto haengt.
+CREATE TABLE IF NOT EXISTS einstellungen (
+    schluessel TEXT PRIMARY KEY,
+    wert TEXT
+);
 CREATE TABLE IF NOT EXISTS galerie (
     id INTEGER PRIMARY KEY,
     file_id INTEGER NOT NULL UNIQUE,
@@ -630,17 +637,77 @@ def statisch(dateiname):
     return f"{adresse}?v={stempel}"
 
 
+# Wie die Oberflaeche heissen soll. Das Add-on selbst bleibt "Chat Server" -
+# hier geht es nur um den Namen, den die Leute lesen.
+ANZEIGENAME_STANDARD = "Wosislos"
+ANZEIGENAME_MAX = 40
+
+
+def einstellung_lesen(schluessel, standard="", conn=None):
+    conn = conn or db()
+    row = conn.execute("SELECT wert FROM einstellungen WHERE schluessel=?",
+                       (schluessel,)).fetchone()
+    return row["wert"] if row and row["wert"] else standard
+
+
+def einstellung_setzen(schluessel, wert, conn=None):
+    conn = conn or db()
+    conn.execute("INSERT INTO einstellungen (schluessel, wert) VALUES (?,?)"
+                 " ON CONFLICT(schluessel) DO UPDATE SET wert=excluded.wert",
+                 (schluessel, wert))
+    conn.commit()
+
+
+def anzeigename():
+    return einstellung_lesen("anzeigename", ANZEIGENAME_STANDARD)
+
+
 @app.context_processor
 def vorlagen_werte():
     """Steht allen Vorlagen zur Verfuegung - etwa fuer den Link zur Anmeldung."""
-    return {"registration_open": ALLOW_REGISTRATION, "statisch": statisch}
+    return {"registration_open": ALLOW_REGISTRATION, "statisch": statisch,
+            "anzeigename": anzeigename(),
+            "csp_nonce": g.get("csp_nonce", "")}
+
+
+# Kartenkacheln sind die einzige Stelle, an der die Oberflaeche etwas von
+# einem fremden Server holt. Alles andere kommt von hier.
+KACHEL_HERKUNFT = "https://tile.openstreetmap.org https://*.tile.openstreetmap.org"
 
 
 @app.after_request
 def security_headers(resp):
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     resp.headers.setdefault("Referrer-Policy", "no-referrer")
+    # Ein Netz unter der Oberflaeche: sollte je ein fremder Text als HTML
+    # durchrutschen, kann er wenigstens kein Skript starten und nichts
+    # nachladen. Das eine Skript in der Seite traegt dafuer eine Kennung, die
+    # bei jedem Aufruf wechselt.
+    #
+    # style-src braucht 'unsafe-inline': die Oberflaeche setzt Farben und
+    # Groessen an einzelnen Elementen ueber style="...", und dafuer gibt es
+    # keine Kennung. Angriffe ueber Stilangaben sind ungleich harmloser als
+    # ueber Skripte.
+    if "Content-Security-Policy" not in resp.headers:
+        nonce = g.get("csp_nonce", "")
+        resp.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            f"script-src 'self' 'nonce-{nonce}'; "
+            "style-src 'self' 'unsafe-inline'; "
+            f"img-src 'self' data: blob: {KACHEL_HERKUNFT}; "
+            "media-src 'self' blob:; "
+            "connect-src 'self' ws: wss:; "
+            "font-src 'self'; "
+            "object-src 'none'; "
+            "base-uri 'none'; "
+            "form-action 'self'; "
+            "frame-ancestors *")
     return resp
+
+
+@app.before_request
+def csp_nonce_setzen():
+    g.csp_nonce = secrets.token_urlsafe(16)
 
 
 def session_user(conn=None):
@@ -1177,6 +1244,11 @@ MSG_QUERY = (
 ANTRAEGE = {}
 ANTRAEGE_LOCK = threading.Lock()
 ANTRAEGE_PRO_STUNDE = 3
+# Zweite Bremse, die nicht an der Adresse haengt: mehr als so viele
+# unbeantwortete Antraege duerfen nicht gleichzeitig offen sein. Wer die
+# Absenderadresse faelscht, kommt an der ersten Bremse vorbei - an dieser
+# nicht. Der Administrator raeumt sie ab, dann geht es weiter.
+ANTRAEGE_OFFEN_MAX = 20
 
 
 def zu_viele_antraege(adresse):
@@ -1237,8 +1309,14 @@ def register_page():
     if not request.form.get("zustimmung"):
         return zurueck("Ohne dein Einverstaendnis zur Speicherung koennen wir "
                        "kein Konto anlegen.")
-    if zu_viele_antraege(request.headers.get("X-Forwarded-For",
-                                             request.remote_addr or "?")):
+    if offene_antraege() >= ANTRAEGE_OFFEN_MAX:
+        log.warning("Zugangsantrag abgewiesen: %s Antraege liegen schon offen",
+                    ANTRAEGE_OFFEN_MAX)
+        return render_template(
+            "register.html",
+            error="Zurzeit liegen zu viele unbeantwortete Anträge vor. "
+                  "Bitte versuche es später noch einmal."), 429
+    if zu_viele_antraege(_absender()):
         return zurueck("Es sind schon mehrere Antraege von dir eingegangen. "
                        "Bitte warte eine Stunde.")
 
@@ -1290,6 +1368,21 @@ MAX_JE_ADRESSE = 40
 
 
 def _absender():
+    """Woher die Anfrage kommt - so gut, wie es sich feststellen laesst.
+
+    X-Forwarded-For schickt der Client mit; wer will, schreibt dort etwas
+    Erfundenes hinein und umgeht damit jede Bremse, die nach Adresse zaehlt.
+    Cloudflare dagegen *ersetzt* CF-Connecting-IP durch die wirkliche Adresse,
+    egal was der Client behauptet - dieser Wert ist also belastbar, solange
+    das Add-on nur ueber den Tunnel erreichbar ist.
+
+    Bleibt es bei X-Forwarded-For, ist der Wert nur ein Anhaltspunkt. Deshalb
+    haengt keine Bremse allein daran: die Anmeldung zaehlt zusaetzlich je
+    Konto, die Registrierung zusaetzlich als Gesamtzahl.
+    """
+    echt = request.headers.get("CF-Connecting-IP", "").strip()
+    if echt:
+        return echt
     weiter = request.headers.get("X-Forwarded-For", "")
     return (weiter.split(",")[0].strip() if weiter
             else (request.remote_addr or "?"))
@@ -1383,8 +1476,8 @@ def manifest():
     auf, unter Ingress also gegen den Ingress-Pfad.
     """
     return jsonify({
-        "name": "Chat",
-        "short_name": "Chat",
+        "name": anzeigename(),
+        "short_name": anzeigename(),
         "start_url": "./",
         "scope": "./",
         "display": "standalone",
@@ -1440,6 +1533,7 @@ def api_state():
                "antraege": offene_antraege(conn) if me["is_admin"] else 0,
                "geburtstage_an": bool(me["geburtstage_an"]),
                "gesehen": gesehen_lesen(me)},
+        "anzeigename": anzeigename(),
         "rooms": payload,
         "users": [dict(u) for u in users],
         "online": online,
@@ -2648,6 +2742,32 @@ def api_set_klingelton():
 @login_required
 def api_klingeltoene():
     return jsonify(list(KLINGELTOENE))
+
+
+@app.get("/api/anzeigename")
+@login_required
+def api_anzeigename_lesen():
+    return jsonify({"name": anzeigename(), "standard": ANZEIGENAME_STANDARD})
+
+
+@app.post("/api/anzeigename")
+@login_required
+@admin_required
+def api_anzeigename_setzen():
+    """Wie die Oberflaeche heissen soll - fuer alle zugleich.
+
+    Leer heisst: zurueck zur Voreinstellung. Das Add-on im Store bleibt davon
+    unberuehrt, dessen Name steht in config.yaml.
+    """
+    roh = (request.get_json(force=True).get("name") or "").strip()
+    if len(roh) > ANZEIGENAME_MAX:
+        return jsonify({"error": f"Höchstens {ANZEIGENAME_MAX} Zeichen."}), 400
+    einstellung_setzen("anzeigename", roh)
+    neu = anzeigename()
+    log.info("Anzeigename auf %r gesetzt von Nutzer %s", neu, session["uid"])
+    # Alle offenen Fenster ziehen nach, ohne dass jemand neu laden muss
+    socketio.emit("name_geaendert", {"name": neu})
+    return jsonify({"ok": True, "name": neu})
 
 
 # --------------------------------------------------------------------------
@@ -4063,8 +4183,11 @@ def api_push_subscribe():
             (session["uid"], sub["endpoint"], keys["p256dh"], keys["auth"],
              int(time.time())))
         db().commit()
-    except (KeyError, sqlite3.Error) as exc:
-        return jsonify({"error": str(exc)}), 400
+    except (KeyError, TypeError, AttributeError, sqlite3.Error) as exc:
+        # Der Wortlaut bleibt im Protokoll - nach draussen gehoert er nicht,
+        # er verriete Tabellennamen und Spalten.
+        log.warning("Push-Anmeldung abgelehnt: %s", exc)
+        return jsonify({"error": "Die Anmeldung war unvollstaendig."}), 400
     return jsonify({"ok": True})
 
 
@@ -4509,12 +4632,26 @@ def on_disconnect():
 
 @socketio.on("typing")
 def on_typing(data):
+    """"Schreibt gerade" - nur in Unterhaltungen, in denen ich auch bin.
+
+    Vorher ging der Hinweis in jede beliebige Unterhaltung, und der Name kam
+    aus der Anfrage. Damit liess sich ein fremder Name in einen fremden Raum
+    schreiben. Beides kommt jetzt vom Server.
+    """
     uid = session.get("uid")
     if not uid:
         return
-    room_id = int(data.get("room_id", 0))
+    try:
+        room_id = int(data.get("room_id", 0))
+    except (TypeError, ValueError):
+        return
+    if not is_member(room_id, uid):
+        return
+    me = session_user()
+    if me is None:
+        return
     emit("typing", {"room_id": room_id, "user_id": uid,
-                    "name": data.get("name", "")},
+                    "name": me["display_name"]},
          to=f"room:{room_id}", include_self=False)
 
 

@@ -1,5 +1,31 @@
 # Änderungsverlauf
 
+## 0.40.0
+
+- **Der Name der Oberfläche ist einstellbar** – in den Einstellungen unter
+  *Name*, nur für Administratoren, gültig für alle. Er steht in der
+  Seitenleiste, im Fenstertitel, auf der Anmeldeseite und im Manifest. Das
+  Add-on selbst heißt weiterhin „Chat Server"
+- **iPhone-Fotos (HEIC) werden beim Hochladen in JPEG umgeschrieben.** Sonst
+  lagen sie als gewöhnlicher Anhang da, waren außerhalb von Safari nicht zu
+  sehen und ließen sich nicht in die Galerie legen
+
+### Aus dem Sicherheitsdurchgang
+
+- **„Schreibt gerade" ging in jede Unterhaltung** – auch in fremde – und der
+  angezeigte Name kam aus der Anfrage. Beides kommt jetzt vom Server
+- **Zugangsanträge lassen sich nicht mehr fluten**: die Bremse hing allein an
+  der Absenderadresse, die sich fälschen lässt. Jetzt gilt zusätzlich eine
+  Obergrenze von 20 offenen Anträgen
+- **Die Absenderadresse** wird nicht mehr blind aus `X-Forwarded-For`
+  genommen: hinter Cloudflare zählt `CF-Connecting-IP`, das sich nicht
+  fälschen lässt
+- **Eine Inhaltsrichtlinie (CSP)** für alle Seiten, mit wechselnder Kennung
+  für das eine Skript in der Seite. Sollte je ein fremder Text als HTML
+  durchrutschen, kann er kein Skript starten und nichts nachladen
+- **Die Push-Anmeldung** gab bei einem Fehler den Wortlaut der Datenbank
+  zurück, samt Tabellen- und Spaltennamen
+
 ## 0.39.1
 
 - **Offene Zugangsanträge stehen jetzt am Zahnrad** unten links – eine rote

@@ -162,6 +162,19 @@ Die Seite steht offen im Netz, deshalb nimmt sie höchstens drei Anträge je
 Stunde und Absender an. Ganz abschalten lässt sie sich mit der Option
 `allow_registration`.
 
+## Wie der Chat heißt
+
+In den Einstellungen unter **Name** trägt ein Administrator ein, wie die
+Oberfläche heißen soll – voreingestellt „Wosislos". Der Name erscheint in der
+Seitenleiste, im Fenstertitel, auf der Anmeldeseite und im Manifest (also auch
+unter dem Symbol auf dem Home-Bildschirm). Er gilt für alle und wechselt bei
+allen offenen Fenstern sofort, ohne Neuladen. Leeren stellt die Voreinstellung
+wieder her.
+
+Das **Add-on** im Home-Assistant-Store heißt davon unabhängig weiter
+„Chat Server" – dieser Name steht in `config.yaml` und würde sich beim
+Umbenennen wie eine neue Installation verhalten.
+
 ## Woran du einen neuen Antrag merkst
 
 Drei Wege, und nur die ersten beiden melden sich von selbst:
@@ -903,6 +916,11 @@ jeder Kachel – auch von dort aus lässt sich die Freigabe ändern. Zurücknehm
 geht jederzeit; die Datei selbst bleibt, wo sie ist, und verschwindet nicht
 aus der Unterhaltung.
 
+**iPhone-Fotos:** HEIC schreibt der Chat schon beim Hochladen in ein JPEG um –
+auf dem Gerät, das es aufgenommen hat, denn nur dort kann der Browser das
+Format überhaupt lesen. Die Größe bleibt dabei erhalten, nur das Format
+wechselt. Kann ein Browser HEIC nicht lesen, bleibt die Datei, wie sie ist.
+
 **Formate:** Freigeben lassen sich Bilder als JPEG, PNG, GIF, WebP, AVIF, HEIC
 und HEIF sowie Filme als MP4, WebM, Ogg und QuickTime. Was der Chat nicht
 kennt, liegt als gewöhnlicher Anhang da und lässt sich nicht in die Galerie
@@ -974,6 +992,22 @@ Absender greift eine weit höhere Grenze, weil hinter Tunnel und Reverse
 Proxy alle dieselbe Adresse haben; sonst sperrte ein Angriff auf ein
 einzelnes Konto gleich alle aus. Gebremste Versuche stehen im
 Add-on-Protokoll.
+
+**Was der Browser darf:** Jede Seite bringt eine Inhaltsrichtlinie mit. Skripte
+laufen nur aus dem Add-on selbst; das eine Skript in der Seite trägt eine
+Kennung, die bei jedem Aufruf wechselt. Bilder kommen von hier – einzige
+Ausnahme sind die Kartenkacheln von OpenStreetMap. Sollte je ein fremder Text
+als HTML durchrutschen, kann er damit weder ein Skript starten noch etwas
+nachladen.
+
+**Woher eine Anfrage kommt**, lässt sich nur begrenzt feststellen:
+`X-Forwarded-For` schickt der Client selbst mit und kann dort schreiben, was er
+will. Hinter Cloudflare zählt deshalb `CF-Connecting-IP` – das ersetzt
+Cloudflare, egal was der Client behauptet. Wo es fehlt, ist die Adresse nur
+ein Anhaltspunkt; keine Bremse hängt allein daran. Die Anmeldung zählt
+zusätzlich je Konto, die Registrierung zusätzlich als Gesamtzahl: mehr als
+**20 unbeantwortete Anträge** nimmt der Server nicht an, bis ein Administrator
+aufgeräumt hat.
 
 Hochgeladene Dateien unter `/data/uploads` sind vom Backup **ausgenommen** –
 bei 99 MB je Datei würde jedes Vollbackup sonst schnell unhandlich.

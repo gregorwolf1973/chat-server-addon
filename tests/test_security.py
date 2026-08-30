@@ -1,10 +1,11 @@
 """Zugriffsschutz: Dateitypen, fremde Datei-IDs, Manifest-Pfade."""
 import os
 import sys
+import time
 from urllib.parse import urljoin
 
 from helpers import (BASE, PNG, Ergebnis, als_admin, anmelden, eigene_id,
-                     hochladen, senden, senden_mit_antwort,
+                     hochladen, senden, senden_mit_antwort, verbindung,
                      verbindungen_schliessen)
 
 
@@ -108,6 +109,65 @@ def main():
     seite = admin.get(f"{BASE}/").text
     e.pruefe("app.js?v=" in seite and "style.css?v=" in seite,
              "sonst liefert der Browser nach einem Update alte Dateien aus")
+
+    e.abschnitt("Inhaltsrichtlinie fuer die Seite")
+    r = admin.get(f"{BASE}/")
+    csp = r.headers.get("Content-Security-Policy", "")
+    e.pruefe(csp, "die Seite bringt eine Richtlinie mit")
+    e.pruefe("script-src 'self' 'nonce-" in csp,
+             "Skripte nur von hier, das eine mit Kennung")
+    e.pruefe("object-src 'none'" in csp and "base-uri 'none'" in csp,
+             "kein Objekt, keine fremde Grundadresse")
+    e.pruefe("tile.openstreetmap.org" in csp,
+             "Kartenkacheln sind die einzige fremde Quelle")
+    kennung = csp.split("'nonce-")[1].split("'")[0]
+    e.pruefe(f'nonce="{kennung}"' in r.text,
+             "das Skript in der Seite traegt genau diese Kennung")
+    zweite = admin.get(f"{BASE}/").headers.get("Content-Security-Policy", "")
+    e.pruefe(zweite != csp, "und sie wechselt bei jedem Aufruf")
+    e.pruefe("Content-Security-Policy" in admin.get(f"{BASE}/login").headers,
+             "die Anmeldeseite ebenfalls")
+
+    e.abschnitt("Push-Anmeldung verraet nichts nach innen")
+    r = admin.post(f"{BASE}/api/push/subscribe", json={"endpoint": "x"})
+    e.pruefe(r.status_code == 400, f"unvollstaendig wird abgewiesen = {r.status_code}")
+    text = r.json().get("error", "")
+    e.pruefe("push_subs" not in text and "p256dh" not in text.lower(),
+             f"ohne Tabellen- und Spaltennamen = {text!r}")
+
+    e.abschnitt('"Schreibt gerade" nur in eigenen Unterhaltungen')
+    # Ein Raum, in dem der Administrator ist und das Testkonto nicht
+    admin.post(f"{BASE}/api/users", json={"username": "dritte",
+                                          "display_name": "Dritte",
+                                          "password": "start123"})
+    dritte, _ = anmelden("dritte", "start123")
+    ohne_gast = admin.post(f"{BASE}/api/rooms", json={
+        "name": "Ohne Gast", "is_group": True,
+        "members": [eigene_id(dritte)]}).json()["id"]
+    # Erst jetzt verbinden: die Sockets treten den Raeumen beim Verbinden bei
+    verbindungen_schliessen()
+    lauscher = verbindung(admin)
+    empfangen = []
+    lauscher.on("typing", lambda d: empfangen.append(d))
+    time.sleep(0.6)
+
+    verbindung(gast).emit("typing", {"room_id": ohne_gast,
+                                     "name": "Jemand ganz anderes"})
+    time.sleep(1.5)
+    e.pruefe(not empfangen,
+             f"wer nicht dazugehoert, dringt nicht durch = {empfangen}")
+
+    # In der gemeinsamen Unterhaltung geht es - mit dem Namen vom Server
+    empfangen.clear()
+    verbindung(gast).emit("typing", {"room_id": raum,
+                                     "name": "Erfundener Name"})
+    time.sleep(1.5)
+    e.pruefe(len(empfangen) == 1, f"in der gemeinsamen schon = {empfangen}")
+    e.pruefe(empfangen and empfangen[0].get("name") == "Test Person",
+             "und der Name kommt vom Server, nicht aus der Anfrage = "
+             f"{empfangen[0].get('name') if empfangen else '-'}")
+    e.pruefe(empfangen and empfangen[0].get("room_id") == raum,
+             "mit der richtigen Unterhaltung")
 
     verbindungen_schliessen()
     return e.bilanz()

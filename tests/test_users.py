@@ -2,6 +2,8 @@
 import os
 import sys
 
+import requests
+
 from helpers import (BASE, Ergebnis, als_admin, anmelden, eigene_id,
                      senden, verbindungen_schliessen)
 
@@ -119,6 +121,38 @@ def main():
              f"die Liste ist aufgeraeumt: {namen}")
 
     verbindungen_schliessen()
+    e.abschnitt("Name der Oberflaeche")
+    # Ein gewoehnliches Konto, um die Rechte zu pruefen
+    admin.post(f"{BASE}/api/users", json={"username": "leser",
+                                          "display_name": "Leser",
+                                          "password": "start123"})
+    anna, _ = anmelden("leser", "start123")
+    r = admin.get(f"{BASE}/api/anzeigename")
+    e.pruefe(r.status_code == 200, f"laesst sich lesen = {r.status_code}")
+    e.pruefe(r.json()["name"] == "Wosislos",
+             f"voreingestellt = {r.json()['name']}")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["anzeigename"] == "Wosislos",
+             "und steht im Startzustand")
+    r = admin.post(f"{BASE}/api/anzeigename", json={"name": "Nachbarschaft"})
+    e.pruefe(r.status_code == 200 and r.json()["name"] == "Nachbarschaft",
+             f"der Administrator kann ihn aendern = {r.status_code}")
+    e.pruefe(anna.get(f"{BASE}/api/state").json()["anzeigename"] == "Nachbarschaft",
+             "Anna sieht denselben Namen - er gilt fuer alle")
+    e.pruefe(anna.post(f"{BASE}/api/anzeigename",
+                       json={"name": "Annas Bude"}).status_code == 403,
+             "aendern darf ihn nur, wer Administrator ist")
+    e.pruefe(anna.get(f"{BASE}/api/anzeigename").status_code == 200,
+             "lesen darf ihn jeder")
+    e.pruefe(admin.post(f"{BASE}/api/anzeigename",
+                        json={"name": "x" * 41}).status_code == 400,
+             "zu lang wird abgewiesen")
+    r = admin.post(f"{BASE}/api/anzeigename", json={"name": "   "})
+    e.pruefe(r.json()["name"] == "Wosislos",
+             "leer heisst zurueck zur Voreinstellung")
+    e.pruefe(requests.post(f"{BASE}/api/anzeigename", json={},
+                           allow_redirects=False).status_code in (302, 401),
+             "ohne Anmeldung geht gar nichts")
+
     return e.bilanz()
 
 

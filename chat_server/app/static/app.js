@@ -100,6 +100,46 @@
     });
   }
 
+  // iPhones legen Fotos als HEIC ab. Das Format kennt der Chat nicht: es
+  // laege als gewoehnlicher Anhang da, waere in keinem Browser ausser Safari
+  // zu sehen und liesse sich nicht in die Galerie legen. Wer es aufnimmt,
+  // kann es auch anzeigen - und damit ueber eine Leinwand in ein JPEG
+  // umschreiben. Anders als beim Profilbild bleibt die Groesse dabei, es
+  // geht nur um das Format.
+  const HEIC = /^image\/(heic|heif)/i;
+  const HEIC_ENDUNG = /\.(heic|heif)$/i;
+
+  function istHeic(datei) {
+    return HEIC.test(datei.type || "") || HEIC_ENDUNG.test(datei.name || "");
+  }
+
+  function heicUmschreiben(datei) {
+    if (!istHeic(datei)) return Promise.resolve(datei);
+    return new Promise((fertig) => {
+      const bild = new Image();
+      const adresse = URL.createObjectURL(datei);
+      // Kann der Browser es nicht lesen, bleibt es, wie es ist - lieber ein
+      // Anhang, den man herunterladen kann, als gar nichts.
+      const aufgeben = () => { URL.revokeObjectURL(adresse); fertig(datei); };
+      bild.onerror = aufgeben;
+      bild.onload = () => {
+        try {
+          const leinwand = document.createElement("canvas");
+          leinwand.width = bild.naturalWidth;
+          leinwand.height = bild.naturalHeight;
+          leinwand.getContext("2d").drawImage(bild, 0, 0);
+          leinwand.toBlob((b) => {
+            URL.revokeObjectURL(adresse);
+            if (!b) { fertig(datei); return; }
+            const name = (datei.name || "foto").replace(HEIC_ENDUNG, "") + ".jpg";
+            fertig(new File([b], name, {type: "image/jpeg"}));
+          }, "image/jpeg", 0.92);
+        } catch (err) { aufgeben(); }
+      };
+      bild.src = adresse;
+    });
+  }
+
   // Dateiauswahl oeffnen, Bild verkleinern und an die Adresse schicken
   function bildWaehlen(ziel, fertig) {
     const feld = document.createElement("input");
@@ -2352,7 +2392,7 @@
       try {
         if (bildDatei) {
           const fd = new FormData();
-          fd.append("file", bildDatei);
+          fd.append("file", await heicUmschreiben(bildDatei));
           const hoch = await api("/api/upload", {method: "POST", body: fd});
           const daten = await hoch.json().catch(() => ({}));
           if (!hoch.ok) { toast(daten.error || "Das Bild ging nicht durch."); return; }
@@ -2996,7 +3036,7 @@
       try {
         if (bildDatei) {
           const fd = new FormData();
-          fd.append("file", bildDatei);
+          fd.append("file", await heicUmschreiben(bildDatei));
           const hoch = await api("/api/upload", {method: "POST", body: fd});
           const daten = await hoch.json().catch(() => ({}));
           if (!hoch.ok) { toast(daten.error || "Das Bild ging nicht durch."); return; }
@@ -3755,7 +3795,7 @@
       knopf.disabled = true;
       try {
         const fd = new FormData();
-        fd.append("file", datei);
+        fd.append("file", await heicUmschreiben(datei));
         const hoch = await api("/api/upload", {method: "POST", body: fd});
         const daten = await hoch.json().catch(() => ({}));
         if (!hoch.ok) { toast(daten.error || "Das ging nicht durch."); return; }
@@ -4577,7 +4617,7 @@
       toast(dateien.length > 1
         ? `Lade ${fertig + 1} von ${dateien.length} …` : "Datei wird hochgeladen …");
       const fd = new FormData();
-      fd.append("file", datei);
+      fd.append("file", await heicUmschreiben(datei));
       const res = await api("/api/upload", {method: "POST", body: fd});
       const daten = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -4865,6 +4905,16 @@
       <p class="hint" id="push-lage">Wird geprüft …</p>
       <button class="btn ghost" id="push-an" hidden>Benachrichtigungen einschalten</button>
       ${IS_ADMIN ? `<hr class="sep">
+        <h2>Name</h2>
+        <p class="hint">Wie die Oberfläche heißt – in der Seitenleiste, im
+          Fenstertitel und auf der Anmeldeseite. Gilt für alle. Das Add-on
+          selbst heißt weiterhin „Chat Server“.</p>
+        <div class="field">
+          <input id="an-name" autocomplete="off" maxlength="40"
+                 value="${esc(state.anzeigename || "")}">
+        </div>
+        <button class="btn ghost" id="an-ok">Namen speichern</button>
+        <hr class="sep">
         <h2>Benutzer verwalten</h2>
         <div id="u-list" class="user-list"><p class="hint">Wird geladen …</p></div>
         <button class="btn ghost" id="u-new">+ Neues Konto</button>
@@ -4977,6 +5027,19 @@
       if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
       if (state.me) state.me.karten_app = wahl;
       toast("Gespeichert.");
+    });
+    const nameKnopf = root.querySelector("#an-ok");
+    if (nameKnopf) nameKnopf.addEventListener("click", async () => {
+      const wunsch = root.querySelector("#an-name").value.trim();
+      const res = await api("/api/anzeigename", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({name: wunsch}),
+      });
+      const daten = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+      namenSetzen(daten.name);
+      root.querySelector("#an-name").value = daten.name;
+      toast(wunsch ? "Name gespeichert." : "Zurück zur Voreinstellung.");
     });
     root.querySelector("#geb-an").addEventListener("change", async (e) => {
       const an = e.target.checked;
@@ -5401,6 +5464,17 @@
       : "Einstellungen";
   }
 
+  /** Den Namen der Oberfläche überall setzen, ohne Neuladen. */
+  function namenSetzen(name) {
+    if (!name) return;
+    state.anzeigename = name;
+    document.title = name;
+    const marke = $("marke");
+    if (marke) marke.textContent = name;
+  }
+
+  socket.on("name_geaendert", (d) => namenSetzen(d && d.name));
+
   // ---------- Push ----------
   const b64 = (s) => {
     const pad = "=".repeat((4 - (s.length % 4)) % 4);
@@ -5551,6 +5625,7 @@
     state.freunde = data.freunde || [];
     if (state.me && data.me) state.me.ton_stufe = data.me.ton_stufe || "alle";
     blasenfarbeAnwenden();
+    namenSetzen(data.anzeigename);
     antraegeZeigen();
     state.freund_anfragen = data.freund_anfragen || 0;
     renderRooms();
