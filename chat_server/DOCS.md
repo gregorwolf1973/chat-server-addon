@@ -38,7 +38,12 @@ Danach `external_url: https://chat.biker633.org` setzen und das Add-on neu start
 
 * Funktionieren nur über **HTTPS**, also über die externe Adresse – nicht über die
   Ingress-URL, deren Pfad-Token sich ändert.
-* Auf dem Handy die Seite öffnen, unten links auf **Push** tippen und erlauben.
+* Beim Öffnen der Seite meldet sich das Gerät **von selbst** an, sobald die
+  Erlaubnis einmal erteilt ist. Beim allerersten Mal fragt ein schmaler
+  Streifen unten nach – der Browser verlangt für diese Frage eine echte
+  Berührung, ein Fenster von selbst wäre stumm abgelehnt.
+* Nachträglich geht es unter **Einstellungen → Benachrichtigungen**. Steht dort
+  „vom Browser abgelehnt", hilft nur das Schloss neben der Adresszeile.
 * iOS ab 16.4: die Seite muss vorher über **Teilen → Zum Home-Bildschirm** als
   App installiert werden, sonst bietet Safari kein Push an.
 * Der VAPID-Schlüssel wird beim ersten Start erzeugt und liegt in `/data/vapid.json`.
@@ -577,7 +582,11 @@ hat (und der Administrator kann löschen).
 
 Ein Tipp auf die Empfehlung öffnet sie in ganzer Größe – mit Bild, Text, wer
 sie sich gemerkt hat und, wenn ein Ort hinterlegt ist, einer **Straßenkarte**.
-Über **In Karten öffnen** geht es zur Kartenanwendung.
+Über **In Karten öffnen** geht es zur Kartenanwendung. Welche das ist, steht
+unter *Einstellungen → Karten*: voreingestellt die **Standard-App des Geräts**
+(unter Android fragt das Telefon selbst, welche es sein soll), wahlweise fest
+Google Maps, Apple Karten oder OpenStreetMap. Auf dem Rechner gibt es keine
+App zum Aufrufen – dort führt die Voreinstellung zu Google Maps im Browser.
 
 Empfehlungen mit Ort stehen außerdem auf der **Live-Karte**, mit einem ⭐ als
 Nadel. Ein Tipp darauf öffnet sie. Über der Karte lassen sie sich ausblenden,
@@ -658,7 +667,12 @@ Wird ein Konto gelöscht, verschwinden seine Freundschaften mit.
 
 Über **Setzen** im Abschnitt **Stimmung** sagst du, worauf du gerade Lust
 hättest – ein Emoji, ein Satz, eine Geltungsdauer von zwei Stunden bis morgen
-und auf Wunsch dein Standort. Andere tippen auf **Ich mach mit**; ein zweiter
+und auf Wunsch dein Standort.
+
+Beim Emoji steht oben eine Reihe mit den **zuletzt genommenen**; der Knopf **＋**
+daneben öffnet die ganze Sammlung mit rund 375 Zeichen in elf Gruppen. Was du
+wählst, rutscht in der Reihe nach vorn – die Favoriten merkt sich der Browser
+dieses Geräts, nicht der Server. Andere tippen auf **Ich mach mit**; ein zweiter
 Tipp nimmt es zurück.
 
 Sichtbar ist eine Meldung für deinen Kreis – alle, mit denen du eine
@@ -678,6 +692,10 @@ wenn jemand schreibt, worauf er Lust hätte.
 Alle Schaltflächen sind auf Berührungsgeräten mindestens **44 Pixel** hoch –
 darunter trifft ein Finger nicht mehr verlässlich. Das gilt nur dort: mit der
 Maus bleibt die Oberfläche kompakt.
+
+**Im Querformat** rücken die Knöpfe eines Anrufs über das Videobild statt
+darunter: bei liegendem Telefon bleibt sonst nicht genug Höhe, und die Kacheln
+schoben die Leiste aus dem Bild.
 
 Zwei Anpassungen fallen auf:
 
@@ -769,6 +787,27 @@ Beim Löschen verschwindet die Datei aus dem Verlauf **und vom Server** – die
 Bytes bleiben nicht liegen. Eigene Dateien darf jeder löschen, fremde nur ein
 Administrator. Dasselbe gilt, wenn du eine Nachricht mit Anhang löschst: der
 Anhang geht mit.
+
+## Suchen und springen
+
+Der Knopf **🔍** oben in der Unterhaltung öffnet die Suche. Gesucht wird ab
+zwei Zeichen, im Text **und in Dateinamen**; Groß- und Kleinschreibung ist
+egal. Mit dem Haken **Alle Unterhaltungen** geht es über alles, was du sehen
+darfst – fremde Unterhaltungen bleiben außen vor, auch für den Administrator.
+
+Die Treffer legen sich über den Verlauf, die Fundstelle ist hervorgehoben. Ein
+Tipp springt hin: die Nachricht rückt in die Mitte, mit dreißig davor und
+dreißig danach, und leuchtet zwei Sekunden lang auf. Gelöschte Nachrichten
+tauchen in der Suche nicht auf.
+
+Rechts unten im Verlauf stehen zwei Pfeile:
+
+- **↓** springt ans Ende. Er erscheint nur, wenn du nicht ohnehin unten bist
+- **↑** springt zum Anfang des vorigen Tages. Ist nichts Älteres geladen, holt
+  er es erst nach
+
+Wer einfach nach oben blättert, bekommt ältere Nachrichten ebenfalls
+nachgeladen – fünfzig auf einmal, und das Bild bleibt dabei stehen.
 
 ## Antworten und Löschen
 

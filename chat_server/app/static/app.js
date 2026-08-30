@@ -163,7 +163,7 @@
   function roomById(id) { return state.rooms.find((r) => r.id === id); }
 
   async function openRoom(id) {
-    if (currentRoom !== id) cancelReply();
+    if (currentRoom !== id) { cancelReply(); sucheSchliessen(); }
     currentRoom = id;
     const room = roomById(id);
     $("app").classList.add("room-open");
@@ -180,12 +180,10 @@
       ? room.members.map((m) => m.display_name).join(", ")
       : (others.length && state.online.has(others[0].id) ? "online" : "offline");
 
-    const res = await api(`/api/rooms/${id}/messages`);
+    const res = await api(`/api/rooms/${id}/messages?limit=${VERLAUF_SCHRITT}`);
     const msgs = await res.json();
-    $("messages").innerHTML = "";
-    lastDay = "";
-    lastAuthor = null;
-    msgs.forEach((m) => appendMsg(m));
+    amAnfang = msgs.length < VERLAUF_SCHRITT;
+    verlaufZeichnen(msgs);
     scrollDown();
     room.unread = 0;
     renderRooms();
@@ -197,6 +195,105 @@
   function scrollDown() {
     const box = $("messages");
     box.scrollTop = box.scrollHeight;
+    sprungZeigen();
+  }
+
+  // ---------- Der geladene Verlauf ----------
+  // Bisher stand nur der letzte Schwung im Fenster. Fuers Zurueckblaettern
+  // und fuers Springen zu einem Treffer muss die Oberflaeche wissen, was sie
+  // gerade zeigt - deshalb die Liste hier neben dem Baum.
+  const VERLAUF_SCHRITT = 50;
+  let geladene = [];
+  let amAnfang = false;   // nichts Aelteres mehr zu holen
+  let ladeLaeuft = false;
+
+  function verlaufZeichnen(msgs) {
+    geladene = msgs;
+    const box = $("messages");
+    box.innerHTML = "";
+    lastDay = "";
+    lastAuthor = null;
+    msgs.forEach((m) => appendMsg(m));
+    sprungZeigen();
+  }
+
+  /** Den naechsten Schwung von oben nachladen. Das Bild bleibt dabei stehen. */
+  async function aeltereLaden() {
+    if (ladeLaeuft || amAnfang || !geladene.length || !currentRoom) return false;
+    ladeLaeuft = true;
+    const box = $("messages");
+    // Nicht scrollTop merken, sondern den Abstand zum unteren Rand: oben
+    // kommt ja gerade etwas dazu.
+    const abstand = box.scrollHeight - box.scrollTop;
+    try {
+      const res = await api(`/api/rooms/${currentRoom}/messages`
+        + `?before=${geladene[0].id}&limit=${VERLAUF_SCHRITT}`);
+      if (!res.ok) return false;
+      const alte = await res.json();
+      if (!alte.length) { amAnfang = true; return false; }
+      if (alte.length < VERLAUF_SCHRITT) amAnfang = true;
+      verlaufZeichnen([...alte, ...geladene]);
+      box.scrollTop = box.scrollHeight - abstand;
+      return true;
+    } finally {
+      ladeLaeuft = false;
+    }
+  }
+
+  // Lage eines Elements im Verlauf, unabhaengig davon, woran es haengt.
+  // offsetTop waere nur richtig, wenn .messages selbst der Bezugspunkt ist.
+  function lageImVerlauf(el) {
+    const box = $("messages");
+    return el.getBoundingClientRect().top
+      - box.getBoundingClientRect().top + box.scrollTop;
+  }
+
+  function sprungZeigen() {
+    const box = $("messages");
+    const leiste = $("sprung");
+    if (!leiste) return;
+    const offen = !!currentRoom;
+    leiste.hidden = !offen;
+    if (!offen) return;
+    const unten = box.scrollHeight - box.scrollTop - box.clientHeight;
+    $("sprung-ende").hidden = unten < 80;
+  }
+
+  /** Zum Anfang des vorigen Tages. Laedt notfalls erst aeltere nach. */
+  async function vorigerTag() {
+    const box = $("messages");
+    const grenze = box.scrollTop - 8;
+    const trenner = [...box.querySelectorAll(".day")];
+    let ziel = null;
+    for (const d of trenner) {
+      if (lageImVerlauf(d) < grenze) ziel = d; else break;
+    }
+    if (!ziel) {
+      // Nichts mehr darueber - erst nachladen, dann noch einmal versuchen
+      if (await aeltereLaden()) return vorigerTag();
+      ziel = trenner[0];
+      if (!ziel) return;
+    }
+    box.scrollTo({top: Math.max(0, lageImVerlauf(ziel) - 8), behavior: "smooth"});
+  }
+
+  /** Zu einer bestimmten Nachricht springen - der Weg aus der Suche. */
+  async function zuNachricht(raum, id) {
+    const res = await api(`/api/rooms/${raum}/messages?um=${id}&limit=60`);
+    if (!res.ok) return;
+    const msgs = await res.json();
+    amAnfang = false;
+    verlaufZeichnen(msgs);
+    const box = $("messages");
+    // Ein Bild aus einem Album ist keine eigene Sprechblase mehr - dann
+    // fuehrt der Weg ueber das Bild zu der Blase, in der es steckt.
+    const el = box.querySelector(`.msg[data-id="${id}"]`)
+      || (box.querySelector(`[data-nachricht="${id}"]`) || {}).closest?.(".msg");
+    if (!el) { scrollDown(); return; }
+    el.scrollIntoView({block: "center"});
+    el.classList.add("gefunden");
+    setTimeout(() => el.classList.remove("gefunden"), 2400);
+    sprungZeigen();
   }
 
   // Kraeftigere Toene als bei den Profilbildern - der Name steht als Text auf
@@ -415,10 +512,106 @@
     }
   }
 
+  // ---------- Suchen ----------
+  // Der Server sucht, nicht der Browser: der Verlauf steht ja nur zum
+  // kleinen Teil im Fenster. Getippt wird schneller, als der Server
+  // antworten kann - deshalb eine kurze Pause und ein Zaehler, damit eine
+  // ueberholte Antwort die neuere nicht ueberschreibt.
+  let sucheLauf = 0;
+  let sucheZeit = null;
+
+  function sucheOffen() {
+    return !$("suchleiste").hidden;
+  }
+
+  function sucheOeffnen() {
+    $("suchleiste").hidden = false;
+    $("suche-feld").focus();
+    $("suche-feld").select();
+    sucheStarten();
+  }
+
+  function sucheSchliessen() {
+    $("suchleiste").hidden = true;
+    $("suchtreffer").hidden = true;
+    $("suchtreffer").innerHTML = "";
+    $("suche-zahl").textContent = "";
+  }
+
+  /** Den Treffer im Text hervorheben - der Rest bleibt maskiert. */
+  function hervor(text, frage) {
+    const roh = text || "";
+    const stelle = roh.toLowerCase().indexOf(frage.toLowerCase());
+    if (stelle < 0) return esc(roh.slice(0, 160));
+    // Etwas Anlauf davor, damit der Treffer nicht am linken Rand klebt
+    const von = Math.max(0, stelle - 40);
+    const vorn = von > 0 ? "…" : "";
+    return vorn + esc(roh.slice(von, stelle))
+      + "<mark>" + esc(roh.slice(stelle, stelle + frage.length)) + "</mark>"
+      + esc(roh.slice(stelle + frage.length, stelle + frage.length + 90))
+      + (roh.length > stelle + frage.length + 90 ? "…" : "");
+  }
+
+  function sucheStarten() {
+    clearTimeout(sucheZeit);
+    sucheZeit = setTimeout(sucheAusfuehren, 260);
+  }
+
+  async function sucheAusfuehren() {
+    const frage = $("suche-feld").value.trim();
+    const feld = $("suchtreffer");
+    if (frage.length < 2) {
+      feld.hidden = true;
+      $("suche-zahl").textContent = frage ? "mind. 2 Zeichen" : "";
+      return;
+    }
+    const lauf = ++sucheLauf;
+    const ueberall = $("suche-alle").checked;
+    const ziel = `/api/suche?q=${encodeURIComponent(frage)}`
+      + (ueberall || !currentRoom ? "" : `&room=${currentRoom}`);
+    const res = await api(ziel);
+    if (lauf !== sucheLauf) return;   // eine neuere Anfrage ist schon unterwegs
+    if (!res.ok) { toast("Die Suche ging schief."); return; }
+    const daten = await res.json();
+    const treffer = daten.treffer || [];
+    $("suche-zahl").textContent = treffer.length
+      ? `${treffer.length}${daten.mehr ? "+" : ""} ${
+          treffer.length === 1 ? "Treffer" : "Treffer"}`
+      : "nichts gefunden";
+    feld.hidden = false;
+    if (!treffer.length) {
+      feld.innerHTML = '<p class="hint">Dazu steht nichts im Verlauf.</p>';
+      return;
+    }
+    feld.innerHTML = treffer.map((m) => {
+      const raum = roomById(m.room_id);
+      const text = m.body || (m.file ? m.file.name : "");
+      return `<button class="treffer" type="button" data-raum="${m.room_id}"
+                      data-msg="${m.id}">
+        <div class="tr-kopf">${ueberall && raum
+          ? `<span class="tr-raum">${esc(raum.name)}</span>` : ""}
+          <span class="tr-wer">${esc(m.author)}</span>
+          <span class="tr-wann">${esc(dayOf(m.at))}, ${esc(timeOf(m.at))}</span></div>
+        <div class="tr-text">${m.file && !m.body ? "📎 " : ""}${
+          hervor(text, frage)}</div>
+      </button>`;
+    }).join("");
+    feld.querySelectorAll(".treffer").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const raum = parseInt(b.dataset.raum, 10);
+        const msg = parseInt(b.dataset.msg, 10);
+        sucheSchliessen();
+        if (raum !== currentRoom) await openRoom(raum);
+        await zuNachricht(raum, msg);
+      }));
+  }
+
   function pushMessage(m) {
     const box = $("messages");
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+    geladene.push(m);
     appendMsg(m);
+    sprungZeigen();
     if (atBottom || m.user_id === ME) scrollDown();
   }
 
@@ -453,6 +646,8 @@
   });
 
   socket.on("message_deleted", (d) => {
+    const eintrag = geladene.find((m) => m.id === d.id);
+    if (eintrag) { eintrag.deleted = true; eintrag.body = ""; eintrag.file = null; }
     const el = $("messages").querySelector(`.msg[data-id="${d.id}"]`);
     if (el && d.room_id === currentRoom) {
       el.classList.add("gone");
@@ -748,13 +943,65 @@
     </div>`;
   }
 
+  // ---------- Wohin ein Ort fuehrt ----------
+  // "In Karten oeffnen" soll das aufmachen, was auf dem Geraet ueblich ist.
+  // Dafuer gibt es geo: - Android reicht das an die installierten Karten
+  // weiter und fragt notfalls selbst nach. iOS und der Rechner kennen das
+  // Schema nicht, dort fuehrt derselbe Verweis auf eine Netzkarte. Welche,
+  // steht in den Einstellungen.
+  const KARTEN_APPS = [
+    ["geraet", "Standard-App des Geräts"],
+    ["google", "Google Maps"],
+    ["apple", "Apple Karten"],
+    ["osm", "OpenStreetMap"],
+  ];
+
+  const istAndroid = () => /android/i.test(navigator.userAgent);
+  const istApple = () => /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  function kartenZiel(lat, lon, name) {
+    const wahl = (state.me && state.me.karten_app) || "geraet";
+    const paar = `${lat},${lon}`;
+    const beschriftet = name ? `(${name})` : "";
+    if (wahl === "geraet") {
+      // Auf dem Telefon die Standardanwendung, sonst die passende Netzkarte
+      if (istAndroid()) return `geo:${paar}?q=${paar}${encodeURIComponent(beschriftet)}`;
+      if (istApple()) {
+        return `https://maps.apple.com/?ll=${paar}&q=${
+          encodeURIComponent(name || "Ort")}`;
+      }
+      return `https://www.google.com/maps/search/?api=1&query=${paar}`;
+    }
+    if (wahl === "google") {
+      return `https://www.google.com/maps/search/?api=1&query=${paar}`;
+    }
+    if (wahl === "apple") {
+      return `https://maps.apple.com/?ll=${paar}&q=${encodeURIComponent(name || "Ort")}`;
+    }
+    return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
+  }
+
+  // geo: darf nicht in ein neues Fenster - der Browser oeffnet dort nichts
+  // und laesst eine leere Karteikarte stehen. Netzkarten dagegen schon.
+  const kartenZiele = (lat, lon, name) => {
+    const ziel = kartenZiel(lat, lon, name);
+    return {ziel, neu: !ziel.startsWith("geo:")};
+  };
+
+  function kartenLinkHtml(lat, lon, name, klasse, beschriftung) {
+    const {ziel, neu} = kartenZiele(lat, lon, name);
+    return `<a class="${klasse}" href="${esc(ziel)}"${
+      neu ? ' target="_blank" rel="noopener noreferrer"' : ""
+      }>${beschriftung}</a>`;
+  }
+
   function ortHtml(ort) {
     const grad = `${ort.lat.toFixed(5)}, ${ort.lon.toFixed(5)}`;
-    const ziel = `https://www.openstreetmap.org/?mlat=${ort.lat}&mlon=${ort.lon}#map=15/${ort.lat}/${ort.lon}`;
     return `<div class="ort" data-lat="${ort.lat}" data-lon="${ort.lon}">
       ${karteHtml(ort)}
       <div class="ortszeile"><span class="ortsgrad">📍 ${grad}</span>
-        <a class="ortslink" href="${ziel}" target="_blank" rel="noopener noreferrer">In Karten öffnen</a></div>
+        ${kartenLinkHtml(ort.lat, ort.lon, "", "ortslink", "In Karten öffnen")}</div>
     </div>`;
   }
 
@@ -1248,8 +1495,8 @@
     const behaelter = root.querySelector("#karte-inhalt");
     if (!behaelter) return;
     const {personen, termine, tipps, alleTermine, alleTipps, alle} = kartenPunkte();
-    const osm = (p) => `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${
-      p.lon}#map=15/${p.lat}/${p.lon}`;
+    const oeffnen = (p) =>
+      kartenLinkHtml(p.lat, p.lon, p.name || "", "ortslink", "Öffnen");
     behaelter.innerHTML = `${filterLeiste(alleTermine, termine.length,
                                           alleTipps.length)}
       <div id="karte-flaeche"></div>
@@ -1260,8 +1507,7 @@
             <div><div class="kz-name">${esc(p.name)}${p.ich ? " (du)" : ""}</div>
               <div class="kz-sub">${esc(p.raum)} · ${restzeit(p.bis_at)}</div></div>
             <span style="flex:1"></span>
-            <a class="ortslink" target="_blank" rel="noopener noreferrer"
-               href="${osm(p)}">Öffnen</a>
+            ${oeffnen(p)}
             ${p.ich ? `<button class="act del" data-stopp="${p.room_id}">Beenden</button>` : ""}
           </div>`).join("") : ""}
         ${termine.length ? '<div class="karten-gruppe">Einladungen</div>'
@@ -1273,8 +1519,7 @@
                 t.ort_text ? ` · ${esc(t.ort_text)}` : ""} · ${
                 t.zusagen} ${t.zusagen === 1 ? "Zusage" : "Zusagen"}</div></div>
             <span style="flex:1"></span>
-            <a class="ortslink" target="_blank" rel="noopener noreferrer"
-               href="${osm(t)}">Öffnen</a>
+            ${oeffnen(t)}
           </div>`).join("") : ""}
         ${tipps.length ? '<div class="karten-gruppe">Empfehlungen</div>'
           + tipps.map((x) => `<div class="karten-zeile tipp-zeile"
@@ -1284,8 +1529,7 @@
               <div class="kz-sub">${esc(TIPP_ARTEN[x.tipp_art] || x.tipp_art)}${
                 x.ort_text ? ` · ${esc(x.ort_text)}` : ""} · von ${esc(x.von)}</div></div>
             <span style="flex:1"></span>
-            <a class="ortslink" target="_blank" rel="noopener noreferrer"
-               href="${osm(x)}">Öffnen</a>
+            ${oeffnen(x)}
           </div>`).join("") : ""}
         ${alle.length ? "" : `<p class="hint">${alleTermine.length
           ? "Zu diesem Filter passt keine Einladung."
@@ -1452,17 +1696,42 @@
   }
 
   // ---------- Stimmung ----------
+  // Womit die Favoritenreihe anfaengt, solange man noch nichts gewaehlt hat.
   const STIMMUNG_EMOJI = ["😎", "🥳", "😌", "🤩", "😴", "🍕", "🍺", "🎬", "⚽",
                           "🎵", "🚴", "☕", "🌞", "🤔"];
+  const STIMMUNG_FAV = "stimmung-favoriten";
+  const STIMMUNG_FAV_MAX = 12;
+
+  /** Zuletzt genommene zuerst, danach die Voreinstellung - ohne Doppelte. */
+  function stimmungFavoriten() {
+    let eigene = [];
+    try {
+      eigene = JSON.parse(localStorage.getItem(STIMMUNG_FAV) || "[]");
+    } catch (err) { eigene = []; }
+    if (!Array.isArray(eigene)) eigene = [];
+    const raus = [];
+    for (const z of [...eigene, ...STIMMUNG_EMOJI]) {
+      if (typeof z === "string" && z && !raus.includes(z)) raus.push(z);
+      if (raus.length >= STIMMUNG_FAV_MAX) break;
+    }
+    return raus;
+  }
+
+  function stimmungFavoritMerken(zeichen) {
+    if (!zeichen) return;
+    const vorher = stimmungFavoriten().filter((z) => z !== zeichen);
+    try {
+      localStorage.setItem(STIMMUNG_FAV,
+        JSON.stringify([zeichen, ...vorher].slice(0, STIMMUNG_FAV_MAX)));
+    } catch (err) { /* privates Fenster - dann eben ohne Gedaechtnis */ }
+  }
 
   function stimmungDialog() {
     const meine = (state.stimmung || []).find((s) => s.meine);
     const root = modal(`<h2>Worauf hast du Lust?</h2>
       <p class="hint">Sichtbar für alle, mit denen du eine Unterhaltung teilst.</p>
-      <div class="stimmung-emojis" id="st-emojis">${STIMMUNG_EMOJI.map((e) =>
-        `<button type="button" class="st-emoji ${
-          meine && meine.emoji === e ? "gewaehlt" : ""}" data-e="${e}">${e}</button>`
-        ).join("")}</div>
+      <div class="stimmung-emojis" id="st-emojis"></div>
+      <div class="st-alle" id="st-alle" hidden></div>
       <div class="field"><label for="st-text">Kurz gesagt</label>
         <input id="st-text" autocomplete="off" maxlength="280"
                placeholder="Heute Abend Kino – wer kommt mit?"
@@ -1480,14 +1749,61 @@
         : '<button class="btn ghost" id="m-cancel">Abbrechen</button>'}
       <button class="btn" id="st-ok">Setzen</button></div>`);
     let emoji = meine ? meine.emoji : "";
-    root.querySelectorAll(".st-emoji").forEach((b) =>
-      b.addEventListener("click", () => {
-        const schon = b.classList.contains("gewaehlt");
-        root.querySelectorAll(".st-emoji").forEach((x) =>
-          x.classList.remove("gewaehlt"));
-        if (!schon) { b.classList.add("gewaehlt"); emoji = b.dataset.e; }
-        else emoji = "";
-      }));
+
+    // Die Reihe zeigt die Favoriten - und das gerade gewaehlte Zeichen immer,
+    // auch wenn es aus der grossen Auswahl kam und noch kein Favorit ist.
+    const reihe = root.querySelector("#st-emojis");
+    const alle = root.querySelector("#st-alle");
+
+    function reiheZeichnen() {
+      const zeichen = stimmungFavoriten();
+      if (emoji && !zeichen.includes(emoji)) zeichen.unshift(emoji);
+      reihe.innerHTML = zeichen.map((e) =>
+        `<button type="button" class="st-emoji ${emoji === e ? "gewaehlt" : ""}"
+                 data-e="${e}">${e}</button>`).join("")
+        + `<button type="button" class="st-emoji st-mehr" id="st-mehr"
+                   title="Alle Zeichen">＋</button>`;
+      reihe.querySelectorAll("[data-e]").forEach((b) =>
+        b.addEventListener("click", () => {
+          emoji = emoji === b.dataset.e ? "" : b.dataset.e;
+          reiheZeichnen();
+        }));
+      root.querySelector("#st-mehr").addEventListener("click", () => {
+        alle.hidden = !alle.hidden;
+        if (!alle.hidden && !alle.childElementCount) alleZeichnen();
+      });
+    }
+
+    // Dieselbe Sammlung wie im Schreibfeld - kein zweiter Vorrat, der
+    // auseinanderlaufen koennte.
+    function alleZeichnen() {
+      const namen = Object.keys(EMOJI);
+      alle.innerHTML = `<div class="emoji-reiter">${namen.map((n, i) =>
+          `<button class="emoji-reiter-knopf ${i === 0 ? "aktiv" : ""}"
+                   type="button" data-gruppe="${esc(n)}">${esc(n)}</button>`).join("")}</div>
+        <div class="emoji-liste"></div>`;
+      const liste = alle.querySelector(".emoji-liste");
+      const gruppeZeichnen = (name) => {
+        liste.innerHTML = [...EMOJI[name]]
+          .map((z) => `<button class="emoji" type="button">${z}</button>`).join("");
+      };
+      gruppeZeichnen(namen[0]);
+      alle.querySelectorAll(".emoji-reiter-knopf").forEach((knopf) =>
+        knopf.addEventListener("click", () => {
+          alle.querySelectorAll(".emoji-reiter-knopf").forEach((k) =>
+            k.classList.remove("aktiv"));
+          knopf.classList.add("aktiv");
+          gruppeZeichnen(knopf.dataset.gruppe);
+        }));
+      liste.addEventListener("click", (e) => {
+        const knopf = e.target.closest(".emoji");
+        if (!knopf) return;
+        emoji = knopf.textContent;
+        alle.hidden = true;
+        reiheZeichnen();
+      });
+    }
+    reiheZeichnen();
     const abbruch = root.querySelector("#m-cancel");
     if (abbruch) abbruch.addEventListener("click", closeModal);
     const weg = root.querySelector("#st-weg");
@@ -1499,6 +1815,7 @@
     root.querySelector("#st-ok").addEventListener("click", async () => {
       const text = root.querySelector("#st-text").value.trim();
       if (!text) { toast("Schreib kurz, worauf du Lust hast."); return; }
+      stimmungFavoritMerken(emoji);
       const nutzlast = {text, emoji,
         stunden: parseInt(root.querySelector("#st-dauer").value, 10)};
       if (root.querySelector("#st-ort").checked) {
@@ -2332,10 +2649,10 @@
   async function tippAnsicht(tippId, zurueck) {
     const t = (state.tipps || []).find((x) => x.id === tippId);
     if (!t) { toast("Diese Empfehlung ist nicht mehr da."); return; }
-    const osm = t.ort
-      ? `https://www.openstreetmap.org/?mlat=${t.ort.lat}&mlon=${t.ort.lon}`
-        + `#map=17/${t.ort.lat}/${t.ort.lon}`
-      : null;
+    const kartenKnopf = t.ort
+      ? kartenLinkHtml(t.ort.lat, t.ort.lon, t.titel,
+                       "btn ghost tp-a-osm", "In Karten öffnen")
+      : "";
     const root = modal(`<div class="karten-kopf"><h2>${esc(t.titel)}</h2>
       <span style="flex:1"></span>
       <button class="icon-btn" id="m-cancel">✕</button></div>
@@ -2358,9 +2675,7 @@
         ${zurueck ? '<button class="btn ghost" id="tp-zurueck">← Zur Karte</button>' : ""}
         <button class="btn ghost" id="tp-a-merken">${
           t.ich_merke ? "Nicht mehr merken" : "Merken"}</button>
-        ${osm ? `<a class="btn ghost" id="tp-a-osm" target="_blank"
-           rel="noopener noreferrer" href="${osm}"
-           style="text-align:center;text-decoration:none;line-height:2.2">In Karten öffnen</a>` : ""}
+        ${kartenKnopf}
         ${t.meiner ? '<button class="btn" id="tp-a-aendern">Ändern</button>' : ""}
       </div>`);
     root.querySelector(".modal").classList.add("wide", "hoch");
@@ -3859,6 +4174,8 @@
   $("btn-back").addEventListener("click", () => {
     $("app").classList.remove("room-open");
     currentRoom = null;
+    sucheSchliessen();
+    sprungZeigen();
   });
 
   // ---------- Modals ----------
@@ -3973,6 +4290,15 @@
         von einem fremden Server lädt.</p>
       <label class="check"><input type="checkbox" id="k-kacheln"
         ${kachelnErlaubt() ? "checked" : ""}> Straßenkarte verwenden</label>
+      <div class="field"><label for="k-app">„In Karten öffnen“ führt zu</label>
+        <select id="k-app">${KARTEN_APPS.map(([wert, name]) =>
+          `<option value="${wert}"${
+            (state.me && state.me.karten_app || "geraet") === wert
+              ? " selected" : ""}>${name}</option>`).join("")}</select></div>
+      <hr class="sep">
+      <h2>Benachrichtigungen</h2>
+      <p class="hint" id="push-lage">Wird geprüft …</p>
+      <button class="btn ghost" id="push-an" hidden>Benachrichtigungen einschalten</button>
       ${IS_ADMIN ? `<hr class="sep">
         <h2>Benutzer verwalten</h2>
         <div id="u-list" class="user-list"><p class="hint">Wird geladen …</p></div>
@@ -4077,6 +4403,17 @@
       toast(an ? "Straßenkarte eingeschaltet."
                : "Es bleibt bei der Umrisskarte.");
     });
+    root.querySelector("#k-app").addEventListener("change", async (e) => {
+      const wahl = e.target.value;
+      const res = await api("/api/me/karten-app", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({app: wahl}),
+      });
+      if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
+      if (state.me) state.me.karten_app = wahl;
+      toast("Gespeichert.");
+    });
+    pushEinstellung(root);
     root.querySelector("#p-ok").addEventListener("click", async () => {
       const res = await api("/api/me/password", {
         method: "POST", headers: {"Content-Type": "application/json"},
@@ -4443,30 +4780,134 @@
     return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
   };
 
-  $("btn-push").addEventListener("click", async () => {
+  // Wo Push ueberhaupt in Frage kommt. Ohne Dienstarbeiter, ohne HTTPS oder
+  // ohne Schluessel vom Server hat es keinen Zweck.
+  function pushMoeglich() {
+    return "serviceWorker" in navigator && "PushManager" in window
+      && "Notification" in window && sichererKontext() && !!VAPID;
+  }
+
+  /** Beim Server anmelden. Setzt voraus, dass die Erlaubnis schon da ist. */
+  async function pushAnmelden() {
+    const reg = await navigator.serviceWorker.register(
+      BASE + "/sw.js", {scope: BASE + "/"});
+    // Eine bestehende Anmeldung weiterverwenden - ein zweites subscribe mit
+    // demselben Schluessel gaebe ohnehin dieselbe zurueck, ein anderer
+    // Schluessel dagegen einen Fehler.
+    const vorhanden = await reg.pushManager.getSubscription();
+    const sub = vorhanden || await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: b64(VAPID),
+    });
+    const res = await api("/api/push/subscribe", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(sub),
+    });
+    if (!res.ok) throw new Error("Der Server nahm die Anmeldung nicht an.");
+    return true;
+  }
+
+  /** Erlaubnis erfragen und anmelden. Braucht einen Tipp - siehe unten. */
+  async function pushEinschalten(laut) {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      return toast("Dieser Browser unterstützt keine Push-Benachrichtigungen.");
+      if (laut) toast("Dieser Browser kennt keine Benachrichtigungen.");
+      return false;
     }
     if (!sichererKontext()) {
-      return toast("Push braucht HTTPS – öffne den Chat über deine externe Adresse.");
+      if (laut) toast("Dafür braucht es HTTPS – öffne den Chat über deine externe Adresse.");
+      return false;
     }
     const perm = await Notification.requestPermission();
-    if (perm !== "granted") return toast("Benachrichtigungen wurden abgelehnt.");
-    try {
-      const reg = await navigator.serviceWorker.register(BASE + "/sw.js", {scope: BASE + "/"});
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: b64(VAPID),
-      });
-      const res = await api("/api/push/subscribe", {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(sub),
-      });
-      toast(res.ok ? "Benachrichtigungen sind aktiv." : "Anmeldung für Push fehlgeschlagen.");
-    } catch (err) {
-      toast("Push konnte nicht eingerichtet werden: " + err.message);
+    if (perm !== "granted") {
+      if (laut) toast("Benachrichtigungen wurden abgelehnt.");
+      return false;
     }
-  });
+    try {
+      await pushAnmelden();
+      if (laut) toast("Benachrichtigungen sind aktiv.");
+      return true;
+    } catch (err) {
+      if (laut) toast("Das ging nicht: " + err.message);
+      return false;
+    }
+  }
+
+  // Beim Oeffnen der Seite. Steht die Erlaubnis schon, meldet sich das Geraet
+  // still an - ganz ohne Knopf und ohne Nachfrage. Das ist der Normalfall ab
+  // dem zweiten Besuch.
+  //
+  // Beim ersten Mal geht das nicht: Browser verlangen fuer die Nachfrage eine
+  // echte Berührung. Ein Fenster, das von selbst aufspringt, wird stumm
+  // abgelehnt - und danach ist die Antwort "nein" und laesst sich nur noch in
+  // den Browsereinstellungen zuruecknehmen. Deshalb steht dann einmal ein
+  // schmaler Streifen da, den man wegtippen kann.
+  const PUSH_GEFRAGT = "push-gefragt";
+
+  async function pushBeimStart() {
+    if (!pushMoeglich()) return;
+    if (Notification.permission === "granted") {
+      try { await pushAnmelden(); } catch (err) { /* beim naechsten Mal */ }
+      return;
+    }
+    if (Notification.permission === "denied") return;
+    if (localStorage.getItem(PUSH_GEFRAGT)) return;
+    pushStreifenZeigen();
+  }
+
+  function pushStreifenZeigen() {
+    if ($("push-streifen")) return;
+    const streifen = document.createElement("div");
+    streifen.id = "push-streifen";
+    streifen.className = "push-streifen";
+    streifen.innerHTML = `<span>Benachrichtigungen einschalten, damit du neue
+      Nachrichten mitbekommst?</span>
+      <button class="btn" id="push-ja">Ja</button>
+      <button class="icon-btn" id="push-nein" title="Nicht jetzt">✕</button>`;
+    document.body.appendChild(streifen);
+    const weg = (merken) => {
+      if (merken) localStorage.setItem(PUSH_GEFRAGT, "1");
+      streifen.remove();
+    };
+    $("push-ja").addEventListener("click", async () => {
+      weg(true);
+      await pushEinschalten(true);
+    });
+    $("push-nein").addEventListener("click", () => weg(true));
+  }
+
+  /** Der Abschnitt in den Einstellungen - dort geht es auch nachträglich. */
+  function pushEinstellung(root) {
+    const lage = root.querySelector("#push-lage");
+    const knopf = root.querySelector("#push-an");
+    if (!lage || !knopf) return;
+    const zeichnen = () => {
+      if (!pushMoeglich()) {
+        lage.textContent = sichererKontext()
+          ? "Dieser Browser kennt keine Benachrichtigungen."
+          : "Dafür braucht es HTTPS – über die externe Adresse geht es.";
+        knopf.hidden = true;
+        return;
+      }
+      if (Notification.permission === "granted") {
+        lage.textContent = "Eingeschaltet. Dieses Gerät bekommt Bescheid, "
+          + "auch wenn der Chat geschlossen ist.";
+        knopf.hidden = true;
+      } else if (Notification.permission === "denied") {
+        lage.textContent = "Vom Browser abgelehnt. Das lässt sich nur dort "
+          + "wieder ändern – beim Schloss neben der Adresse.";
+        knopf.hidden = true;
+      } else {
+        lage.textContent = "Noch nicht eingeschaltet.";
+        knopf.hidden = false;
+      }
+    };
+    zeichnen();
+    knopf.addEventListener("click", async () => {
+      localStorage.setItem(PUSH_GEFRAGT, "1");
+      await pushEinschalten(true);
+      zeichnen();
+    });
+  }
 
   // ---------- Start ----------
   async function loadState() {
@@ -4497,6 +4938,28 @@
   setInterval(() => { renderKarten(); renderStimmung(); }, 60000);
 
 
+  // ---------- Suche und Sprungpfeile anschliessen ----------
+  $("btn-suche").addEventListener("click", () =>
+    sucheOffen() ? sucheSchliessen() : sucheOeffnen());
+  $("suche-zu").addEventListener("click", sucheSchliessen);
+  $("suche-feld").addEventListener("input", sucheStarten);
+  $("suche-alle").addEventListener("change", sucheAusfuehren);
+  $("suche-feld").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") sucheSchliessen();
+  });
+
+  $("sprung-ende").addEventListener("click", () => {
+    $("messages").scrollTo({top: $("messages").scrollHeight, behavior: "smooth"});
+  });
+  $("sprung-tag").addEventListener("click", vorigerTag);
+
+  // Oben angekommen den naechsten Schwung holen - so blaettert man einfach
+  // weiter zurueck, ohne einen Knopf zu suchen.
+  $("messages").addEventListener("scroll", () => {
+    sprungZeigen();
+    if ($("messages").scrollTop < 80) aeltereLaden();
+  });
+
   document.querySelectorAll(".reiter-knopf").forEach((b) =>
     b.addEventListener("click", () => reiterSetzen(b.dataset.reiter)));
   reiterSetzen(aktiverReiter);
@@ -4509,5 +4972,6 @@
   loadState().then(() => {
     const wanted = parseInt(new URLSearchParams(location.search).get("room"), 10);
     if (wanted && roomById(wanted)) openRoom(wanted);
+    pushBeimStart();
   });
 })();

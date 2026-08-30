@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS users (
     karten_kacheln INTEGER NOT NULL DEFAULT 1,
     ton_stufe TEXT,
     blasenfarbe TEXT,
+    karten_app TEXT,
     gesehen_karten INTEGER,
     gesehen_stimmung INTEGER,
     gesehen_termine INTEGER,
@@ -376,6 +377,8 @@ def migrate(conn):
         conn.execute("ALTER TABLE users ADD COLUMN ton_stufe TEXT")
     if "blasenfarbe" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN blasenfarbe TEXT")
+    if "karten_app" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN karten_app TEXT")
     for bereich in ("karten", "stimmung", "termine", "tipps"):
         if f"gesehen_{bereich}" not in cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN gesehen_{bereich} INTEGER")
@@ -1281,6 +1284,7 @@ def api_state():
                "geburtstag": me["geburtstag"],
                "ton_stufe": me["ton_stufe"] or "alle",
                "blasenfarbe": me["blasenfarbe"],
+               "karten_app": me["karten_app"] or "geraet",
                "gesehen": gesehen_lesen(me)},
         "rooms": payload,
         "users": [dict(u) for u in users],
@@ -1299,7 +1303,21 @@ def api_messages(room_id):
     if not is_member(room_id, uid):
         abort(403)
     before = request.args.get("before", type=int)
+    um = request.args.get("um", type=int)
     limit = min(request.args.get("limit", 50, type=int), 200)
+    if um:
+        # Rund um eine bestimmte Nachricht - dorthin springt die Suche. Die
+        # Haelfte davor, die Haelfte danach, damit der Treffer in der Mitte
+        # steht und man sieht, worum es ging.
+        halb = max(1, limit // 2)
+        davor = db().execute(MSG_QUERY + " WHERE m.room_id=? AND m.id<=?"
+                             " ORDER BY m.id DESC LIMIT ?",
+                             (room_id, um, halb)).fetchall()
+        danach = db().execute(MSG_QUERY + " WHERE m.room_id=? AND m.id>?"
+                              " ORDER BY m.id LIMIT ?",
+                              (room_id, um, halb)).fetchall()
+        rows = list(reversed(davor)) + list(danach)
+        return jsonify([msg_payload(r) for r in rows])
     if before:
         rows = db().execute(MSG_QUERY + " WHERE m.room_id=? AND m.id<?"
                             " ORDER BY m.id DESC LIMIT ?",
@@ -1309,6 +1327,44 @@ def api_messages(room_id):
                             " ORDER BY m.id DESC LIMIT ?",
                             (room_id, limit)).fetchall()
     return jsonify([msg_payload(r) for r in reversed(rows)])
+
+
+@app.get("/api/suche")
+@login_required
+def api_suche():
+    """Nachrichten durchsuchen - in einer Unterhaltung oder in allen.
+
+    Gesucht wird im Text und in Dateinamen. Geloeschte Nachrichten bleiben
+    aussen vor; ihr Text steht zwar noch in der Datenbank, aber wer sie
+    geloescht hat, will sie nicht ueber die Suche wiederfinden.
+    """
+    uid = session["uid"]
+    frage = (request.args.get("q") or "").strip()
+    if len(frage) < 2:
+        return jsonify({"treffer": [], "mehr": False})
+    raum = request.args.get("room", type=int)
+    grenze = min(request.args.get("limit", 60, type=int), 200)
+    # LIKE kennt % und _ als Platzhalter. Wer nach "100_" sucht, meint das
+    # aber woertlich - deshalb ein eigenes Fluchtzeichen.
+    muster = "%" + (frage.replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_")) + "%"
+    args = [uid]
+    sql = (MSG_QUERY + " JOIN room_members rm ON rm.room_id=m.room_id"
+           " AND rm.user_id=? WHERE m.deleted=0"
+           " AND (m.body LIKE ? ESCAPE '\\' OR f.orig_name LIKE ? ESCAPE '\\')")
+    args += [muster, muster]
+    if raum:
+        if not is_member(raum, uid):
+            abort(403)
+        sql += " AND m.room_id=?"
+        args.append(raum)
+    sql += " ORDER BY m.id DESC LIMIT ?"
+    args.append(grenze + 1)
+    rows = db().execute(sql, args).fetchall()
+    mehr = len(rows) > grenze
+    return jsonify({"treffer": [msg_payload(r) for r in rows[:grenze]],
+                    "mehr": mehr})
 
 
 @app.post("/api/rooms/<int:room_id>/read")
@@ -2378,6 +2434,33 @@ def api_set_blasenfarbe():
 @login_required
 def api_blasenfarben():
     return jsonify(list(BLASENFARBEN))
+
+
+# Womit "In Karten oeffnen" aufmachen soll. "geraet" schickt einen geo:-Verweis
+# los und laesst das Telefon entscheiden - unter Android fragt es dann selbst,
+# welche App es sein soll. Wo das nicht geht, faellt die Oberflaeche auf eine
+# Netzkarte zurueck; welche, steht hier.
+KARTEN_APPS = ("geraet", "google", "apple", "osm")
+
+
+@app.post("/api/me/karten-app")
+@login_required
+def api_set_karten_app():
+    """Welche Kartenanwendung ein Ort oeffnen soll."""
+    wahl = (request.get_json(force=True).get("app") or "").strip().lower()
+    if wahl not in KARTEN_APPS:
+        return jsonify({"error": "Diese Auswahl gibt es nicht."}), 400
+    conn = db()
+    conn.execute("UPDATE users SET karten_app=? WHERE id=?",
+                 (wahl, session["uid"]))
+    conn.commit()
+    return jsonify({"ok": True, "app": wahl})
+
+
+@app.get("/api/karten-apps")
+@login_required
+def api_karten_apps():
+    return jsonify(list(KARTEN_APPS))
 
 
 # --------------------------------------------------------------------------

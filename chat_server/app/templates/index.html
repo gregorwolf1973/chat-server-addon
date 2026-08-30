@@ -71,7 +71,6 @@
         <span id="me-name">{{ me.display_name }}</span>
         <span style="flex:1"></span>
         <button class="icon-btn" id="btn-freunde" title="Freunde">Freunde</button>
-        <button class="icon-btn" id="btn-push" title="Benachrichtigungen einschalten">Push</button>
         <button class="icon-btn" id="btn-settings" title="Einstellungen">…</button>
       </footer>
     </aside>
@@ -85,6 +84,7 @@
           <div class="sub" id="room-sub"></div>
         </div>
         <span style="flex:1"></span>
+        <button class="icon-btn" id="btn-suche" title="Im Verlauf suchen">🔍</button>
         <button class="icon-btn" id="btn-anruf" title="Anrufen">📞</button>
         <button class="icon-btn" id="btn-video" title="Videoanruf">🎥</button>
         <button class="icon-btn" id="btn-room-media" title="Bilder und Dateien dieser Unterhaltung"><span
@@ -93,8 +93,24 @@
           class="lang">+ Person</span><span class="kurz" aria-hidden="true">＋</span></button>
       </div>
 
+      <div class="suchleiste" id="suchleiste" hidden>
+        <input id="suche-feld" type="search" autocomplete="off"
+               placeholder="Im Verlauf suchen …">
+        <label class="check schmal"><input type="checkbox" id="suche-alle">
+          Alle Unterhaltungen</label>
+        <span class="suche-zahl" id="suche-zahl"></span>
+        <button class="icon-btn" id="suche-zu" title="Suche schließen">✕</button>
+      </div>
+
       <div class="messages" id="messages">
         <div class="empty">Wähle links eine Unterhaltung oder starte mit „+ Neu“ eine neue.</div>
+      </div>
+      <div class="suchtreffer" id="suchtreffer" hidden></div>
+      <div class="sprung" id="sprung" hidden>
+        <button class="sprung-knopf" id="sprung-tag"
+                title="Zum vorigen Tag">↑</button>
+        <button class="sprung-knopf" id="sprung-ende"
+                title="Ans Ende" hidden>↓</button>
       </div>
       <div class="typing" id="typing"></div>
 

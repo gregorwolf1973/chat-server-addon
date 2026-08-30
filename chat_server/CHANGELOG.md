@@ -1,5 +1,22 @@
 # Änderungsverlauf
 
+## 0.36.0
+
+- **Im Verlauf suchen**: 🔍 oben in der Unterhaltung, wahlweise nur hier oder
+  in allen Unterhaltungen. Ein Tipp auf einen Treffer springt hin und hebt
+  die Nachricht kurz hervor
+- **Zwei Pfeile im Verlauf**: einer ans Ende, einer zum vorigen Tag. Wer
+  weiter zurückblättert, bekommt ältere Nachrichten nachgeladen
+- **Stimmungs-Emoji frei wählbar** aus der ganzen Sammlung; die Reihe oben
+  zeigt die zuletzt genommenen
+- **„In Karten öffnen“ nimmt die App des Geräts** - unter Android fragt das
+  Telefon selbst, welche. Wahlweise fest Google Maps, Apple Karten oder
+  OpenStreetMap
+- **Der Push-Knopf ist weg.** Steht die Erlaubnis, meldet sich das Gerät beim
+  Öffnen still an; beim ersten Mal fragt ein Streifen einmal nach. In den
+  Einstellungen steht der Schalter weiterhin
+- **Anrufe im Querformat**: die Knöpfe wurden vom Videobild verdeckt
+
 ## 0.35.0
 
 - **Medienschau**: ein Tipp auf ein Bild oder Video oeffnet es
