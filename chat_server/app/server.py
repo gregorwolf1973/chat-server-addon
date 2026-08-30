@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS users (
     ton_stufe TEXT,
     blasenfarbe TEXT,
     karten_app TEXT,
+    klingelton TEXT,
     geburtstage_an INTEGER NOT NULL DEFAULT 1,
     gesehen_karten INTEGER,
     gesehen_stimmung INTEGER,
@@ -418,6 +419,8 @@ def migrate(conn):
         conn.execute("ALTER TABLE users ADD COLUMN blasenfarbe TEXT")
     if "karten_app" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN karten_app TEXT")
+    if "klingelton" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN klingelton TEXT")
     if "geburtstage_an" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN geburtstage_an"
                      " INTEGER NOT NULL DEFAULT 1")
@@ -1420,6 +1423,7 @@ def api_state():
                "ton_stufe": me["ton_stufe"] or "alle",
                "blasenfarbe": me["blasenfarbe"],
                "karten_app": me["karten_app"] or "geraet",
+               "klingelton": me["klingelton"] or "klassisch",
                "geburtstage_an": bool(me["geburtstage_an"]),
                "gesehen": gesehen_lesen(me)},
         "rooms": payload,
@@ -2605,6 +2609,31 @@ def api_set_karten_app():
 @login_required
 def api_karten_apps():
     return jsonify(list(KARTEN_APPS))
+
+
+# Der Klingelton wird im Browser erzeugt, nicht als Datei mitgeliefert - hier
+# steht nur, welches Muster gemeint ist. So bleibt das Add-on klein und es
+# gibt nichts nachzuladen.
+KLINGELTOENE = ("klassisch", "sanft", "perlen", "tief", "folge")
+
+
+@app.post("/api/me/klingelton")
+@login_required
+def api_set_klingelton():
+    """Womit es klingeln soll, wenn jemand anruft."""
+    wahl = (request.get_json(force=True).get("ton") or "").strip().lower()
+    if wahl not in KLINGELTOENE:
+        return jsonify({"error": "Diesen Klingelton gibt es nicht."}), 400
+    conn = db()
+    conn.execute("UPDATE users SET klingelton=? WHERE id=?", (wahl, session["uid"]))
+    conn.commit()
+    return jsonify({"ok": True, "ton": wahl})
+
+
+@app.get("/api/klingeltoene")
+@login_required
+def api_klingeltoene():
+    return jsonify(list(KLINGELTOENE))
 
 
 # --------------------------------------------------------------------------

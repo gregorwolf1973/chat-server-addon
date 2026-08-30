@@ -262,6 +262,16 @@ Tönen, auf denen die eigene Schrift nicht mehr zu lesen ist.
 
 ## Töne
 
+### Klingelton
+
+Darunter steht die Auswahl **Klassisch**, **Sanft**, **Perlen**, **Tief** und
+**Kleine Folge**. Ein Tipp auf einen Namen spielt ihn gleich vor und merkt ihn
+sich. Die Töne entstehen im Browser aus einzelnen Sinusschwingungen – im
+Add-on liegt keine Tondatei, es wird also nichts nachgeladen. Eine eigene
+Tondatei lässt sich deshalb auch nicht hinterlegen.
+
+### Wann es überhaupt klingelt
+
 In den Einstellungen unter **Töne** wählst du **Alle Töne**, **Nur Anrufe**
 oder **Stumm**. Die Einstellung hängt am Konto, gilt also auf allen deinen
 Geräten.
@@ -291,7 +301,8 @@ hat, bekommt zusätzlich eine Push-Nachricht.
 Nach 45 Sekunden hört das Klingeln von selbst auf; der Balken bleibt stehen,
 solange der Anruf läuft, damit du noch dazukommen kannst.
 
-Der Ton wird erzeugt, nicht aus einer Datei geladen. Browser lassen Ton erst
+Welcher Klingelton es ist, steht in den Einstellungen. Der Ton wird erzeugt,
+nicht aus einer Datei geladen. Browser lassen Ton erst
 zu, nachdem man die Seite einmal angefasst hat – deshalb öffnet der Chat den
 Tonkanal schon beim ersten Tippen. Wer die Seite frisch geladen und noch
 nichts angefasst hat, sieht den Balken, hört aber nichts.
@@ -918,7 +929,11 @@ Wem das Bild gehört, sieht die Fäden getrennt nach Person und kann in jedem
 einzeln antworten. Den eigenen Kommentar darf jeder löschen, einen fremden
 niemand – auch nicht, wem das Bild gehört.
 
-Wird die Datei gelöscht, geht der Eintrag mit, samt Herzen und Kommentaren.
+**Löschen:** Das ✕ an einer eigenen Kachel entfernt Bild oder Film
+**endgültig** – vom Server und damit auch aus jeder Unterhaltung, in der es
+steht. Herzen und Kommentare gehen mit. Das ist etwas anderes als die Freigabe
+zurückzunehmen: dabei bleibt die Datei, sie steht nur nicht mehr in der
+Galerie. Fremde Bilder kann niemand löschen.
 
 ## Antworten und Löschen
 

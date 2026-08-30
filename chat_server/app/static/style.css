@@ -1,4 +1,9 @@
 :root {
+  /* Beide Kopfzeilen gleich hoch: die Linie unter "Wosislos", der Anfang des
+     Menues darunter und die Linie unter dem Namen der Person treffen sich
+     dann auf derselben Hoehe. Vorher standen 61 gegen 67 Pixel - ein
+     sichtbarer Absatz quer durchs Fenster. */
+  --kopf-hoehe: 67px;
   --bg: #0e1416;
   --surface: #151f21;
   --surface-2: #1c282a;
@@ -203,6 +208,8 @@ html, body { overscroll-behavior: none; }
 }
 .sidebar header {
   padding: 14px 16px;
+  min-height: var(--kopf-hoehe);
+  box-sizing: border-box;
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -267,6 +274,8 @@ html, body { overscroll-behavior: none; }
         position: relative; }
 .chat-header {
   padding: 13px 18px;
+  min-height: var(--kopf-hoehe);
+  box-sizing: border-box;
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -2399,4 +2408,30 @@ a.btn {
     border-left: none;
   }
   .galerie-raster { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
+
+/* Löschen an einer eigenen Kachel in der Galerie */
+.ga-kachel { position: relative; }
+.ga-weg {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(11, 16, 18, 0.66);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ga-weg:hover { background: var(--danger); }
+.ga-art {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
 }

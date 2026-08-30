@@ -1,5 +1,5 @@
 name: Chat Server
-version: "0.38.2"
+version: "0.39.0"
 slug: chat_server
 description: Selbstgehosteter Messenger mit Gruppen, Dateiversand und Push-Benachrichtigungen
 url: https://github.com/gregorwolf1973/chat-server-addon

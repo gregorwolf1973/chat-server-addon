@@ -3540,6 +3540,8 @@
              FREI_ZEICHEN[g.art]}</button>` : ""}
         </figcaption>
         ${g.titel ? `<div class="ga-titel">${esc(g.titel)}</div>` : ""}
+        ${galerie.meine ? `<button class="ga-weg" data-weg="${g.id}"
+           title="Endgültig löschen">✕</button>` : ""}
       </figure>`).join("");
 
     feld.querySelectorAll("[data-herz]").forEach((el) =>
@@ -3552,6 +3554,33 @@
         const i = galerie.eintraege.findIndex((g) => g.id === id);
         if (i >= 0) galerie.eintraege[i] = {...galerie.eintraege[i], ...neu};
         galerieZeichnen();
+      }));
+    feld.querySelectorAll("[data-weg]").forEach((el) =>
+      el.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const g = galerie.eintraege.find(
+          (x) => x.id === parseInt(el.dataset.weg, 10));
+        if (!g) return;
+        const film = (g.mime || "").startsWith("video/");
+        if (!confirm(`${film ? "Diesen Film" : "Dieses Bild"} endgültig `
+              + "löschen?" + "\n\n"
+              + "Es verschwindet aus der Galerie und vom Server – und damit "
+              + "auch aus jeder Unterhaltung, in der es steht. Herzen und "
+              + "Kommentare gehen mit.")) return;
+        // Derselbe Weg wie unter "Medien": das Löschen gehört zur Datei,
+        // nicht zur Freigabe.
+        const res = await api("/api/media/delete", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ids: [g.file_id]}),
+        });
+        const daten = await res.json().catch(() => ({}));
+        if (!res.ok || !daten.geloescht) {
+          toast(daten.error || "Löschen ging nicht.");
+          return;
+        }
+        toast(film ? "Film gelöscht." : "Bild gelöscht.");
+        await galerieOeffnen(galerie.person.id);
+        if (currentRoom) openRoom(currentRoom);
       }));
     feld.querySelectorAll("[data-frei]").forEach((el) =>
       el.addEventListener("click", (e) => {
@@ -4006,24 +4035,47 @@
   ["pointerdown", "keydown"].forEach((art) =>
     document.addEventListener(art, tonkanalOeffnen, {once: true, capture: true}));
 
-  function tonSchlagen() {
+  // Klingeltoene entstehen im Browser, es liegt keine Tondatei im Add-on.
+  // Je Eintrag: [Hertz, Versatz in Sekunden, Dauer].
+  const KLINGEL_MUSTER = {
+    klassisch: {name: "Klassisch",
+                noten: [[660, 0, 0.34], [660, 0.42, 0.34]]},
+    sanft: {name: "Sanft",
+            noten: [[523, 0, 0.5], [659, 0.24, 0.6]]},
+    perlen: {name: "Perlen",
+             noten: [[988, 0, 0.12], [988, 0.16, 0.12], [1319, 0.32, 0.22]]},
+    tief: {name: "Tief",
+           noten: [[330, 0, 0.42], [262, 0.36, 0.5]]},
+    folge: {name: "Kleine Folge",
+            noten: [[587, 0, 0.16], [740, 0.16, 0.16],
+                    [880, 0.32, 0.16], [1175, 0.5, 0.34]]},
+  };
+
+  const klingeltonWahl = () => {
+    const wahl = state.me && state.me.klingelton;
+    return KLINGEL_MUSTER[wahl] ? wahl : "klassisch";
+  };
+
+  /** Einmal klingeln. Ohne Namen der eingestellte Ton. */
+  function tonSchlagen(welcher) {
+    const muster = KLINGEL_MUSTER[welcher || klingeltonWahl()];
+    if (!muster) return;
     try {
       if (!klingelCtx) klingelCtx = new AudioContext();
       if (klingelCtx.state === "suspended") klingelCtx.resume();
       const t = klingelCtx.currentTime;
-      // Zwei kurze Toene, wie ein Telefon
-      [0, 0.42].forEach((versatz) => {
+      muster.noten.forEach(([hz, versatz, dauer]) => {
         const o = klingelCtx.createOscillator();
         const g = klingelCtx.createGain();
         o.type = "sine";
-        o.frequency.value = 660;
+        o.frequency.value = hz;
         g.gain.setValueAtTime(0, t + versatz);
         g.gain.linearRampToValueAtTime(0.16, t + versatz + 0.03);
-        g.gain.linearRampToValueAtTime(0, t + versatz + 0.34);
+        g.gain.linearRampToValueAtTime(0, t + versatz + dauer);
         o.connect(g);
         g.connect(klingelCtx.destination);
         o.start(t + versatz);
-        o.stop(t + versatz + 0.36);
+        o.stop(t + versatz + dauer + 0.02);
       });
     } catch (err) { /* ohne Ton bleibt der Balken sichtbar */ }
   }
@@ -4775,6 +4827,8 @@
         lassen sich zusätzlich stummschalten – über das Bild oben in der
         Unterhaltung.</p>
       <div class="kf-zeile" id="ton-wahl"></div>
+      <p class="hint">Klingelton bei Anrufen. Ein Tipp spielt ihn vor.</p>
+      <div class="kf-zeile" id="klingel-wahl"></div>
       <hr class="sep">
       <h2>Geburtstag</h2>
       <p class="hint">Freiwillig. Wenn du ihn angibst, erscheint er bei den
@@ -4932,6 +4986,27 @@
       await geburtstageLaden();
       toast(an ? "Geburtstage werden gezeigt." : "Geburtstage bleiben aus.");
     });
+    const klingelFeld = root.querySelector("#klingel-wahl");
+    const klingelZeichnen = () => {
+      const jetzt = klingeltonWahl();
+      klingelFeld.innerHTML = Object.entries(KLINGEL_MUSTER).map(([wert, m]) =>
+        `<button class="mini-btn ${jetzt === wert ? "an" : ""}"
+                 data-ton="${wert}">${esc(m.name)}</button>`).join("");
+      klingelFeld.querySelectorAll("[data-ton]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const ton = b.dataset.ton;
+          // Erst vorspielen, dann merken - so hoert man, was man waehlt
+          tonSchlagen(ton);
+          const res = await api("/api/me/klingelton", {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ton}),
+          });
+          if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
+          if (state.me) state.me.klingelton = ton;
+          klingelZeichnen();
+        }));
+    };
+    klingelZeichnen();
     pushEinstellung(root);
     root.querySelector("#p-ok").addEventListener("click", async () => {
       const res = await api("/api/me/password", {

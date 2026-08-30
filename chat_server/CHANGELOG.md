@@ -1,5 +1,19 @@
 # Änderungsverlauf
 
+## 0.39.0
+
+- **Der Chat heißt jetzt Wosislos** – in der Seitenleiste, im Fenstertitel und
+  auf der Anmeldeseite
+- **Bilder und Filme in der Galerie löschen**: ✕ an der eigenen Kachel. Das
+  entfernt sie vom Server und aus jeder Unterhaltung, samt Herzen und
+  Kommentaren – im Unterschied zum bloßen Zurücknehmen der Freigabe
+- **Klingelton wählbar** in den Einstellungen: Klassisch, Sanft, Perlen, Tief
+  oder Kleine Folge. Ein Tipp spielt ihn vor. Die Töne entstehen im Browser,
+  es liegt keine Tondatei im Add-on
+- **Die Kopfzeilen liegen auf einer Linie**: die Linie unter „Wosislos", der
+  Anfang des Menüs darunter und die Linie unter dem Namen der Person treffen
+  sich jetzt auf derselben Höhe (vorher 61 gegen 67 Pixel)
+
 ## 0.38.2
 
 - **Dialoge erschienen hinter der Galerie.** „Bild hinzufügen" und die

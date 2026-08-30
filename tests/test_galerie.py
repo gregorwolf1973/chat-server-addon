@@ -268,6 +268,27 @@ def lauf():
     e.pruefe(anna.get(f"{BASE}/files/{haltbar['id']}").status_code == 404,
              "das aus der Unterhaltung ebenfalls - dort war die Nachricht ja weg")
 
+    e.abschnitt("Aus der Galerie heraus loeschen")
+    weg = hochladen(anna, "weg.png", PNG, "image/png").json()
+    anna.post(f"{BASE}/api/galerie", json={"file_id": weg["id"], "art": "alle"})
+    eintrag = [x for x in anna.get(f"{BASE}/api/galerie/{anna_id}").json()
+               ["eintraege"] if x["file_id"] == weg["id"]][0]
+    bert.post(f"{BASE}/api/galerie/{eintrag['id']}/herz")
+    bert.post(f"{BASE}/api/galerie/{eintrag['id']}/worte", json={"text": "schoen"})
+    e.pruefe(bert.post(f"{BASE}/api/media/delete",
+                       json={"ids": [weg["id"]]}).json()["geloescht"] == 0,
+             "Bert kann Annas Bild nicht loeschen")
+    r = anna.post(f"{BASE}/api/media/delete", json={"ids": [weg["id"]]})
+    e.pruefe(r.json()["geloescht"] == 1, f"Anna schon = {r.json()}")
+    e.pruefe(not [x for x in anna.get(f"{BASE}/api/galerie/{anna_id}").json()
+                  ["eintraege"] if x["file_id"] == weg["id"]],
+             "danach ist es aus der Galerie fort")
+    e.pruefe(anna.get(f"{BASE}/files/{weg['id']}").status_code == 404,
+             "und die Datei vom Server")
+    e.pruefe(anna.get(f"{BASE}/api/galerie/{eintrag['id']}/worte"
+                      ).status_code == 403,
+             "Herzen und Kommentare gehen mit")
+
     e.abschnitt("Ohne Anmeldung geht gar nichts")
     for pfad, methode in ((f"/api/galerie/{anna_id}", requests.get),
                           ("/api/galerie", requests.post),

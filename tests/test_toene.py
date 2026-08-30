@@ -136,11 +136,32 @@ def lauf():
     r = admin.post(f"{BASE}/api/me/blasenfarbe", json={"farbe": ""})
     e.pruefe(r.json()["farbe"] is None, "und zuruecksetzen geht")
 
+    e.abschnitt("Klingelton")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["klingelton"] == "klassisch",
+             "voreingestellt ist der klassische")
+    toene = admin.get(f"{BASE}/api/klingeltoene").json()
+    e.pruefe(len(toene) >= 3 and "klassisch" in toene,
+             f"es gibt eine Auswahl = {toene}")
+    r = admin.post(f"{BASE}/api/me/klingelton", json={"ton": "tief"})
+    e.pruefe(r.status_code == 200 and r.json()["ton"] == "tief",
+             f"einer laesst sich waehlen = {r.status_code}")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["klingelton"] == "tief",
+             "und steht im Startzustand")
+    e.pruefe(anna.get(f"{BASE}/api/state").json()["me"]["klingelton"] == "klassisch",
+             "bei Anna aendert das nichts")
+    e.pruefe(admin.post(f"{BASE}/api/me/klingelton",
+                        json={"ton": "hupe"}).status_code == 400,
+             "einen erfundenen gibt es nicht")
+    e.pruefe(admin.post(f"{BASE}/api/me/klingelton", json={}).status_code == 400,
+             "und gar keinen auch nicht")
+
     e.abschnitt("Ohne Anmeldung geht gar nichts")
     for pfad, methode in (("/api/toene", requests.get),
                           ("/api/toene", requests.post),
                           ("/api/gesehen/termine", requests.post),
                           ("/api/me/blasenfarbe", requests.post),
+                          ("/api/klingeltoene", requests.get),
+                          ("/api/me/klingelton", requests.post),
                           (f"/api/rooms/{raum}/stumm", requests.post)):
         r = methode(BASE + pfad, json={}, allow_redirects=False)
         e.pruefe(r.status_code in (302, 401),
