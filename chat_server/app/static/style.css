@@ -459,7 +459,10 @@ html, body { overscroll-behavior: none; }
   display: grid;
   place-items: center;
   padding: 20px;
-  z-index: 20;
+  /* Ein Dialog gehoert ueber alles, was bildschirmfuellend darunterliegt -
+     Galerie (88), Anruffenster (90), Medienschau (100). Vorher lag er auf 20
+     und war deshalb erst zu sehen, wenn man die Flaeche darueber zumachte. */
+  z-index: 110;
 }
 .modal {
   background: var(--surface);
@@ -496,7 +499,9 @@ html, body { overscroll-behavior: none; }
   padding: 9px 16px;
   border-radius: 999px;
   font-size: 13px;
-  z-index: 40;
+  /* Ueber dem Dialog: eine Meldung, die hinter dem Fenster steht, das sie
+     erklaert, waere nutzlos. */
+  z-index: 120;
 }
 
 @media (max-width: 720px) {
@@ -1555,7 +1560,9 @@ audio.abspieler { width: min(260px, 100%); }
   top: max(12px, env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 95;
+  /* Ganz oben: ein eingehender Anruf soll auch ueber einem offenen Dialog
+     zu sehen sein. */
+  z-index: 130;
   display: flex;
   align-items: center;
   gap: 11px;

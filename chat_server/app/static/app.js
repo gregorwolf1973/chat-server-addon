@@ -3746,7 +3746,9 @@
   $("btn-meine-galerie").addEventListener("click", () => galerieOeffnen(ME));
   $("galerie-zu").addEventListener("click", galerieSchliessen);
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !$("galerie").hidden) galerieSchliessen();
+    if (e.key === "Escape" && !$("galerie").hidden && !modalOffen()) {
+      galerieSchliessen();
+    }
   });
   socket.on("galerie_wort", () => {
     if (galerie.offen) toast("Neuer Kommentar zu einem deiner Bilder.");
@@ -3864,7 +3866,7 @@
   });
 
   document.addEventListener("keydown", (e) => {
-    if (!schau.offen) return;
+    if (!schau.offen || modalOffen()) return;
     if (e.key === "ArrowRight") schauGehe(1);
     else if (e.key === "ArrowLeft") schauGehe(-1);
     else if (e.key === "Escape") schauSchliessen();
@@ -4690,6 +4692,11 @@
     kartenAbbauen();
     $("modal-root").innerHTML = "";
   };
+
+  // Liegt gerade ein Dialog obenauf? Dann gehoert ihm die Escape-Taste, nicht
+  // der Flaeche darunter - sonst schlösse Escape die Galerie und liesse den
+  // Dialog verwaist ueber der Unterhaltung stehen.
+  const modalOffen = () => !!$("modal-root").firstElementChild;
 
   $("btn-new").addEventListener("click", () => {
     const others = state.users.filter((u) => u.id !== ME && u.active !== false);

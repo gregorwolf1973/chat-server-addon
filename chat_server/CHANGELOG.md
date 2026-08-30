@@ -1,5 +1,15 @@
 # Änderungsverlauf
 
+## 0.38.2
+
+- **Dialoge erschienen hinter der Galerie.** „Bild hinzufügen" und die
+  Freigabewahl wurden erst sichtbar, wenn man die Galerie schloss – sie lagen
+  auf einer tieferen Ebene als die Fläche darüber. Dasselbe galt für jede
+  Hinweismeldung. Die Reihenfolge stimmt jetzt: Dialog über Galerie,
+  Anruffenster und Medienschau; Meldung über dem Dialog; ein eingehender
+  Anruf über allem
+- **Escape** schließt jetzt das oberste Fenster statt der Fläche darunter
+
 ## 0.38.1
 
 - **Freigeben ging nicht.** Der Freigabedialog ersetzte die Medienliste, statt
