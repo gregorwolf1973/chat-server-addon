@@ -1,5 +1,18 @@
 # Änderungsverlauf
 
+## 0.45.0
+
+- **Die Installation lädt jetzt ein fertiges Abbild** aus der
+  GitHub-Registrierung, statt es auf dem eigenen Gerät zu bauen. Auf einem
+  Raspberry Pi dauerte das bisher viele Minuten und konnte am Speicher
+  scheitern; jetzt sind es ein paar Sekunden
+- **Sprache schon auf der Anmeldeseite** wählbar – die Wahl überdauert das
+  Formular und gilt auch für Registrierung und „Passwort vergessen"
+- **Neue Option `sprache`**: `browser` (Voreinstellung), `de` oder `en`.
+  Damit legt der Administrator fest, was gilt, solange niemand selbst
+  gewählt hat
+- Auf der Anmeldeseite fehlte ein Leerzeichen vor „Zugang beantragen"
+
 ## 0.44.1
 
 - Der Bauablauf **veröffentlicht die fertigen Abbilder** in der

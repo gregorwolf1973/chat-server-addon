@@ -84,6 +84,11 @@
         </form>
         <p class="hint"><a href="{{ url_for('login_page') }}">{{ t("Ich habe schon ein Konto") }}</a></p>
       {% endif %}
+      <p class="sprachwahl">
+        <a href="?lang=de"{% if sprache == 'de' %} class="jetzt"{% endif %}>Deutsch</a>
+        <span>·</span>
+        <a href="?lang=en"{% if sprache == 'en' %} class="jetzt"{% endif %}>English</a>
+      </p>
     </div>
   </div>
 </body>

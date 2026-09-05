@@ -1,6 +1,9 @@
 name: Chat Server
-version: "0.44.1"
+version: "0.45.0"
 slug: chat_server
+# Fertige Abbilder aus der GitHub-Registrierung. Ohne diese Zeile baut
+# jedes Geraet selbst - auf einem Pi dauert das viele Minuten.
+image: ghcr.io/gregorwolf1973/{arch}-addon-chat_server
 description: Selbstgehosteter Messenger mit Gruppen, Dateiversand und Push-Benachrichtigungen
 url: https://github.com/gregorwolf1973/chat-server-addon
 arch:
@@ -28,6 +31,7 @@ options:
   api_token: ""
   max_upload_mb: 25
   allow_registration: true
+  sprache: browser
   retention_days: 0
   stun_server: "stun:stun.l.google.com:19302"
   turn_server: ""
@@ -41,6 +45,7 @@ schema:
   api_token: str?
   max_upload_mb: int(1,200)
   allow_registration: bool
+  sprache: list(browser|de|en)
   retention_days: int(0,3650)
   stun_server: str?
   turn_server: str?

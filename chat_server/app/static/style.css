@@ -2521,3 +2521,15 @@ a.btn {
   .user-list { max-height: none; }
   .echtkarte { height: min(520px, 58vh); }
 }
+
+/* Sprachwahl vor der Anmeldung */
+.sprachwahl {
+  margin: 18px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.sprachwahl a { color: var(--muted); text-decoration: none; padding: 0 4px; }
+.sprachwahl a:hover { color: var(--text); }
+.sprachwahl a.jetzt { color: var(--text); font-weight: 600; }
+.sprachwahl span { opacity: 0.5; }

@@ -180,6 +180,34 @@ def main():
     reg = requests.get(f"{BASE}/register", headers={"Accept-Language": "en"}).text
     e.pruefe("This is a private server" in reg,
              "auch der Datenschutztext der Registrierung")
+    e.abschnitt("Sprachwahl vor der Anmeldung")
+    s = requests.Session()
+    seite = s.get(f"{BASE}/login", headers={"Accept-Language": "de"}).text
+    e.pruefe('class="sprachwahl"' in seite,
+             "die Anmeldeseite bietet die Wahl an")
+    e.pruefe('href="?lang=de"' in seite and 'href="?lang=en"' in seite,
+             "mit beiden Sprachen")
+    # Die Wahl schlaegt den Browser
+    r = s.get(f"{BASE}/login?lang=en", headers={"Accept-Language": "de-DE,de"})
+    e.pruefe('<html lang="en"' in r.text,
+             "?lang=en gewinnt gegen einen deutschen Browser")
+    e.pruefe(s.cookies.get("sprache") == "en",
+             f"und wird gemerkt = {s.cookies.get('sprache')}")
+    weiter = s.get(f"{BASE}/login", headers={"Accept-Language": "de-DE,de"}).text
+    e.pruefe('<html lang="en"' in weiter,
+             "beim naechsten Aufruf ohne Parameter gilt sie weiter")
+    e.pruefe('<html lang="de"' in
+             s.get(f"{BASE}/login?lang=de").text,
+             "und laesst sich zurueckstellen")
+    e.pruefe('<html lang="de"' in
+             requests.get(f"{BASE}/login?lang=kl",
+                          headers={"Accept-Language": "de"}).text,
+             "eine erfundene Kennung wird uebergangen")
+    e.pruefe('class="sprachwahl"' in requests.get(f"{BASE}/register").text
+             and 'class="sprachwahl"' in
+             requests.get(f"{BASE}/passwort-vergessen").text,
+             "Registrierung und Passwortseite ebenso")
+
     admin.post(f"{BASE}/api/me/sprache", json={"sprache": "de"})
 
     return e.bilanz()

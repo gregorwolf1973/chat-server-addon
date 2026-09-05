@@ -28,8 +28,13 @@
       </form>
       <p class="hint"><a href="{{ url_for('passwort_vergessen') }}">{{ t("Passwort vergessen?") }}</a></p>
       {% if registration_open %}
-      <p class="hint">{{ t("Noch kein Konto?") }}<a href="{{ url_for('register_page') }}">{{ t("Zugang beantragen") }}</a></p>
+      <p class="hint">{{ t("Noch kein Konto?") }} <a href="{{ url_for('register_page') }}">{{ t("Zugang beantragen") }}</a></p>
       {% endif %}
+      <p class="sprachwahl">
+        <a href="?lang=de"{% if sprache == 'de' %} class="jetzt"{% endif %}>Deutsch</a>
+        <span>·</span>
+        <a href="?lang=en"{% if sprache == 'en' %} class="jetzt"{% endif %}>English</a>
+      </p>
     </div>
   </div>
   <script src="{{ statisch('login.js') }}"></script>

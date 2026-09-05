@@ -57,6 +57,7 @@ original and always the more detailed one.
 | `max_upload_mb` | `25` | Largest file, 1 to 200 |
 | `allow_registration` | `true` | Whether strangers may request an account. Approval by an administrator is always required |
 | `retention_days` | `0` | Delete messages and attachments older than X days. `0` means never |
+| `sprache` | `browser` | Default language: `browser`, `de` or `en`. A personal choice overrides it |
 | `stun_server` | Google | For calls from outside |
 | `turn_server` / `turn_username` / `turn_password` | empty | Only needed when a direct connection fails |
 | `log_level` | `info` | `debug`, `info`, `warning` or `error` |

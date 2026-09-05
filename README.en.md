@@ -85,6 +85,7 @@ Raspberry Pi is enough.
 | `max_upload_mb` | `25` | Largest file, 1 to 200 |
 | `allow_registration` | `true` | Whether strangers may request an account. An administrator still has to approve every one |
 | `retention_days` | `0` | Delete messages and attachments older than X days. `0` means never |
+| `sprache` | `browser` | Which language applies until someone picks one: `browser`, `de` or `en` |
 | `stun_server` | Google | For calls from outside the home network |
 | `turn_server` … | empty | Only needed when a direct connection fails |
 | `log_level` | `info` | `debug` through `error` |

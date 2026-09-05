@@ -40,6 +40,9 @@ def _opt(name):
 EXTERNAL_URL = _opt("EXTERNAL_URL").rstrip("/")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "info").upper()
 ALLOW_REGISTRATION = _opt("ALLOW_REGISTRATION").lower() not in ("false", "0", "off")
+# Welche Sprache gilt, solange niemand selbst gewaehlt hat: "de", "en" oder
+# "browser" - dann entscheidet, was der Browser mitschickt.
+SPRACHE_STANDARD = (_opt("SPRACHE") or "browser").lower()
 # Fuer Anrufe von unterwegs muss ein Geraet seine oeffentliche Adresse
 # kennen. Das leistet ein STUN-Server; er erfaehrt nur diese Adresse, nie
 # Bild oder Ton. Wer gar nichts nach draussen geben will, traegt hier nichts
@@ -2864,7 +2867,9 @@ SPRACHEN = ("de", "en")
 
 
 def browsersprache():
-    """Was der Browser mitschickt - nur als Vorgabe, wenn nichts gewaehlt ist."""
+    """Was der Browser mitschickt - oder was der Administrator vorgibt."""
+    if SPRACHE_STANDARD in SPRACHEN:
+        return SPRACHE_STANDARD
     roh = (request.headers.get("Accept-Language") or "").lower()
     for stueck in roh.split(","):
         kennung = stueck.split(";")[0].strip()[:2]
@@ -2873,15 +2878,43 @@ def browsersprache():
     return "de"
 
 
+SPRACH_KEKS = "sprache"
+
+
 def sprache_jetzt():
-    """Die Sprache dieser Anfrage - aus dem Konto, sonst aus dem Browser."""
+    """Die Sprache dieser Anfrage.
+
+    Der Reihe nach: was gerade in der Adresse steht (der Umschalter auf der
+    Anmeldeseite), was am Konto haengt, was beim letzten Mal gewaehlt wurde,
+    und zuletzt die Vorgabe - Add-on-Option oder Browser.
+    """
+    gewuenscht = (request.args.get("lang") or "").lower()
+    if gewuenscht in SPRACHEN:
+        return gewuenscht
     uid = session.get("uid")
     if uid:
         row = db().execute("SELECT sprache FROM users WHERE id=?",
                            (uid,)).fetchone()
         if row and row["sprache"] in SPRACHEN:
             return row["sprache"]
+    keks = (request.cookies.get(SPRACH_KEKS) or "").lower()
+    if keks in SPRACHEN:
+        return keks
     return browsersprache()
+
+
+@app.after_request
+def sprache_merken(resp):
+    """Die Wahl vor der Anmeldung ueberdauert den naechsten Aufruf.
+
+    Ohne das waere die Sprache nach dem Absenden des Formulars wieder weg -
+    die Adresse mit ?lang= ist dann ja nicht mehr dabei.
+    """
+    gewuenscht = (request.args.get("lang") or "").lower()
+    if gewuenscht in SPRACHEN:
+        resp.set_cookie(SPRACH_KEKS, gewuenscht, max_age=60 * 60 * 24 * 365,
+                        samesite="Lax", httponly=False)
+    return resp
 
 
 @app.post("/api/me/sprache")

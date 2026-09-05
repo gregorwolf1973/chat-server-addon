@@ -84,6 +84,7 @@ die ersten beiden Abschnitte.
 | `max_upload_mb` | `25` | Größenlimit pro Datei, 1 bis 200 |
 | `allow_registration` | `true` | ob sich Leute selbst um Zugang bewerben dürfen. Freigeben musst du sie trotzdem – ohne Freigabe kommt niemand hinein |
 | `retention_days` | `0` | Nachrichten und Anhänge älter als X Tage löschen. `0` heißt: nie |
+| `sprache` | `browser` | Vorgabe der Sprache: `browser`, `de` oder `en`. Wer selbst wählt, überstimmt sie |
 | `stun_server` | Google | für Anrufe von unterwegs, siehe [Anrufe](#anrufe-videoanrufe-und-gruppenrunden) |
 | `turn_server` / `turn_username` / `turn_password` | leer | nur nötig, wenn eine direkte Verbindung scheitert |
 | `log_level` | `info` | `debug`, `info`, `warning` oder `error` |

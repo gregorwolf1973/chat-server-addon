@@ -82,6 +82,7 @@ Raspberry Pi.
 | `max_upload_mb` | `25` | Größte Datei, 1 bis 200 |
 | `allow_registration` | `true` | Ob sich Fremde selbst einen Zugang beantragen dürfen |
 | `retention_days` | `0` | Nachrichten und Anhänge älter als X Tage löschen. `0` = nie |
+| `sprache` | `browser` | Welche Sprache gilt, solange niemand selbst gewählt hat: `browser`, `de` oder `en` |
 | `stun_server` | Google | Für Anrufe von unterwegs |
 | `turn_server` … | leer | Nur nötig, wenn eine direkte Verbindung scheitert |
 | `log_level` | `info` | `debug` bis `error` |
