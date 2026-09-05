@@ -1,5 +1,13 @@
 # Änderungsverlauf
 
+## 0.44.1
+
+- Der Bauablauf **veröffentlicht die fertigen Abbilder** in der
+  GitHub-Registrierung (GHCR), statt sie nur zur Probe zu bauen. Damit muss
+  sie niemand mehr selbst auf dem Pi bauen. Umgestellt wird die Installation
+  darauf erst in der nächsten Version – vorher müssen die Abbilder da und
+  öffentlich sein
+
 ## 0.44.0
 
 - **Die Oberfläche spricht Englisch.** Umschaltbar unter *Einstellungen →

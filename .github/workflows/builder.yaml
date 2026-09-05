@@ -10,6 +10,11 @@ jobs:
   build:
     name: ${{ matrix.arch }} bauen
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Ohne dieses Recht darf der Lauf nichts in die GitHub-Registrierung
+      # schieben - der Push scheitert dann mit "denied".
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -24,11 +29,33 @@ jobs:
         with:
           path: "./chat_server"
 
-      - name: Image bauen
+      # Aus einem Pull Request heraus wird nur gebaut, nicht veroeffentlicht:
+      # dort steht das Recht zum Schreiben ohnehin nicht zur Verfuegung, und
+      # ungeprueften Code will man nicht in der Registrierung haben.
+      - name: Nur bauen (Pull Request)
+        if: github.event_name == 'pull_request'
         uses: home-assistant/builder@2026.02.1
         with:
           args: |
             --test \
+            --${{ matrix.arch }} \
+            --target /data/chat_server \
+            --image {arch}-addon-chat_server \
+            --docker-hub ghcr.io/${{ github.repository_owner }}
+
+      - name: An der GitHub-Registrierung anmelden
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bauen und veroeffentlichen
+        if: github.event_name != 'pull_request'
+        uses: home-assistant/builder@2026.02.1
+        with:
+          args: |
             --${{ matrix.arch }} \
             --target /data/chat_server \
             --image {arch}-addon-chat_server \
