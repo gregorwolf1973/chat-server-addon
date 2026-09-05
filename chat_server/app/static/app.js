@@ -2229,7 +2229,7 @@
       <div class="field"><label for="ev-wann">Wann</label>
         <input id="ev-wann" type="datetime-local" value="${wannWert}"></div>
       <div class="field"><label for="ev-ort">Wo</label>
-        <input id="ev-ort" autocomplete="off" placeholder="Bei Gregor, Hofstraße 3"
+        <input id="ev-ort" autocomplete="off" placeholder="Im Gemeindehaus, Hauptstraße 3"
                value="${aendern ? esc(ev.ort_text) : ""}">
         <div class="row schmal">
           <button class="btn ghost klein" type="button" id="ev-karte">Auf der Karte wählen</button>

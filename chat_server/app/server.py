@@ -647,7 +647,7 @@ def statisch(dateiname):
 
 # Wie die Oberflaeche heissen soll. Das Add-on selbst bleibt "Chat Server" -
 # hier geht es nur um den Namen, den die Leute lesen.
-ANZEIGENAME_STANDARD = "Wosislos"
+ANZEIGENAME_STANDARD = "Chat"
 ANZEIGENAME_MAX = 40
 
 

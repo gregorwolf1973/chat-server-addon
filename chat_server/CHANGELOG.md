@@ -1,5 +1,20 @@
 # Änderungsverlauf
 
+## 0.43.0
+
+**Achtung:** Der voreingestellte Name der Oberfläche ist jetzt **„Chat"**
+statt „Wosislos" – der eigene Name gehört in die Einstellungen, nicht in den
+Quelltext. Wer ihn dort nie gesetzt hat, trägt ihn nach dem Update unter
+*Einstellungen → Name* einmal ein.
+
+- **Neue Doku**: Das README beschreibt jetzt, was das Add-on kann, wie es
+  gebaut ist, was es **nicht** kann und wie man mitentwickelt. Das Handbuch
+  hat einen Einstieg mit Inhaltsverzeichnis bekommen, die Optionstabelle ist
+  vollständig
+- **Private Angaben aus dem Repository entfernt**: die eigene Domain steht
+  jetzt als `chat.example.org` in den Beispielen, Namen in Platzhaltern sind
+  neutral
+
 ## 0.42.0
 
 - **Passwort anzeigen**: ein „Zeigen"-Knopf im Passwortfeld, auf der

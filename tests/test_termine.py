@@ -40,7 +40,7 @@ def lauf():
     r = admin.post(f"{BASE}/api/rooms/{raum}/event", json={
         "titel": "Grillen im Garten",
         "beschreibung": "Bringt Salat mit.",
-        "ort_text": "Bei Gregor",
+        "ort_text": "Im Gemeindehaus",
         "beginnt_at": int(time.time()) + 86400,
         "kategorien": ["essen", "musik", "quatsch"],
         "lat": 49.01, "lon": 8.40})

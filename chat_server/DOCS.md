@@ -1,8 +1,67 @@
-# Chat Server – Home Assistant Add-on
+# Chat Server – Handbuch
 
-Selbstgehosteter Messenger für den eigenen Haushalt: Direktchats, Gruppen,
-Datei- und Bildversand, Online-Anzeige, Tippen-Anzeige und Push-Benachrichtigungen
-auf dem Handy. Läuft als Add-on auf dem Pi, Daten bleiben in `/data`.
+Selbstgehosteter Messenger für Familie, WG oder Verein. Direktchats und
+Gruppen, Bilder und Dateien, Sprachnachrichten, Anrufe und Videoanrufe,
+Einladungen mit Ort, eine Karte, eine persönliche Galerie und
+Push-Benachrichtigungen aufs Handy. Läuft als Add-on auf Home Assistant, auch
+auf einem Raspberry Pi; alle Daten bleiben in `/data`.
+
+Dieses Handbuch beschreibt **jede** Funktion. Wer nur loslegen will, braucht
+die ersten beiden Abschnitte.
+
+## Wo steht was
+
+**Einrichten**
+[Installation](#installation) ·
+[Konfiguration](#konfiguration) ·
+[Von unterwegs erreichbar](#externer-zugriff-über-cloudflare-tunnel) ·
+[Push-Benachrichtigungen](#push-benachrichtigungen) ·
+[Nachrichten aus Home Assistant](#nachrichten-aus-home-assistant)
+
+**Konten**
+[Zugang beantragen](#zugang-beantragen) ·
+[Benutzer verwalten](#benutzer-verwalten) ·
+[Passwort vergessen](#passwort-vergessen) ·
+[Freunde](#freunde) ·
+[Wie der Chat heißt](#wie-der-chat-heißt)
+
+**Schreiben**
+[Wie Nachrichten aussehen](#wie-nachrichten-aussehen) ·
+[Die Heftklammer](#die-heftklammer) ·
+[Bilder und Dateien](#bilder-und-dateien) ·
+[Sprachnachrichten](#sprachnachrichten) ·
+[Suchen und springen](#suchen-und-springen) ·
+[Weiterleiten](#nachrichten-weiterleiten) ·
+[Antworten und Löschen](#antworten-und-löschen) ·
+[Abstimmung](#abstimmung)
+
+**Reden**
+[Anrufe und Videoanrufe](#anrufe-videoanrufe-und-gruppenrunden) ·
+[Töne und Klingelton](#töne)
+
+**Verabreden und zeigen**
+[Einladungen und Termine](#einladungen-und-termine) ·
+[Termin ohne Unterhaltung](#ein-termin-ohne-unterhaltung) ·
+[Geburtstage](#geburtstage) ·
+[Live-Standort und Karten](#live-standort-und-der-abschnitt-karten) ·
+[Was ist wo los?](#was-ist-wo-los) ·
+[Empfehlungen](#empfehlungen) ·
+[Stimmung](#stimmung) ·
+[Galerie](#galerie-bilder-über-die-unterhaltung-hinaus) ·
+[Medienschau](#durch-bilder-und-videos-wischen)
+
+**Aussehen und Bedienung**
+[Die Reiter in der Seitenleiste](#die-reiter-in-der-seitenleiste) ·
+[Am Telefon](#am-telefon) ·
+[Hell und dunkel](#aussehen) ·
+[Hintergrundmuster](#hintergrundmuster) ·
+[Straßenkarte oder Umrisse](#straßenkarte-oder-umrisse)
+
+**Betrieb**
+[Altes automatisch löschen](#altes-automatisch-löschen) ·
+[Technik](#technik) ·
+[Sicherheit und Sicherungen](#sicherheit-und-sicherungen) ·
+[Grenzen](#grenzen)
 
 ## Installation
 
@@ -15,12 +74,20 @@ auf dem Handy. Läuft als Add-on auf dem Pi, Daten bleiben in `/data`.
 
 ## Konfiguration
 
-| Option | Bedeutung |
-|---|---|
-| `admin_user` / `admin_password` | wird beim ersten Start als Administrator angelegt; spätere Änderungen der Option ändern das Passwort **nicht** (das geht in der Oberfläche) |
-| `external_url` | vollständige externe Adresse, z. B. `https://chat.biker633.org` – wird für die Ziel-URL der Push-Benachrichtigungen gebraucht |
-| `max_upload_mb` | Größenlimit pro Datei (Standard 25) |
-| `allow_registration` | ob sich Leute selbst um Zugang bewerben dürfen (Standard: ja). Freigeben musst du sie trotzdem – ohne Freigabe kommt niemand hinein |
+| Option | Standard | Bedeutung |
+|---|---|---|
+| `admin_user` / `admin_password` | `admin` | wird beim ersten Start als Administrator angelegt; spätere Änderungen der Option ändern das Passwort **nicht** (das geht in der Oberfläche) |
+| `external_url` | leer | vollständige externe Adresse, z. B. `https://chat.example.org` – wird für die Ziel-URL der Push-Benachrichtigungen gebraucht |
+| `api_token` | leer | Token für `POST /api/notify`. Leer lassen ist besser: dann erzeugt das Add-on eines, zeigt es in den Einstellungen und lässt es dort auch wechseln |
+| `max_upload_mb` | `25` | Größenlimit pro Datei, 1 bis 200 |
+| `allow_registration` | `true` | ob sich Leute selbst um Zugang bewerben dürfen. Freigeben musst du sie trotzdem – ohne Freigabe kommt niemand hinein |
+| `retention_days` | `0` | Nachrichten und Anhänge älter als X Tage löschen. `0` heißt: nie |
+| `stun_server` | Google | für Anrufe von unterwegs, siehe [Anrufe](#anrufe-videoanrufe-und-gruppenrunden) |
+| `turn_server` / `turn_username` / `turn_password` | leer | nur nötig, wenn eine direkte Verbindung scheitert |
+| `log_level` | `info` | `debug`, `info`, `warning` oder `error` |
+
+Die Daten liegen in `/data`: `chat.db` (Datenbank), `uploads/` (Dateien),
+`avatars/` (Profilbilder), dazu Schlüssel und Token.
 
 ## Externer Zugriff über Cloudflare Tunnel
 
@@ -28,11 +95,11 @@ Ingress reicht fürs Heimnetz, für Handy-Push brauchst du eine eigene Subdomain
 In der Tunnel-Konfiguration einen Public Hostname anlegen:
 
 ```
-chat.biker633.org  ->  http://172.30.32.1:8099
+chat.example.org  ->  http://172.30.32.1:8099
 ```
 
 `172.30.32.1` statt `homeassistant` verwenden (der Name löst auf IPv6 auf).
-Danach `external_url: https://chat.biker633.org` setzen und das Add-on neu starten.
+Danach `external_url: https://chat.example.org` setzen und das Add-on neu starten.
 
 ## Push-Benachrichtigungen
 
@@ -196,7 +263,7 @@ Stunde und Absender an. Ganz abschalten lässt sie sich mit der Option
 ## Wie der Chat heißt
 
 In den Einstellungen unter **Name** trägt ein Administrator ein, wie die
-Oberfläche heißen soll – voreingestellt „Wosislos". Der Name erscheint in der
+Oberfläche heißen soll – voreingestellt „Chat". Der Name erscheint in der
 Seitenleiste, im Fenstertitel, auf der Anmeldeseite und im Manifest (also auch
 unter dem Symbol auf dem Home-Bildschirm). Er gilt für alle und wechselt bei
 allen offenen Fenstern sofort, ohne Neuladen. Leeren stellt die Voreinstellung

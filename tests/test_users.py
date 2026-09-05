@@ -129,9 +129,9 @@ def main():
     anna, _ = anmelden("leser", "start123")
     r = admin.get(f"{BASE}/api/anzeigename")
     e.pruefe(r.status_code == 200, f"laesst sich lesen = {r.status_code}")
-    e.pruefe(r.json()["name"] == "Wosislos",
+    e.pruefe(r.json()["name"] == "Chat",
              f"voreingestellt = {r.json()['name']}")
-    e.pruefe(admin.get(f"{BASE}/api/state").json()["anzeigename"] == "Wosislos",
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["anzeigename"] == "Chat",
              "und steht im Startzustand")
     r = admin.post(f"{BASE}/api/anzeigename", json={"name": "Nachbarschaft"})
     e.pruefe(r.status_code == 200 and r.json()["name"] == "Nachbarschaft",
@@ -147,7 +147,7 @@ def main():
                         json={"name": "x" * 41}).status_code == 400,
              "zu lang wird abgewiesen")
     r = admin.post(f"{BASE}/api/anzeigename", json={"name": "   "})
-    e.pruefe(r.json()["name"] == "Wosislos",
+    e.pruefe(r.json()["name"] == "Chat",
              "leer heisst zurueck zur Voreinstellung")
     e.pruefe(requests.post(f"{BASE}/api/anzeigename", json={},
                            allow_redirects=False).status_code in (302, 401),
