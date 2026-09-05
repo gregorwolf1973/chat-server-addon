@@ -156,7 +156,7 @@ DATA_DIR=/tmp/chat ADMIN_USER=admin ADMIN_PASSWORD=test1234 python server.py
 The chat is then on `http://127.0.0.1:8099`. `run.sh` and bashio are not
 needed for this.
 
-**Test suites** — 18 of them, roughly 780 assertions. Each needs a freshly
+**Test suites** — 19 of them, just over 800 assertions. Each needs a freshly
 started server on an empty `DATA_DIR`:
 
 ```bash

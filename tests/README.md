@@ -48,7 +48,7 @@ das durch Altbestände fehl.
 
 ## Was geprüft wird
 
-`test_security.py` (15 Prüfungen)
+`test_security.py` (41 Prüfungen)
 
 * Der MIME-Typ hochgeladener Dateien kommt vom Client und darf nicht geglaubt
   werden – `text/html` wird zu einem Download statt zu einer Seite.
@@ -100,7 +100,7 @@ das durch Altbestände fehl.
   Alter, das erreicht wird.
 * Der 29. Februar fällt in Jahren ohne Schalttag auf den 1. März.
 
-`test_toene.py` (22 Prüfungen)
+`test_toene.py` (49 Prüfungen)
 
 * Die allgemeine Tonstufe: lesen, ändern, Unfug abweisen – und sie gehört
   der Person, nicht dem Gerät.
@@ -122,7 +122,7 @@ Schnittstelle lässt sich kein Datum von gestern erzeugen.
 * Abstimmen, zurücknehmen, Einfach- und Mehrfachwahl.
 * Wer gestimmt hat, ist sichtbar; Antworten fremder Fragen werden abgewiesen.
 
-`test_termine.py` (104 Prüfungen)
+`test_termine.py` (120 Prüfungen)
 
 * Termin anlegen, mit Fehlerfällen; unbekannte Merkmale fallen weg.
 * Zusagen, ändern, zurücknehmen; Fremde sehen und beantworten nichts.
@@ -146,7 +146,7 @@ Schnittstelle lässt sich kein Datum von gestern erzeugen.
 * Die Straßenkarte lässt sich abschalten; die Einstellung hängt am Konto,
   gilt also auch in einer neuen Sitzung, und betrifft niemanden sonst.
 
-`test_notify.py` (13 Prüfungen)
+`test_notify.py` (26 Prüfungen)
 
 * Das Token sieht nur ein Administrator.
 * Nachrichten an Personen und Gruppen, mit den Fehlerfällen.
@@ -159,14 +159,14 @@ Schnittstelle lässt sich kein Datum von gestern erzeugen.
 * Nur Bilder werden angenommen.
 * Gruppenbilder sehen und setzen nur Mitglieder; Direktchats haben keins.
 
-`test_register.py` (24 Prüfungen)
+`test_register.py` (27 Prüfungen)
 
 * Die Registrierungsseite ist ohne Anmeldung erreichbar, die Pflichtangaben
   greifen.
 * Vor der Freigabe kommt niemand hinein und taucht in keiner Liste auf.
 * Freigeben und Ablehnen, dazu die Bremse gegen Massenanträge.
 
-`test_media.py` (19 Prüfungen)
+`test_media.py` (83 Prüfungen)
 
 * Sichtbar sind nur Medien aus Unterhaltungen, in denen man Mitglied ist.
 * Der Filter je Unterhaltung.
@@ -174,10 +174,21 @@ Schnittstelle lässt sich kein Datum von gestern erzeugen.
 * Gelöschte Dateien verschwinden auch von der Platte, und eine gelöschte
   Nachricht nimmt ihren Anhang mit.
 
-`test_users.py` (35 Prüfungen)
+`test_users.py` (63 Prüfungen)
 
 * Konten anlegen, Anmeldung unabhängig von der Schreibweise.
 * Passwort zurücksetzen, inklusive Verfall laufender Sitzungen.
 * Sperren und entsperren, Rechte vergeben und entziehen.
 * Die Regeln gegen das Aussperren: eigenes Konto, letzter Administrator.
 * Löschen erhält den Verlauf unter „Gelöschtes Konto“.
+
+`test_sprache.py` (16 Prüfungen)
+
+* Jeder Schlüssel aus `T(...)` steht in `i18n.js`, jeder aus `t(...)` in
+  `texte.py`.
+* Kein deutscher Oberflächentext läuft am Wörterbuch vorbei – weder im Code
+  noch in den Vorlagen.
+* Die beiden alten Fehlerbilder bleiben fern: `title=T(...)` innerhalb einer
+  Zeichenkette und ein fest verdrahtetes `"de-DE"`.
+* Der laufende Server liefert die Anmeldeseite auf Englisch aus, und Deutsch
+  bleibt erreichbar.

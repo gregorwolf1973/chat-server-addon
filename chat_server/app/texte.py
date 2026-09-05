@@ -40,7 +40,7 @@ EN = {
     "Antwort an": "Reply to",
     "Antwort verwerfen": "Discard reply",
     "Wähle links eine Unterhaltung oder starte mit „+ Neu“ eine neue.":
-        "Pick a conversation on the left, or start one with „+ Neu“ (new).",
+        "Pick a conversation on the left, or start a new one with „+ New“.",
     "Nachricht schreiben …": "Write a message …",
     "Emoji": "Emoji",
     "Anhang": "Attachment",
@@ -118,8 +118,8 @@ EN = {
     "Geburtstag (freiwillig)": "Birthday (optional)",
     "Wenn du ihn angibst, erscheint er bei deinen Freunden unter „Termine“. "
     "Ohne Angabe bleibt er einfach leer.":
-        "If you give it, it shows up for your friends under „Termine“ "
-        "(events). Leave it blank and nothing happens.",
+        "If you give it, it shows up for your friends under „Events“. "
+        "Leave it blank and nothing happens.",
     "Weshalb möchtest du Zugang?": "Why would you like access?",
     "Was wird gespeichert?": "What is stored?",
     "Dies ist ein privater Server. Gespeichert werden Benutzername, "
@@ -146,6 +146,15 @@ EN = {
     "werden.":
         "I agree that my details may be stored for this purpose.",
     "Antrag abschicken": "Send the request",
+
+    # ---------- Anrufe, Anhaenge, Aufnahme ----------
+    "Ablehnen": "Decline",
+    "Annehmen": "Accept",
+    "Datei oder Bild": "File or picture",
+    "Standort senden": "Send location",
+    "Standort live teilen": "Share location live",
+    "Verwerfen": "Discard",
+    "Weiter": "Next",
 }
 
 

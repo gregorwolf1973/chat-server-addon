@@ -13,6 +13,10 @@
   let SPRACHE = B.dataset.sprache === "en" ? "en" : "de";
   const WORTE = (window.WORTE_EN || {});
 
+  // Datum und Uhrzeit folgen der gewaehlten Sprache, nicht dem Browser:
+  // wer die Oberflaeche auf Englisch stellt, will auch das Datum so lesen.
+  const LOCALE = SPRACHE === "en" ? "en-GB" : "de-DE";
+
   function T(text) {
     if (SPRACHE !== "en") return text;
     return WORTE[text] || text;
@@ -37,22 +41,22 @@
     ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 
   const timeOf = (ts) => new Date(ts * 1000)
-    .toLocaleTimeString("de-DE", {hour: "2-digit", minute: "2-digit"});
+    .toLocaleTimeString(LOCALE, {hour: "2-digit", minute: "2-digit"});
 
   const dayOf = (ts) => {
     const d = new Date(ts * 1000), now = new Date();
     const same = (a, b) => a.toDateString() === b.toDateString();
-    if (same(d, now)) return "Heute";
+    if (same(d, now)) return T("Heute");
     const y = new Date(now.getTime() - 86400000);
     if (same(d, y)) return T("Gestern");
-    return d.toLocaleDateString("de-DE", {weekday: "short", day: "2-digit", month: "2-digit", year: "numeric"});
+    return d.toLocaleDateString(LOCALE, {weekday: "short", day: "2-digit", month: "2-digit", year: "numeric"});
   };
 
   const shortTime = (ts) => {
     if (!ts) return "";
     const d = new Date(ts * 1000);
     return d.toDateString() === new Date().toDateString()
-      ? timeOf(ts) : d.toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"});
+      ? timeOf(ts) : d.toLocaleDateString(LOCALE, {day: "2-digit", month: "2-digit"});
   };
 
   const fileSize = (b) => b < 1024 ? b + " B"
@@ -198,7 +202,7 @@
       const online = r.is_group
         ? r.members.some((m) => m.id !== ME && state.online.has(m.id))
         : r.members.some((m) => m.id !== ME && state.online.has(m.id));
-      const prev = r.last ? (r.is_group ? `${r.last.author}: ${r.last.text}` : r.last.text) : "Noch keine Nachricht";
+      const prev = r.last ? (r.is_group ? `${r.last.author}: ${r.last.text}` : r.last.text) : T("Noch keine Nachricht");
       return `<div class="room ${currentRoom === r.id ? "active" : ""}" data-id="${r.id}">
         ${raumAvatar(r)}
         <div class="name"><span class="dot ${online ? "on" : ""}"></span>${esc(r.name)}${r.is_group ? " ·" + r.members.length : ""}${
@@ -498,7 +502,7 @@
     }
 
     if (m.weitergeleitet) {
-      inner += '<div class="weitergeleitet">↪ Weitergeleitet</div>';
+      inner += `<div class="weitergeleitet">↪ ${T("Weitergeleitet")}</div>`;
     }
     if (m.reply) {
       inner += `<div class="quote" data-target="${m.reply.id}">`
@@ -522,9 +526,9 @@
     // nach unten und landete neben den Knoepfen.
     inner += `<div class="inhalt"><span class="text">${esc(m.body)}</span>`
       + `<span class="meta">${timeOf(m.at)}</span></div>`
-      + `<div class="actions"><button class="act" data-act="reply">Antworten</button>`
+      + `<div class="actions"><button class="act" data-act="reply">${T("Antworten")}</button>`
       + (m.poll || m.event ? ""
-         : '<button class="act" data-act="weiter">Weiterleiten</button>')
+         : `<button class="act" data-act="weiter">${T("Weiterleiten")}</button>`)
       + (canDelete ? `<button class="act del" data-act="delete">${T("Löschen")}</button>` : "")
       + `</div>`;
     blase.innerHTML = inner;
@@ -570,7 +574,7 @@
       toast(T("Es gibt keine andere Unterhaltung."));
       return;
     }
-    const root = modal(`<h2>Weiterleiten an</h2>
+    const root = modal(`<h2>${T("Weiterleiten an")}</h2>
       <div class="wl-liste">${ziele.map((r) => `<div class="pick" data-id="${r.id}">
         ${raumAvatar(r)}<span>${esc(r.name)}</span></div>`).join("")}</div>
       <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button></div>`);
@@ -586,7 +590,7 @@
         if (!res.ok) { toast(daten.error || T("Das ging nicht.")); return; }
         closeModal();
         const raum = roomById(ziel);
-        toast(`Weitergeleitet an ${raum ? raum.name : T("die Unterhaltung")}.`);
+        toast(`${T("Weitergeleitet an")} ${raum ? raum.name : T("die Unterhaltung")}.`);
       }));
   }
 
@@ -595,7 +599,7 @@
       || (msgEl.classList.contains("mine") ? B.dataset.name : roomById(currentRoom).name);
     const text = msgEl.querySelector(".bubble .text")?.textContent?.trim()
       || msgEl.querySelector(".file-link span")?.textContent?.trim()
-      || "Datei";
+      || T("Datei");
     replyTo = id;
     $("reply-bar").hidden = false;
     $("reply-author").textContent = author;
@@ -694,8 +698,9 @@
     if (!treffer.length) {
       // Das Suchfeld bleibt stehen - man will ja gleich etwas anderes
       // eintippen, nicht erst die Suche neu aufmachen.
-      feld.innerHTML = `<p class="hint">Zu „${esc(frage)}" steht nichts im `
-        + `Verlauf${ueberall ? "" : " dieser Unterhaltung"}.</p>`
+      feld.innerHTML = `<p class="hint">${T("Zu")} „${esc(frage)}" ${ueberall
+          ? T("steht nichts im Verlauf.")
+          : T("steht nichts im Verlauf dieser Unterhaltung.")}</p>`
         + (ueberall ? "" : `<p class="hint">${T("Setz den Haken oben, um in allen")} `
           + `${T("Unterhaltungen zu suchen.")}</p>`);
       return;
@@ -748,7 +753,7 @@
       if (m.user_id !== ME && darfKlingen(m.room_id, false)) {
         klangSpielen("nachricht");
       }
-      room.last = {text: m.body || "Datei", author: m.author, at: m.at};
+      room.last = {text: m.body || T("Datei"), author: m.author, at: m.at};
       if (m.room_id === currentRoom) {
         pushMessage(m);
         api(`/api/rooms/${m.room_id}/read`, {method: "POST"});
@@ -928,7 +933,7 @@
     return `<div class="abstimmung" data-poll="${poll.id}">
       <div class="frage">📊 ${esc(poll.frage)}</div>
       <div class="wahlen">${balken}</div>
-      <div class="wahl-fuss">${gesamt === 1 ? "1 Stimme" : `${gesamt} Stimmen`}${
+      <div class="wahl-fuss">${gesamt} ${gesamt === 1 ? T("Stimme") : T("Stimmen")}${
         poll.mehrfach ? " " + T("· mehrere Antworten möglich") : ""}</div>
     </div>`;
   }
@@ -952,12 +957,12 @@
     if (!currentRoom) return;
     const root = modal(`<h2>${T("Neue Abstimmung")}</h2>
       <div class="field"><label>${T("Frage")}</label><input id="ab-frage" autocomplete="off"></div>
-      <div class="field"><label>Antworten</label><div id="ab-optionen"></div></div>
-      <button class="btn ghost" id="ab-mehr">+ Antwort</button>
+      <div class="field"><label>${T("Antwortmöglichkeiten")}</label><div id="ab-optionen"></div></div>
+      <button class="btn ghost" id="ab-mehr">${T("+ Antwort")}</button>
       <label class="check"><input type="checkbox" id="ab-mehrfach">
-        Mehrere Antworten erlaubt</label>
+        ${T("Mehrere Antworten erlaubt")}</label>
       <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>
-      <button class="btn" id="ab-ok">Abstimmung starten</button></div>`);
+      <button class="btn" id="ab-ok">${T("Abstimmung starten")}</button></div>`);
     const liste = root.querySelector("#ab-optionen");
     const zeileAnfuegen = () => {
       if (liste.children.length >= 12) { toast(T("Zwölf Antworten sind genug.")); return; }
@@ -965,9 +970,9 @@
       zeile.className = "ab-zeile";
       zeile.innerHTML = `<input class="ab-option" autocomplete="off"
         placeholder="Antwort ${liste.children.length + 1}">
-        <button class="act del" type="button" title="Entfernen">✕</button>`;
+        <button class="act del" type="button" title="${T("Entfernen")}">✕</button>`;
       zeile.querySelector(".act").addEventListener("click", () => {
-        if (liste.children.length <= 2) { toast("Zwei Antworten braucht es."); return; }
+        if (liste.children.length <= 2) { toast(T("Zwei Antworten braucht es.")); return; }
         zeile.remove();
       });
       liste.appendChild(zeile);
@@ -981,7 +986,7 @@
       const optionen = [...root.querySelectorAll(".ab-option")]
         .map((i) => i.value.trim()).filter(Boolean);
       if (!frage) { toast(T("Die Frage fehlt.")); return; }
-      if (optionen.length < 2) { toast("Es braucht mindestens zwei Antworten."); return; }
+      if (optionen.length < 2) { toast(T("Es braucht mindestens zwei Antworten.")); return; }
       const res = await api(`/api/rooms/${currentRoom}/poll`, {
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({frage, optionen,
@@ -1072,7 +1077,7 @@
   const KARTEN_APPS = [
     ["geraet", T("Standard-App des Geräts")],
     ["google", "Google Maps"],
-    ["apple", "Apple Karten"],
+    ["apple", T("Apple Karten")],
     ["osm", "OpenStreetMap"],
   ];
 
@@ -1096,7 +1101,7 @@
     // ll setzt den Ausschnitt, q die Nadel - beides mit denselben Werten,
     // damit Apple nicht selbst nach etwas in der Naehe sucht.
     return `https://maps.apple.com/?ll=${lat},${lon}&q=${
-      encodeURIComponent(name || "Ort")}&t=m`;
+      encodeURIComponent(name || T("Ort"))}&t=m`;
   }
 
   function kartenZiel(lat, lon, name) {
@@ -1107,7 +1112,7 @@
       if (istAndroid()) {
         // Irgendeine Beschriftung muss sein - ohne sie liest Android das q=
         // als Suchbegriff und landet beim naechsten bekannten Ort.
-        const schild = name || "Standort";
+        const schild = name || T("Standort");
         return `geo:${paar}?q=${paar}(${encodeURIComponent(schild)})`;
       }
       if (istApple()) return appleZiel(lat, lon, name);
@@ -1148,8 +1153,8 @@
       return;
     }
     if (!sichererKontext()) {
-      toast("Der Standort geht nur über HTTPS – öffne den Chat über deine "
-            + "externe Adresse.");
+      toast(T("Der Standort geht nur über HTTPS – öffne den Chat über deine "
+              + "externe Adresse."));
       return;
     }
     toast(T("Standort wird bestimmt …"));
@@ -1296,8 +1301,8 @@
     }
     if (!kachelnErlaubt()) {
       behaelter.innerHTML = uebersichtHtml(punkte)
-        + '<p class="hint">Die Straßenkarte ist abgeschaltet – in den '
-        + 'Einstellungen lässt sie sich einschalten.</p>';
+        + `<p class="hint">${T("Die Straßenkarte ist abgeschaltet – in den "
+            + "Einstellungen lässt sie sich einschalten.")}</p>`;
       return;
     }
     // Bis die Kacheln da sind, steht die Umrisskarte im Bild. So ist sofort
@@ -1347,10 +1352,11 @@
 
   const restzeit = (bis) => {
     const s = bis - Math.floor(Date.now() / 1000);
-    if (s <= 0) return "abgelaufen";
-    if (s < 3600) return `noch ${Math.max(1, Math.round(s / 60))} Min`;
+    if (s <= 0) return T("abgelaufen");
+    if (s < 3600) return `${T("noch")} ${Math.max(1, Math.round(s / 60))} ${T("Min")}`;
     const std = Math.floor(s / 3600), min = Math.round(s % 3600 / 60);
-    return min ? `noch ${std} Std ${min} Min` : `noch ${std} Std`;
+    return min ? `${T("noch")} ${std} ${T("Std")} ${min} ${T("Min")}`
+               : `${T("noch")} ${std} ${T("Std")}`;
   };
 
   const meineFreigaben = () => (state.live || []).filter((l) => l.ich);
@@ -1379,8 +1385,8 @@
         return;
       }
       if (!sichererKontext()) {
-        fehler(new Error("Der Standort geht nur über HTTPS – öffne den Chat "
-                         + "über deine externe Adresse."));
+        fehler(new Error(T("Der Standort geht nur über HTTPS – öffne den Chat "
+                           + "über deine externe Adresse.")));
         return;
       }
       navigator.geolocation.getCurrentPosition(
@@ -1398,15 +1404,15 @@
     if (!gruppen.length) { toast(T("Es gibt noch keine Unterhaltung.")); return; }
     const laufend = meineFreigaben();
     const root = modal(`<h2>${T("Standort teilen")}</h2>
-      <p class="hint">Nur die Mitglieder der gewählten Unterhaltung sehen dich –
-        und nur, solange die Freigabe läuft.</p>
-      <div class="field"><label>Wer soll dich sehen?</label>
+      <p class="hint">${T("Nur die Mitglieder der gewählten Unterhaltung sehen dich – "
+        + "und nur, solange die Freigabe läuft.")}</p>
+      <div class="field"><label>${T("Wer soll dich sehen?")}</label>
         <div class="kf-zeile" id="live-art">
-          <button class="mini-btn an" type="button" data-art="raum">Eine Unterhaltung</button>
-          <button class="mini-btn" type="button" data-art="freunde">Alle Freunde</button>
-          <button class="mini-btn" type="button" data-art="umkreis">In der Nähe</button>
+          <button class="mini-btn an" type="button" data-art="raum">${T("Eine Unterhaltung")}</button>
+          <button class="mini-btn" type="button" data-art="freunde">${T("Alle Freunde")}</button>
+          <button class="mini-btn" type="button" data-art="umkreis">${T("In der Nähe")}</button>
         </div></div>
-      <div class="field" id="live-raum-feld"><label for="live-raum">Unterhaltung</label>
+      <div class="field" id="live-raum-feld"><label for="live-raum">${T("Unterhaltung")}</label>
         <select id="live-raum">${gruppen.map((r) =>
           `<option value="${r.id}" ${r.id === currentRoom ? "selected" : ""}>${
             esc(r.name)}</option>`).join("")}</select></div>
@@ -1418,21 +1424,21 @@
           <option value="10">10 km</option>
           <option value="25">25 km</option>
         </select>
-        <p class="hint">Sichtbar für alle, die selbst gerade ihren Standort
-          teilen und so nah sind. Mehr als 25 km sind nicht möglich.</p>
+        <p class="hint">${T("Sichtbar für alle, die selbst gerade ihren Standort "
+          + "teilen und so nah sind. Mehr als 25 km sind nicht möglich.")}</p>
       </div>
-      <div class="field"><label for="live-dauer">Dauer</label>
+      <div class="field"><label for="live-dauer">${T("Dauer")}</label>
         <select id="live-dauer">
-          <option value="15">15 Minuten</option>
-          <option value="60" selected>1 Stunde</option>
-          <option value="180">3 Stunden</option>
-          <option value="480">8 Stunden</option>
+          <option value="15">${T("15 Minuten")}</option>
+          <option value="60" selected>${T("1 Stunde")}</option>
+          <option value="180">${T("3 Stunden")}</option>
+          <option value="480">${T("8 Stunden")}</option>
         </select></div>
-      ${laufend.length ? `<div class="live-laufend">Läuft gerade: ${
+      ${laufend.length ? `<div class="live-laufend">${T("Läuft gerade:")} ${
         laufend.map((l) => `${esc(l.raum)} (${restzeit(l.bis_at)})`).join(", ")}
-        <button class="btn ghost klein" id="live-stopp">Alle beenden</button></div>` : ""}
+        <button class="btn ghost klein" id="live-stopp">${T("Alle beenden")}</button></div>` : ""}
       <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>
-      <button class="btn" id="live-ok">Teilen</button></div>`);
+      <button class="btn" id="live-ok">${T("Teilen")}</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     let liveArt = "raum";
     root.querySelectorAll("#live-art [data-art]").forEach((b) =>
@@ -1469,7 +1475,7 @@
         toast(err.message);
       } finally {
         knopf.disabled = false;
-        knopf.textContent = "Teilen";
+        knopf.textContent = T("Teilen");
       }
     });
   }
@@ -1508,8 +1514,8 @@
   let kartenUmkreis = 0;
   const KARTEN_UMKREISE = [0, 5, 25, 100];
 
-  const ZEITRAEUME = [["alle", "Alles"], ["heute", "Heute"],
-                      ["morgen", "Morgen"], ["woche", "7 Tage"]];
+  const ZEITRAEUME = [["alle", T("Alles")], ["heute", T("Heute")],
+                      ["morgen", T("Morgen")], ["woche", T("7 Tage")]];
 
   /** Beginn und Ende des gewählten Zeitraums in Sekunden, oder null. */
   function zeitfenster(wahl) {
@@ -1598,16 +1604,16 @@
           ? KARTEN_UMKREISE.map((km) =>
               `<button class="mini-btn ${kartenUmkreis === km ? "an" : ""}"
                        data-ukm="${km}">${km ? `${km} km` : T("Überall")}</button>`).join("")
-            + '<button class="mini-btn" id="kf-ort-neu" title=T("Standort neu bestimmen")>↻</button>'
-          : '<button class="mini-btn" id="kf-ort">📍 Meinen Standort verwenden</button>'}
+            + `<button class="mini-btn" id="kf-ort-neu" title="${T("Standort neu bestimmen")}">↻</button>`
+          : `<button class="mini-btn" id="kf-ort">📍 ${T("Meinen Standort verwenden")}</button>`}
       </div>
       ${tippZahl ? `<div class="kf-zeile">
         <span class="kf-titel">${T("Empfehlungen")}</span>
         <button class="mini-btn ${kartenTipps ? "an" : ""}" id="kf-tipps"
-          >${tippZahl} auf der Karte</button>
+          >${tippZahl} ${T("auf der Karte")}</button>
       </div>` : ""}
       ${aktiv ? `<div class="kf-zeile">
-        <span class="kf-zahl">${gezeigt} von ${alleTermine.length} ${
+        <span class="kf-zahl">${gezeigt} ${T("von")} ${alleTermine.length} ${
           alleTermine.length === 1 ? T("Einladung") : T("Einladungen")}</span>
         <button class="mini-btn" id="kf-weg">${T("Filter aufheben")}</button>
       </div>` : ""}
@@ -1615,7 +1621,7 @@
   }
 
   function kartenAnsicht() {
-    const root = modal(`<div class="karten-kopf"><h2>Live-Karte</h2>
+    const root = modal(`<div class="karten-kopf"><h2>${T("Live-Karte")}</h2>
       <button class="btn ghost klein" id="karte-teilen">${T("Standort teilen")}</button>
       <span style="flex:1"></span>
       <button class="icon-btn" id="m-cancel">✕</button></div>
@@ -1663,14 +1669,14 @@
             <span class="karten-fahne klein">⭐</span>
             <div><div class="kz-name">${esc(x.name)}</div>
               <div class="kz-sub">${esc(TIPP_ARTEN[x.tipp_art] || x.tipp_art)}${
-                x.ort_text ? ` · ${esc(x.ort_text)}` : ""} · von ${esc(x.von)}</div></div>
+                x.ort_text ? ` · ${esc(x.ort_text)}` : ""} · ${T("empfohlen von")} ${esc(x.von)}</div></div>
             <span style="flex:1"></span>
             ${oeffnen(x)}
           </div>`).join("") : ""}
         ${alle.length ? "" : `<p class="hint">${alleTermine.length
           ? T("Zu diesem Filter passt keine Einladung.")
-          : "Sobald jemand seinen Standort teilt oder eine Einladung einen Ort "
-            + T("bekommt, erscheint sie hier.")}</p>`}
+          : T("Sobald jemand seinen Standort teilt oder eine Einladung einen Ort "
+                + "bekommt, erscheint sie hier.")}</p>`}
       </div>`;
     karteZeichnen(behaelter.querySelector("#karte-flaeche"), alle);
 
@@ -1805,7 +1811,7 @@
     const punkte = personen;
     const teile = [];
     if (personen.length) {
-      teile.push(`${personen.length} ${personen.length === 1 ? "Freigabe" : "Freigaben"}`);
+      teile.push(`${personen.length} ${personen.length === 1 ? T("Freigabe") : T("Freigaben")}`);
     }
     if (alleTermine.length) {
       teile.push(`${alleTermine.length} ${
@@ -1813,13 +1819,13 @@
     }
     if (alleTipps.length) {
       teile.push(`${alleTipps.length} ${
-        alleTipps.length === 1 ? "Empfehlung" : T("Empfehlungen")}`);
+        alleTipps.length === 1 ? T("Empfehlung") : T("Empfehlungen")}`);
     }
     liste.innerHTML = `<div class="karten-eintrag" id="karte-oeffnen">
         <span class="karten-symbol">🗺️</span>
-        <div><div class="ke-name">Live-Karte</div>
+        <div><div class="ke-name">${T("Live-Karte")}</div>
           <div class="ke-sub">${teile.length ? teile.join(" · ")
-            : "Gerade nichts los"}</div></div>
+            : T("Gerade nichts los")}</div></div>
       </div>`
       + punkte.map((p) => `<div class="karten-eintrag person" data-user="${p.user_id}">
           ${avatarHtml("u", p.user_id, p.name, p.avatar, "klein")}
@@ -1870,14 +1876,14 @@
       <div class="st-alle" id="st-alle" hidden></div>
       <div class="field"><label for="st-text">${T("Kurz gesagt")}</label>
         <input id="st-text" autocomplete="off" maxlength="280"
-               placeholder="Heute Abend Kino – wer kommt mit?"
+               placeholder="${T("Heute Abend Kino – wer kommt mit?")}"
                value="${meine ? esc(meine.text) : ""}"></div>
       <div class="field"><label for="st-dauer">${T("Gilt für")}</label>
         <select id="st-dauer">
-          <option value="2">2 Stunden</option>
-          <option value="4" selected>4 Stunden</option>
-          <option value="12">12 Stunden</option>
-          <option value="24">Bis morgen</option>
+          <option value="2">${T("2 Stunden")}</option>
+          <option value="4" selected>${T("4 Stunden")}</option>
+          <option value="12">${T("12 Stunden")}</option>
+          <option value="24">${T("Bis morgen")}</option>
         </select></div>
       <label class="check"><input type="checkbox" id="st-ort"> ${T("Meinen Standort dazu")}</label>
       <div class="row">${meine
@@ -1898,7 +1904,7 @@
         `<button type="button" class="st-emoji ${emoji === e ? "gewaehlt" : ""}"
                  data-e="${e}">${e}</button>`).join("")
         + `<button type="button" class="st-emoji st-mehr" id="st-mehr"
-                   title=T("Alle Zeichen")>＋</button>`;
+                   title="${T("Alle Zeichen")}">＋</button>`;
       reihe.querySelectorAll("[data-e]").forEach((b) =>
         b.addEventListener("click", () => {
           emoji = emoji === b.dataset.e ? "" : b.dataset.e;
@@ -2001,9 +2007,9 @@
           s.ort.lon.toFixed(3)}</div>` : ""}
         <div class="st-fuss">
           <button class="mini-btn ${s.ich_mache_mit ? "an" : ""}" data-mit="${s.id}">
-            ${s.ich_mache_mit ? "Ich bin dabei" : T("Ich mach mit")}</button>
+            ${s.ich_mache_mit ? T("Ich bin dabei") : T("Ich mach mit")}</button>
           ${s.mit.length ? `<span class="st-mit" title="${esc(
-            s.mit.map((m) => m.name).join(", "))}">${s.mit.length} dabei</span>` : ""}
+            s.mit.map((m) => m.name).join(", "))}">${s.mit.length} ${T("dabei")}</span>` : ""}
         </div>
       </div>
     </div>`).join("");
@@ -2020,19 +2026,19 @@
 
   // ---------- Termine ----------
   const KATEGORIEN = {
-    musik: "🎵 Musik", tanz: "💃 Tanz", alkohol: "🍺 Alkohol",
-    essen: "🍕 Essen", film: "🎬 Film", sport: "⚽ Sport",
-    spiele: "🎲 Spiele", draussen: "🌳 Draußen", kultur: "🎭 Kultur",
-    reden: "💬 Reden",
+    musik: T("🎵 Musik"), tanz: T("💃 Tanz"), alkohol: T("🍺 Alkohol"),
+    essen: T("🍕 Essen"), film: T("🎬 Film"), sport: T("⚽ Sport"),
+    spiele: T("🎲 Spiele"), draussen: T("🌳 Draußen"), kultur: T("🎭 Kultur"),
+    reden: T("💬 Reden"),
   };
 
   const terminZeit = (ts) => {
-    if (!ts) return "Zeit offen";
+    if (!ts) return T("Zeit offen");
     const d = new Date(ts * 1000);
-    return d.toLocaleDateString("de-DE", {weekday: "short", day: "2-digit",
+    return d.toLocaleDateString(LOCALE, {weekday: "short", day: "2-digit",
                                           month: "2-digit"})
-      + ", " + d.toLocaleTimeString("de-DE", {hour: "2-digit", minute: "2-digit"})
-      + " Uhr";
+      + ", " + d.toLocaleTimeString(LOCALE, {hour: "2-digit", minute: "2-digit"})
+      + (SPRACHE === "en" ? "" : " Uhr");
   };
 
   // Aendern darf der Gastgeber und der Administrator. Ab- und zusagen darf
@@ -2077,12 +2083,12 @@
       ${marken}
       <div class="ev-von">${T("Eingeladen von")} ${esc(ev.von.name)}</div>
       ${ev.abgesagt
-        ? '<div class="ev-weg">Abgesagt</div>'
-        : `<div class="ev-antworten">${knopf("ja", "Bin dabei")}${
-            knopf("vielleicht", T("Vielleicht"))}${knopf("nein", "Kann nicht")}</div>`}
+        ? `<div class="ev-weg">${T("Abgesagt")}</div>`
+        : `<div class="ev-antworten">${knopf("ja", T("Bin dabei"))}${
+            knopf("vielleicht", T("Vielleicht"))}${knopf("nein", T("Kann nicht"))}</div>`}
       ${dabei.length ? `<div class="ev-dabei">${dabei.map((w) =>
         avatarHtml("u", w.id, w.name, w.avatar, "winzig")).join("")}
-        <span>${dabei.length === 1 ? "1 Zusage" : `${dabei.length} Zusagen`}</span></div>` : ""}
+        <span>${dabei.length} ${dabei.length === 1 ? T("Zusage") : T("Zusagen")}</span></div>` : ""}
       ${verwaltenHtml(ev)}
     </div>`;
   }
@@ -2158,9 +2164,9 @@
   async function ortsWaehler(box, start, beiWahl) {
     if (!kachelnErlaubt()) {
       box.innerHTML = `<div class="ortswahl-aus">
-        <p class="hint">Zum Antippen braucht es die Straßenkarte. Die
-          Umrisskarte im Add-on kennt keine Straßen – ein Punkt darauf läge
-          leicht mehrere Kilometer daneben.</p>
+        <p class="hint">${T("Zum Antippen braucht es die Straßenkarte. Die "
+          + "Umrisskarte im Add-on kennt keine Straßen – ein Punkt darauf läge "
+          + "leicht mehrere Kilometer daneben.")}</p>
         <button class="btn ghost klein" type="button" id="ow-an">${T("Straßenkarte einschalten")}</button>
       </div>`;
       box.querySelector("#ow-an").addEventListener("click", async () => {
@@ -2237,12 +2243,12 @@
       ${frei && !aendern ? `<p class="hint">${T("Er hängt an keiner "
         + "Unterhaltung – du bestimmst unten selbst, wer ihn sieht.")}</p>` : ""}
       <div class="field"><label for="ev-titel">${T("Was ist geplant?")}</label>
-        <input id="ev-titel" autocomplete="off" placeholder="Grillen im Garten"
+        <input id="ev-titel" autocomplete="off" placeholder="${T("Grillen im Garten")}"
                value="${aendern ? esc(ev.titel) : ""}"></div>
       <div class="field"><label for="ev-wann">${T("Wann")}</label>
         <input id="ev-wann" type="datetime-local" value="${wannWert}"></div>
-      <div class="field"><label for="ev-ort">Wo</label>
-        <input id="ev-ort" autocomplete="off" placeholder="Im Gemeindehaus, Hauptstraße 3"
+      <div class="field"><label for="ev-ort">${T("Wo")}</label>
+        <input id="ev-ort" autocomplete="off" placeholder="${T("Im Gemeindehaus, Hauptstraße 3")}"
                value="${aendern ? esc(ev.ort_text) : ""}">
         <div class="row schmal">
           <button class="btn ghost klein" type="button" id="ev-karte">${T("Auf der Karte wählen")}</button>
@@ -2272,7 +2278,7 @@
             aendern && ev.kategorien.includes(k) ? "gewaehlt" : ""}"
             data-k="${k}">${txt}</button>`).join("")}</div>
       </div>
-      <div class="field"><label>Bild</label>
+      <div class="field"><label>${T("Bild")}</label>
         <div class="row schmal">
           <button class="btn ghost klein" type="button" id="ev-bild">${T("Bild wählen")}</button>
           <button class="btn ghost klein" type="button" id="ev-bild-weg"
@@ -2325,9 +2331,9 @@
         freundeFeld.hidden = sicht !== "freunde";
         umkreisFeld.hidden = sicht !== "umkreis";
         hinweis.textContent = sicht === "freunde"
-          ? `${gaeste.size} ${gaeste.size === 1 ? "Person" : "Personen"} ausgewählt.`
-          : "Sichtbar für alle in deinem Umkreis, die gerade selbst ihren "
-            + "Standort teilen – sonst wüsste der Server nicht, wo sie sind. "
+          ? `${gaeste.size} ${gaeste.size === 1 ? T("Person") : T("Personen")} ${T("ausgewählt.")}`
+          : T("Sichtbar für alle in deinem Umkreis, die gerade selbst ihren "
+              + "Standort teilen – sonst wüsste der Server nicht, wo sie sind. ")
             + T("Der Termin braucht dafür einen Ort auf der Karte.");
       };
 
@@ -2429,7 +2435,7 @@
             if (!gaeste.size) { toast(T("Wähle mindestens eine Person aus.")); return; }
             nutzlast.gaeste = [...gaeste];
           } else {
-            if (!ort) { toast("Ein Umkreis braucht einen Ort auf der Karte."); return; }
+            if (!ort) { toast(T("Ein Umkreis braucht einen Ort auf der Karte.")); return; }
             nutzlast.umkreis_km = umkreis;
           }
         }
@@ -2448,8 +2454,8 @@
           toast(T("Einladung geändert."));
         } else if (frei) {
           toast(sicht === "freunde"
-            ? "Eingeladen. Die Ausgewählten finden es unter „Termine“."
-            : "Eingeladen. Wer in der Nähe ist, sieht es unter „Termine“.");
+            ? T("Eingeladen. Die Ausgewählten finden es unter „Termine“.")
+            : T("Eingeladen. Wer in der Nähe ist, sieht es unter „Termine“."));
         }
         terminLaden();
       } finally {
@@ -2501,18 +2507,18 @@
     if (g.heute) return T("Heute!");
     const d = new Date(g.naechster_at * 1000);
     const tage = Math.round((d - new Date().setHours(0, 0, 0, 0)) / 86400000);
-    const datum = d.toLocaleDateString("de-DE",
+    const datum = d.toLocaleDateString(LOCALE,
       {weekday: "short", day: "2-digit", month: "2-digit"});
-    return tage === 1 ? `Morgen · ${datum}`
-                      : `${datum} · in ${tage} Tagen`;
+    return tage === 1 ? `${T("Morgen")} · ${datum}`
+                      : `${datum} · ${T("in")} ${tage} ${T("Tagen")}`;
   };
 
   // Statt eines eigenen Reiters filtert die Terminliste selbst. "Offen" ist
   // der nuetzlichste Blick: was wartet noch auf meine Antwort.
   const TERMIN_FILTER = [
-    ["", "Alle"],
-    ["ja", "Zugesagt"],
-    ["offen", "Offen"],
+    ["", T("Alle")],
+    ["ja", T("Zugesagt")],
+    ["offen", T("Offen")],
   ];
   let terminFilter = "";
 
@@ -2552,7 +2558,7 @@
 
     if (!gezeigt.length && !geburtstage.length) {
       liste.innerHTML = `<div class="abschnitt-leer">${alle.length
-        ? "Dazu steht nichts an."
+        ? T("Dazu steht nichts an.")
         : T("Nichts steht an. Mit ‚Einladung‘ im Chat legst du etwas an.")
         }</div>`;
       reiterZahlen();
@@ -2606,7 +2612,7 @@
     const res = await api(`/api/events/${eventId}`);
     if (!res.ok) { toast(T("Der Termin ist nicht mehr da.")); return; }
     const ev = await res.json();
-    const root = modal(`<div class="karten-kopf"><h2>Termin</h2>
+    const root = modal(`<div class="karten-kopf"><h2>${T("Termin")}</h2>
       <span style="flex:1"></span>
       <button class="icon-btn" id="m-cancel">✕</button></div>
       ${eventHtml(ev)}
@@ -2639,17 +2645,17 @@
   // Eine feste Auswahl statt einer Fremdbibliothek: das haelt das Add-on klein
   // und funktioniert ohne Internet.
   const EMOJI = {
-    "Gesichter": "😀😃😄😁😆😅😂🤣🙂🙃😉😊😇🥰😍🤩😘😗😚😙😋😛😜🤪😝🤑🤗🤭🤫🤔😐😑😶😏😒🙄😬🤥😌😔😪🤤😴😷🤒🤕🤢🤧🥵🥶🥴😵🤯🤠🥳😎🤓🧐😕😟🙁😮😯😲😳🥺😦😧😨😰😥😢😭😱😖😣😞😓😩😫😤😡😠🤬",
-    "Gesten": "👍👎👌🤞🤘🤙👈👉👆👇✋🤚🖐🖖👋💪🙏👏🙌👐🤲🤝✍💅🤳",
-    "Menschen": "👶👧👦👩👨👵👴👮👷💂👪👫👬👭💑👯💃🚶🏃",
-    "Tiere": "🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🦆🦉🐝🐛🦋🐌🐞🐟🐬🐳🐋🐎🦄🌵🌲🌳🍀🌷🌹🌻🌼",
-    "Essen": "🍏🍎🍐🍊🍋🍌🍉🍇🍓🍒🍑🍍🥝🍅🥕🌽🍄🍞🥐🥖🧀🍖🍗🥓🍔🍟🍕🌭🌮🍳🥘🍝🍜🍣🍱🍙🍨🍦🍰🎂🍫🍬☕🍵🍺🍻🍷🥂🥤",
-    "Aktivitaet": "⚽🏀🏈⚾🎾🏐🏉🎱🏓🏸🥅🏒🏑⛳🎯🎿🏂🏋🚴🏊🏄🥇🏆🎵🎸🎤🎮🎲🎬🎨",
-    "Reise": "🚗🚕🚌🚓🚒🚜🏍🚲🚋🚆✈🚁🚢⛵🚀🏠🏡🏢🏥🏫⛪🏰⛲🌍🗺🏖⛰🌄🌅🌇🌃",
-    "Wetter": "☀🌞⛅☁🌦🌧⛈🌩🌨❄☃⛄🌬💨🌪🌈🌙⭐🌟✨⚡🔥💧🌊",
-    "Dinge": "📱💻⌨🖥📷📹🔋🔌💡🔦📖📚📝✏📎📌📅⏰⌚🔑🔒🚪🛋🧹🧺🛒🎁🎈🎉🎶💰💶✂🔧🔨🔩⚙",
-    "Herzen": "❤🧡💛💚💙💜🖤🤍🤎💔💕💞💓💗💖💘💝",
-    "Zeichen": "✅❌❗❓⚠🚫🔝🆕⬆⬇➡⬅🔃🔄♻💯🔞🚻🚽🚾",
+    [T("Gesichter")]: "😀😃😄😁😆😅😂🤣🙂🙃😉😊😇🥰😍🤩😘😗😚😙😋😛😜🤪😝🤑🤗🤭🤫🤔😐😑😶😏😒🙄😬🤥😌😔😪🤤😴😷🤒🤕🤢🤧🥵🥶🥴😵🤯🤠🥳😎🤓🧐😕😟🙁😮😯😲😳🥺😦😧😨😰😥😢😭😱😖😣😞😓😩😫😤😡😠🤬",
+    [T("Gesten")]: "👍👎👌🤞🤘🤙👈👉👆👇✋🤚🖐🖖👋💪🙏👏🙌👐🤲🤝✍💅🤳",
+    [T("Menschen")]: "👶👧👦👩👨👵👴👮👷💂👪👫👬👭💑👯💃🚶🏃",
+    [T("Tiere")]: "🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🦆🦉🐝🐛🦋🐌🐞🐟🐬🐳🐋🐎🦄🌵🌲🌳🍀🌷🌹🌻🌼",
+    [T("Essen")]: "🍏🍎🍐🍊🍋🍌🍉🍇🍓🍒🍑🍍🥝🍅🥕🌽🍄🍞🥐🥖🧀🍖🍗🥓🍔🍟🍕🌭🌮🍳🥘🍝🍜🍣🍱🍙🍨🍦🍰🎂🍫🍬☕🍵🍺🍻🍷🥂🥤",
+    [T("Aktivität")]: "⚽🏀🏈⚾🎾🏐🏉🎱🏓🏸🥅🏒🏑⛳🎯🎿🏂🏋🚴🏊🏄🥇🏆🎵🎸🎤🎮🎲🎬🎨",
+    [T("Reise")]: "🚗🚕🚌🚓🚒🚜🏍🚲🚋🚆✈🚁🚢⛵🚀🏠🏡🏢🏥🏫⛪🏰⛲🌍🗺🏖⛰🌄🌅🌇🌃",
+    [T("Wetter")]: "☀🌞⛅☁🌦🌧⛈🌩🌨❄☃⛄🌬💨🌪🌈🌙⭐🌟✨⚡🔥💧🌊",
+    [T("Dinge")]: "📱💻⌨🖥📷📹🔋🔌💡🔦📖📚📝✏📎📌📅⏰⌚🔑🔒🚪🛋🧹🧺🛒🎁🎈🎉🎶💰💶✂🔧🔨🔩⚙",
+    [T("Herzen")]: "❤🧡💛💚💙💜🖤🤍🤎💔💕💞💓💗💖💘💝",
+    [T("Zeichen")]: "✅❌❗❓⚠🚫🔝🆕⬆⬇➡⬅🔃🔄♻💯🔞🚻🚽🚾",
   };
 
   let emojiOffen = false;
@@ -2706,15 +2712,15 @@
   // sich mitteln liesse. Ein Tipp von jemandem, den man kennt, ist mehr wert
   // als ein Durchschnitt aus tausend Sternen.
   const TIPP_ARTEN = {
-    film: "🎬 Film", kino: "🍿 Kino", restaurant: "🍽 Restaurant",
-    bar: "🍺 Bar", cafe: "☕ Café", hotel: "🛏 Hotel",
-    ausflug: "🥾 Ausflug", musik: "🎵 Musik", buch: "📖 Buch",
-    sonstiges: "✨ Sonstiges",
+    film: T("🎬 Film"), kino: T("🍿 Kino"), restaurant: T("🍽 Restaurant"),
+    bar: T("🍺 Bar"), cafe: T("☕ Café"), hotel: T("🛏 Hotel"),
+    ausflug: T("🥾 Ausflug"), musik: T("🎵 Musik"), buch: T("📖 Buch"),
+    sonstiges: T("✨ Sonstiges"),
   };
   let tippFilter = "";
 
   const sterneHtml = (n) =>
-    `<span class="sterne" title="${n} von 5">${"★".repeat(n)}`
+    `<span class="sterne" title="${n} ${T("von")} 5">${"★".repeat(n)}`
     + `<span class="leer">${"★".repeat(5 - n)}</span></span>`;
 
   // ---------- Empfehlungen in der Naehe ----------
@@ -2784,7 +2790,7 @@
     const vorhanden = [...new Set(alle.map((t) => t.art))]
       .filter((a) => TIPP_ARTEN[a]);
     $("tipp-filter").innerHTML = vorhanden.length > 1
-      ? `<button class="mini-btn ${tippFilter ? "" : "an"}" data-art="">Alle</button>`
+      ? `<button class="mini-btn ${tippFilter ? "" : "an"}" data-art="">${T("Alle")}</button>`
         + vorhanden.map((a) =>
             `<button class="mini-btn ${tippFilter === a ? "an" : ""}"
                      data-art="${a}">${esc(TIPP_ARTEN[a])}</button>`).join("")
@@ -2807,7 +2813,7 @@
         naehe.innerHTML = UMKREISE.map((km) =>
           `<button class="mini-btn ${tippUmkreis === km ? "an" : ""}"
                    data-km="${km}">${km ? `${km} km` : T("Überall")}</button>`).join("")
-          + '<button class="mini-btn" id="tipp-ort-neu" title=T("Standort neu bestimmen")>↻</button>';
+          + `<button class="mini-btn" id="tipp-ort-neu" title="${T("Standort neu bestimmen")}">↻</button>`;
         naehe.querySelectorAll("[data-km]").forEach((b) =>
           b.addEventListener("click", () => {
             tippUmkreis = parseInt(b.dataset.km, 10);
@@ -2821,7 +2827,7 @@
     if (!gezeigt.length) {
       liste.innerHTML = `<div class="abschnitt-leer">${
         meinOrt && tippUmkreis
-          ? `In ${tippUmkreis} km ist nichts dabei.${
+          ? `${T("In")} ${tippUmkreis} ${T("km ist nichts dabei.")}${
               ohneOrt ? ` ${ohneOrt} ${T("ohne Ortsangabe nicht berücksichtigt.")}` : ""}`
           : alle.length ? T("Zu diesem Filter gibt es nichts.")
                         : T("Noch keine Empfehlung. Sag, was gut war.")}</div>`;
@@ -2844,15 +2850,15 @@
         <span class="tp-von">${esc(t.name)}${t.meiner ? " (du)" : ""}</span>
         <span style="flex:1"></span>
         <button class="mini-btn ${t.ich_merke ? "an" : ""}" data-merken="${t.id}"
-          >${t.ich_merke ? "Gemerkt" : "Merken"}${
+          >${t.ich_merke ? T("Gemerkt") : T("Merken")}${
             t.gemerkt.length ? ` · ${t.gemerkt.length}` : ""}</button>
-        ${t.meiner ? `<button class="mini-btn" data-bearbeiten="${t.id}">Ändern</button>`
+        ${t.meiner ? `<button class="mini-btn" data-bearbeiten="${t.id}">${T("Ändern")}</button>`
                    : ""}
       </div>
     </div>`).join("")
       + (ohneOrt ? `<div class="abschnitt-leer">${ohneOrt} ${
-          ohneOrt === 1 ? "Empfehlung hat" : T("Empfehlungen haben")} ${T("keinen Ort und")}
-          ${ohneOrt === 1 ? "steht" : "stehen"} ${T("deshalb nicht in dieser Liste.")}</div>`
+          ohneOrt === 1 ? T("Empfehlung hat") : T("Empfehlungen haben")} ${T("keinen Ort und")}
+          ${ohneOrt === 1 ? T("steht") : T("stehen")} ${T("deshalb nicht in dieser Liste.")}</div>`
         : "");
 
     reiterZahlen();
@@ -2902,15 +2908,15 @@
       </div>
       ${t.gemerkt.length ? `<div class="tp-gemerkt">${t.gemerkt.map((m) =>
         avatarHtml("u", m.id, m.name, m.avatar, "winzig")).join("")}
-        <span>${t.gemerkt.length === 1 ? "1 hat es sich gemerkt"
-                                       : `${t.gemerkt.length} haben es sich gemerkt`}</span>
+        <span>${t.gemerkt.length} ${t.gemerkt.length === 1
+          ? T("hat es sich gemerkt") : T("haben es sich gemerkt")}</span>
         </div>` : ""}
       <div class="row">
         ${zurueck ? `<button class="btn ghost" id="tp-zurueck">${T("← Zur Karte")}</button>` : ""}
         <button class="btn ghost" id="tp-a-merken">${
-          t.ich_merke ? T("Nicht mehr merken") : "Merken"}</button>
+          t.ich_merke ? T("Nicht mehr merken") : T("Merken")}</button>
         ${kartenKnopf}
-        ${t.meiner ? '<button class="btn" id="tp-a-aendern">Ändern</button>' : ""}
+        ${t.meiner ? `<button class="btn" id="tp-a-aendern">${T("Ändern")}</button>` : ""}
       </div>`);
     root.querySelector(".modal").classList.add("wide", "hoch");
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
@@ -2939,20 +2945,20 @@
     let bildId = aendern ? vorhanden.file_id : null;
     let sterne = aendern ? vorhanden.sterne : 0;
 
-    const root = modal(`<h2>${aendern ? T("Empfehlung ändern") : "Empfehlung"}</h2>
-      <div class="field"><label for="tp-art">Was ist es?</label>
+    const root = modal(`<h2>${aendern ? T("Empfehlung ändern") : T("Empfehlung")}</h2>
+      <div class="field"><label for="tp-art">${T("Was ist es?")}</label>
         <select id="tp-art">${Object.entries(TIPP_ARTEN).map(([k, txt]) =>
           `<option value="${k}" ${aendern && vorhanden.art === k ? "selected" : ""}
             >${txt}</option>`).join("")}</select></div>
-      <div class="field"><label for="tp-titel">Name</label>
-        <input id="tp-titel" autocomplete="off" placeholder="Ristorante Bella"
+      <div class="field"><label for="tp-titel">${T("Name")}</label>
+        <input id="tp-titel" autocomplete="off" placeholder="${T("Ristorante Bella")}"
                value="${aendern ? esc(vorhanden.titel) : ""}"></div>
-      <div class="field"><label>Wie war es?</label>
+      <div class="field"><label>${T("Wie war es?")}</label>
         <div class="stern-wahl" id="tp-sterne">${[1, 2, 3, 4, 5].map((n) =>
           `<button type="button" class="stern ${n <= sterne ? "an" : ""}"
                    data-n="${n}">★</button>`).join("")}</div></div>
-      <div class="field"><label for="tp-ort">Wo</label>
-        <input id="tp-ort" autocomplete="off" placeholder="Hauptstraße 4"
+      <div class="field"><label for="tp-ort">${T("Wo")}</label>
+        <input id="tp-ort" autocomplete="off" placeholder="${T("Hauptstraße 4")}"
                value="${aendern ? esc(vorhanden.ort_text) : ""}">
         <div class="row schmal">
           <button class="btn ghost klein" type="button" id="tp-karte">${T("Auf der Karte wählen")}</button>
@@ -2964,7 +2970,7 @@
       </div>
       <div class="field"><label for="tp-text">${T("Was sollte man wissen?")}</label>
         <textarea id="tp-text" rows="3">${aendern ? esc(vorhanden.text) : ""}</textarea></div>
-      <div class="field"><label>Bild</label>
+      <div class="field"><label>${T("Bild")}</label>
         <div class="row schmal">
           <button class="btn ghost klein" type="button" id="tp-bild">${T("Bild wählen")}</button>
           <button class="btn ghost klein" type="button" id="tp-bild-weg"
@@ -2973,7 +2979,7 @@
       <div class="row">${aendern
         ? `<button class="btn ghost" id="tp-weg">${T("Löschen")}</button>`
         : `<button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>`}
-      <button class="btn" id="tp-ok">${aendern ? T("Speichern") : "Empfehlen"}</button></div>`);
+      <button class="btn" id="tp-ok">${aendern ? T("Speichern") : T("Empfehlen")}</button></div>`);
     root.querySelector(".modal").classList.add("hoch");
     const abbruch = root.querySelector("#m-cancel");
     if (abbruch) abbruch.addEventListener("click", closeModal);
@@ -3042,8 +3048,8 @@
 
     root.querySelector("#tp-ok").addEventListener("click", async () => {
       const titel = root.querySelector("#tp-titel").value.trim();
-      if (!titel) { toast("Es fehlt der Name."); return; }
-      if (!sterne) { toast("Wie viele Sterne gibst du?"); return; }
+      if (!titel) { toast(T("Es fehlt der Name.")); return; }
+      if (!sterne) { toast(T("Wie viele Sterne gibst du?")); return; }
       const knopf = root.querySelector("#tp-ok");
       knopf.disabled = true;
       try {
@@ -3137,20 +3143,20 @@
   // WhatsApp. Es liegt auf der Unterhaltung selbst, nicht auf der Liste der
   // Nachrichten, und wandert deshalb beim Blaettern nicht mit.
   const MUSTER = {
-    punkte: {name: "Punkte", kante: 26,
+    punkte: {name: T("Punkte"), kante: 26,
       pfad: '<circle cx="13" cy="13" r="1.9"/>'},
-    karo: {name: "Karo", kante: 34,
+    karo: {name: T("Karo"), kante: 34,
       pfad: '<path d="M17 3 L31 17 L17 31 L3 17 Z" fill="none"'
             + ' stroke-width="1.4"/>'},
-    wellen: {name: "Wellen", kante: 40,
+    wellen: {name: T("Wellen"), kante: 40,
       pfad: '<path d="M0 20 q10 -9 20 0 q10 9 20 0" fill="none"'
             + ' stroke-width="1.5"/>'},
-    kreuze: {name: "Kreuze", kante: 28,
+    kreuze: {name: T("Kreuze"), kante: 28,
       pfad: '<path d="M14 8 V20 M8 14 H20" stroke-width="1.6"/>'},
-    blaetter: {name: "Blätter", kante: 44,
+    blaetter: {name: T("Blätter"), kante: 44,
       pfad: '<path d="M22 10 q9 6 0 14 q-9 -8 0 -14 Z" fill="none"'
             + ' stroke-width="1.3"/><path d="M22 12 V22" stroke-width="1"/>'},
-    kritzel: {name: "Kritzel", kante: 60,
+    kritzel: {name: T("Kritzel"), kante: 60,
       pfad: '<circle cx="12" cy="14" r="4.5" fill="none" stroke-width="1.3"/>'
             + '<path d="M34 10 l4 7 -8 0 Z" fill="none" stroke-width="1.3"/>'
             + '<path d="M46 34 q5 -6 9 0" fill="none" stroke-width="1.3"/>'
@@ -3195,7 +3201,7 @@
       `<button class="muster ${(room.hintergrund || "") === wert ? "aktiv" : ""}"
                type="button" data-muster="${wert}" title="${esc(text)}">${
         wert ? `<span class="muster-probe" data-p="${wert}"></span>`
-             : '<span class="muster-leer">Keins</span>'}</button>`;
+             : `<span class="muster-leer">${T("Keins")}</span>`}</button>`;
     feld.innerHTML = knopf("", T("Kein Muster"))
       + Object.entries(MUSTER).map(([k, m]) => knopf(k, m.name)).join("");
     feld.querySelectorAll(".muster-probe").forEach((p) => {
@@ -3257,12 +3263,12 @@
       gruppe(T("Wartet auf deine Antwort"), d.eingehend, () =>
         `<button class="mini-btn an" data-ja>${T("Annehmen")}</button>`
         + `<button class="mini-btn" data-nein>${T("Ablehnen")}</button>`, "")
-      + gruppe("Deine Freunde", d.freunde, () =>
-        '<button class="mini-btn" data-weg>Entfernen</button>',
+      + gruppe(T("Deine Freunde"), d.freunde, () =>
+        `<button class="mini-btn" data-weg>${T("Entfernen")}</button>`,
         T("Noch niemand. Frag unten jemanden an."))
-      + gruppe("Angefragt", d.ausgehend, () =>
-        '<button class="mini-btn" data-zurueck>Zurücknehmen</button>', "")
-      + gruppe("Weitere Personen", d.andere, () =>
+      + gruppe(T("Angefragt"), d.ausgehend, () =>
+        `<button class="mini-btn" data-zurueck>${T("Zurücknehmen")}</button>`, "")
+      + gruppe(T("Weitere Personen"), d.andere, () =>
         `<button class="mini-btn" data-fragen>${T("Anfragen")}</button>`, "");
 
     const tat = async (id, methode) => {
@@ -3296,7 +3302,7 @@
     const offen = state.freund_anfragen || 0;
     knopf.classList.toggle("wartet", offen > 0);
     knopf.title = offen
-      ? `${offen} ${offen === 1 ? "Anfrage wartet" : "Anfragen warten"}`
+      ? `${offen} ${offen === 1 ? T("Anfrage wartet") : T("Anfragen warten")}`
       : T("Freunde");
   }
 
@@ -3392,8 +3398,8 @@
     if (!currentRoom) return;
     if (imAnruf()) { anrufFensterZeigen(true); return; }
     if (!sichererKontext()) {
-      toast("Mikrofon und Kamera gibt der Browser nur über HTTPS frei – öffne "
-            + "den Chat über deine externe Adresse.");
+      toast(T("Mikrofon und Kamera gibt der Browser nur über HTTPS frei – öffne "
+              + "den Chat über deine externe Adresse."));
       return;
     }
     if (!window.RTCPeerConnection || !navigator.mediaDevices) {
@@ -3477,7 +3483,7 @@
     if (d.room_id !== anruf.room) return;
     const raum = roomById(d.room_id);
     const wer = raum && raum.members.find((m) => m.id === d.user_id);
-    toast(`${wer ? wer.display_name : "Jemand"} ${T("hat abgelehnt.")}`);
+    toast(`${wer ? wer.display_name : T("Jemand")} ${T("hat abgelehnt.")}`);
   });
 
   // Der Stand eines Anrufs geht an alle im Raum - auch an die, die nicht
@@ -3516,13 +3522,13 @@
     };
     const jetzt = m.galerie || "aus";
     const root = modal(`<h2>${T("Wer darf das sehen?")}</h2>
-      <p class="hint">In der Unterhaltung sehen es die Mitglieder ohnehin.
-        Hier geht es darum, ob es zusätzlich in deiner Galerie steht – der
-        Sammlung, die andere über deinen Namen im Chat öffnen können.</p>
+      <p class="hint">${T("In der Unterhaltung sehen es die Mitglieder ohnehin. "
+        + "Hier geht es darum, ob es zusätzlich in deiner Galerie steht – der "
+        + "Sammlung, die andere über deinen Namen im Chat öffnen können.")}</p>
       <div class="kf-zeile" id="fg-wahl">
-        <button class="mini-btn ${jetzt === "aus" ? "an" : ""}" data-art="aus">🔒 Niemand</button>
-        <button class="mini-btn ${jetzt === "freunde" ? "an" : ""}" data-art="freunde">👥 Meine Freunde</button>
-        <button class="mini-btn ${jetzt === "alle" ? "an" : ""}" data-art="alle">🌍 Alle</button>
+        <button class="mini-btn ${jetzt === "aus" ? "an" : ""}" data-art="aus">🔒 ${T("Niemand")}</button>
+        <button class="mini-btn ${jetzt === "freunde" ? "an" : ""}" data-art="freunde">👥 ${T("Meine Freunde")}</button>
+        <button class="mini-btn ${jetzt === "alle" ? "an" : ""}" data-art="alle">🌍 ${T("Alle")}</button>
       </div>
       <div class="field"><label for="fg-titel">${T("Bildunterschrift (freiwillig)")}</label>
         <input id="fg-titel" autocomplete="off" maxlength="200"
@@ -3570,14 +3576,14 @@
 
   function galerieZeichnen() {
     $("galerie-titel").textContent = galerie.meine
-      ? T("Deine Galerie") : `Bilder von ${galerie.person.name}`;
+      ? T("Deine Galerie") : `${T("Bilder von")} ${galerie.person.name}`;
     $("galerie-neu").hidden = !galerie.meine;
     const feld = $("galerie-raster");
     if (!galerie.eintraege.length) {
       feld.innerHTML = `<p class="hint">${galerie.meine
-        ? "Noch nichts hier. Über „＋ Bild hinzufügen“ oben legst du etwas "
-          + "hinein – oder du gibst unter „Medien“ frei, was du ohnehin schon "
-          + "verschickt hast."
+        ? T("Noch nichts hier. Über „＋ Bild hinzufügen“ oben legst du etwas "
+            + "hinein – oder du gibst unter „Medien“ frei, was du ohnehin schon "
+            + "verschickt hast.")
         : T("Hier ist noch nichts freigegeben.")}</p>`;
       return;
     }
@@ -3589,15 +3595,15 @@
           : `<img src="${BASE}/files/${g.file_id}" alt="${esc(g.name)}" loading="lazy">`}
         <figcaption>
           <span class="ga-herz ${g.mein_herz ? "an" : ""}" data-herz="${g.id}"
-                title=T("Gefällt mir")>${g.mein_herz ? "❤️" : "🤍"} ${g.herzen}</span>
-          <span class="ga-wort" data-wort="${g.id}" title=T("Kommentare")>💬 ${g.worte}</span>
+                title="${T("Gefällt mir")}">${g.mein_herz ? "❤️" : "🤍"} ${g.herzen}</span>
+          <span class="ga-wort" data-wort="${g.id}" title="${T("Kommentare")}">💬 ${g.worte}</span>
           ${galerie.meine ? `<button class="ga-art" data-frei="${g.id}"
              title="${FREI_TITEL[g.art]} ${T("– zum Ändern tippen")}">${
              FREI_ZEICHEN[g.art]}</button>` : ""}
         </figcaption>
         ${g.titel ? `<div class="ga-titel">${esc(g.titel)}</div>` : ""}
         ${galerie.meine ? `<button class="ga-weg" data-weg="${g.id}"
-           title=T("Endgültig löschen")>✕</button>` : ""}
+           title="${T("Endgültig löschen")}">✕</button>` : ""}
       </figure>`).join("");
 
     feld.querySelectorAll("[data-herz]").forEach((el) =>
@@ -3631,7 +3637,7 @@
         });
         const daten = await res.json().catch(() => ({}));
         if (!res.ok || !daten.geloescht) {
-          toast(daten.error || "Löschen ging nicht.");
+          toast(daten.error || T("Löschen ging nicht."));
           return;
         }
         toast(film ? T("Film gelöscht.") : T("Bild gelöscht."));
@@ -3701,10 +3707,10 @@
     }
 
     const wer = galerie.meine
-      ? (daten.worte.find((w) => !w.meins) || {}).name || "Jemand"
+      ? (daten.worte.find((w) => !w.meins) || {}).name || T("Jemand")
       : galerie.person.name;
     kasten.innerHTML = `<div class="gf-kopf">
-        <strong>Nur du und ${esc(wer)}</strong>
+        <strong>${T("Nur du und")} ${esc(wer)}</strong>
         <span style="flex:1"></span>
         <button class="icon-btn" id="gf-zu">✕</button></div>
       <div class="gf-liste">${daten.worte.length
@@ -3775,11 +3781,11 @@
         <input id="gn-titel" autocomplete="off" maxlength="200"></div>
       <div class="field"><label>${T("Wer darf es sehen?")}</label>
         <div class="kf-zeile" id="gn-wahl">
-          <button type="button" class="mini-btn an" data-art="freunde">👥 Meine Freunde</button>
-          <button type="button" class="mini-btn" data-art="alle">🌍 Alle</button>
+          <button type="button" class="mini-btn an" data-art="freunde">👥 ${T("Meine Freunde")}</button>
+          <button type="button" class="mini-btn" data-art="alle">🌍 ${T("Alle")}</button>
         </div></div>
       <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>
-      <button class="btn" id="gn-ok">Hinzufügen</button></div>`);
+      <button class="btn" id="gn-ok">${T("Hinzufügen")}</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     let art = "freunde";
     root.querySelectorAll("[data-art]").forEach((b) =>
@@ -3810,7 +3816,7 @@
         fd.append("file", await heicUmschreiben(datei));
         const hoch = await api("/api/upload", {method: "POST", body: fd});
         const daten = await hoch.json().catch(() => ({}));
-        if (!hoch.ok) { toast(daten.error || "Das ging nicht durch."); return; }
+        if (!hoch.ok) { toast(daten.error || T("Das ging nicht durch.")); return; }
         const res = await api("/api/galerie", {
           method: "POST", headers: {"Content-Type": "application/json"},
           body: JSON.stringify({file_id: daten.id, art,
@@ -3818,7 +3824,7 @@
         const antwort = await res.json().catch(() => ({}));
         if (!res.ok) { toast(antwort.error || T("Das ging nicht.")); return; }
         closeModal();
-        toast(art === "alle" ? "Für alle sichtbar." : "Für deine Freunde sichtbar.");
+        toast(art === "alle" ? T("Für alle sichtbar.") : T("Für deine Freunde sichtbar."));
         await galerieOeffnen(ME);
       } finally {
         knopf.disabled = false;
@@ -3835,7 +3841,7 @@
     }
   });
   socket.on("galerie_wort", () => {
-    if (galerie.offen) toast("Neuer Kommentar zu einem deiner Bilder.");
+    if (galerie.offen) toast(T("Neuer Kommentar zu einem deiner Bilder."));
   });
 
   // ---------- Medienschau ----------
@@ -3849,7 +3855,7 @@
 
   async function schauOeffnen(raumId, fileId) {
     const res = await api(`/api/media?room=${raumId}`);
-    if (!res.ok) { toast("Die Medien ließen sich nicht laden."); return; }
+    if (!res.ok) { toast(T("Die Medien ließen sich nicht laden.")); return; }
     const daten = await res.json();
     // Älteste zuerst - so wischt man vorwärts durch die Zeit. Bei gleicher
     // Sekunde entscheidet die Kennung: sonst bliebe die Reihenfolge des
@@ -3857,7 +3863,7 @@
     const stuecke = (daten.items || daten || [])
       .filter((m) => SCHAU_ARTEN.includes((m.mime || "").split("/")[0]))
       .sort((a, b) => (a.at - b.at) || (a.id - b.id));
-    if (!stuecke.length) { toast("Hier gibt es noch keine Bilder oder Videos."); return; }
+    if (!stuecke.length) { toast(T("Hier gibt es noch keine Bilder oder Videos.")); return; }
     schau.stuecke = stuecke;
     schau.raum = raumId;
     const platz = stuecke.findIndex((m) => m.id === fileId);
@@ -3895,7 +3901,7 @@
       : `<img class="schau-medium" src="${url}" alt="${esc(m.name || "")}">`;
     $("schau-titel").textContent = m.author || "";
     $("schau-datum").textContent = new Date(m.at * 1000)
-      .toLocaleString("de-DE", {day: "2-digit", month: "2-digit", year: "numeric",
+      .toLocaleString(LOCALE, {day: "2-digit", month: "2-digit", year: "numeric",
                                 hour: "2-digit", minute: "2-digit"});
     $("schau-zaehler").textContent = `${schau.platz + 1} / ${schau.stuecke.length}`;
     $("schau-zurueck").disabled = schau.platz === 0;
@@ -3910,7 +3916,7 @@
       leiste.innerHTML = schau.stuecke.map((m, i) => {
         const art = (m.mime || "").split("/")[0];
         return `<button class="schau-daumen" data-platz="${i}"
-                        title="${esc(new Date(m.at * 1000).toLocaleDateString("de-DE"))}">`
+                        title="${esc(new Date(m.at * 1000).toLocaleDateString(LOCALE))}">`
           + (art === "video"
              ? '<span class="schau-film">🎬</span>'
              : `<img src="${BASE}/files/${m.id}" alt="" loading="lazy">`)
@@ -4025,25 +4031,25 @@
   }
 
   const stummText = (bis) => {
-    if (bis === 0) return "stumm";
+    if (bis === 0) return T("stumm");
     if (!bis) return "";
     const s = bis - Math.floor(Date.now() / 1000);
     if (s <= 0) return "";
-    return s < 3600 ? `stumm, noch ${Math.round(s / 60)} Min`
-                    : `stumm, noch ${Math.round(s / 3600)} Std`;
+    return s < 3600 ? `${T("stumm, noch")} ${Math.round(s / 60)} ${T("Min")}`
+                    : `${T("stumm, noch")} ${Math.round(s / 3600)} ${T("Std")}`;
   };
 
   function stummDialog(room) {
     const jetzt = Math.floor(Date.now() / 1000);
     const istStumm = room.stumm_bis === 0
       || (room.stumm_bis && room.stumm_bis > jetzt);
-    const root = modal(`<h2>Töne für „${esc(room.name)}“</h2>
-      <p class="hint">Gilt nur für dich, dafür auf allen deinen Geräten.
-        ${istStumm ? `Zurzeit ${esc(stummText(room.stumm_bis))}.` : ""}</p>
+    const root = modal(`<h2>${T("Töne für")} „${esc(room.name)}“</h2>
+      <p class="hint">${T("Gilt nur für dich, dafür auf allen deinen Geräten.")}
+        ${istStumm ? `${T("Zurzeit")} ${esc(stummText(room.stumm_bis))}.` : ""}</p>
       <div class="kf-zeile">
         <button class="mini-btn ${!istStumm ? "an" : ""}" data-stunden="">${T("Ton an")}</button>
-        <button class="mini-btn" data-stunden="1">1 Stunde stumm</button>
-        <button class="mini-btn" data-stunden="8">8 Stunden</button>
+        <button class="mini-btn" data-stunden="1">${T("1 Stunde stumm")}</button>
+        <button class="mini-btn" data-stunden="8">${T("8 Stunden")}</button>
         <button class="mini-btn ${room.stumm_bis === 0 ? "an" : ""}"
                 data-stunden="0">${T("Für immer")}</button>
       </div>
@@ -4061,8 +4067,8 @@
         room.stumm_bis = daten.stumm_bis;
         closeModal();
         renderRooms();
-        toast(daten.stumm_bis === null ? "Ton wieder an."
-                                       : `Stumm (${stummText(daten.stumm_bis)}).`);
+        toast(daten.stumm_bis === null ? T("Ton wieder an.")
+                                       : `${T("Stumm")} (${stummText(daten.stumm_bis)}).`);
       }));
   }
 
@@ -4180,7 +4186,7 @@
       .map((u) => (raum.members.find((m) => m.id === u) || {}).display_name)
       .filter(Boolean).join(", ");
     $("ruf-titel").textContent =
-      raum.anruf.art === "video" ? T("Videoanruf") : "Anruf";
+      raum.anruf.art === "video" ? T("Videoanruf") : T("Anruf");
     $("ruf-sub").textContent = `${raum.name} · ${namen}`;
     // Nur bei einem neuen Anruf von vorn laeuten, nicht bei jeder Meldung
     const kennung = `${raum.id}:${raum.anruf.seit}`;
@@ -4225,7 +4231,7 @@
   function kachelHtml(uid, eigen) {
     const raum = roomById(anruf.room);
     const person = eigen
-      ? {id: ME, display_name: state.me ? state.me.name : "Ich",
+      ? {id: ME, display_name: state.me ? state.me.name : T("Ich"),
          avatar: state.me ? state.me.avatar : null}
       : anrufPerson(raum, uid);
     return `<div class="anruf-kachel" data-wer="${uid}">
@@ -4269,7 +4275,7 @@
       }
     });
     $("anruf-titel").textContent =
-      anruf.art === "video" ? T("Videoanruf") : "Anruf";
+      anruf.art === "video" ? T("Videoanruf") : T("Anruf");
     $("btn-anruf-stumm").classList.toggle("aus", anruf.stumm);
     $("btn-anruf-stumm").textContent = anruf.stumm ? "🔇" : "🎤";
     const kamera = $("btn-anruf-kamera");
@@ -4354,8 +4360,8 @@
     if (!currentRoom) { toast(T("Öffne zuerst eine Unterhaltung.")); return; }
     if (aufnahme) return;
     if (!sichererKontext()) {
-      toast("Das Mikrofon gibt der Browser nur über HTTPS frei – öffne den "
-            + "Chat über deine externe Adresse.");
+      toast(T("Das Mikrofon gibt der Browser nur über HTTPS frei – öffne den "
+              + "Chat über deine externe Adresse."));
       return;
     }
     if (!navigator.mediaDevices || tonFormat() === null) {
@@ -4447,7 +4453,7 @@
   // anders aus und ist in einer Sprechblase viel zu breit.
   function sprachHtml(datei, sekunden) {
     return `<div class="sprachnachricht" data-dauer="${sekunden || 0}">
-      <button class="sn-play" type="button" aria-label="Abspielen">▶</button>
+      <button class="sn-play" type="button" aria-label="${T("Abspielen")}">▶</button>
       <div class="sn-balken"><div class="sn-fortschritt"></div></div>
       <span class="sn-zeit">${dauerText(sekunden || 0)}</span>
       <audio preload="none" src="${BASE}/files/${datei.id}"></audio>
@@ -4627,7 +4633,8 @@
     let fertig = 0;
     for (const datei of dateien) {
       toast(dateien.length > 1
-        ? `Lade ${fertig + 1} von ${dateien.length} …` : T("Datei wird hochgeladen …"));
+        ? `${T("Lade")} ${fertig + 1} ${T("von")} ${dateien.length} …`
+        : T("Datei wird hochgeladen …"));
       const fd = new FormData();
       fd.append("file", await heicUmschreiben(datei));
       const res = await api("/api/upload", {method: "POST", body: fd});
@@ -4640,7 +4647,7 @@
       send(daten.id, (datei.type || "").startsWith("image/") ? album : null);
       fertig += 1;
     }
-    if (dateien.length > 1) toast(`${fertig} von ${dateien.length} gesendet.`);
+    if (dateien.length > 1) toast(`${fertig} ${T("von")} ${dateien.length} ${T("gesendet.")}`);
   });
 
   // Farben zur Auswahl - dieselben Werte kennt der Server, damit niemand
@@ -4687,16 +4694,16 @@
       <p class="hint" id="stumm-stand"></p>
       <button class="btn ghost" id="stumm-ok">${T("Töne für diese Unterhaltung")}</button>
       <hr class="sep">
-      <h2>Hintergrundmuster</h2>
-      <p class="hint">Gilt nur für dich – andere sehen ihr eigenes Muster.</p>
+      <h2>${T("Hintergrundmuster")}</h2>
+      <p class="hint">${T("Gilt nur für dich – andere sehen ihr eigenes Muster.")}</p>
       <div class="musterwahl" id="hg-wahl"></div>
       <hr class="sep">
       <div class="row schmal">
         <button class="btn ghost" id="r-leave">${T("Chat löschen")}</button>
         ${IS_ADMIN ? `<button class="btn ghost del" id="r-kill">${T("Für alle löschen")}</button>` : ""}
       </div>
-      <p class="hint">„Chat löschen" entfernt die Unterhaltung nur bei dir.
-        ${IS_ADMIN ? "„Für alle löschen\" entfernt sie mitsamt Nachrichten und Anhängen bei allen." : ""}</p>
+      <p class="hint">${T("„Chat löschen\" entfernt die Unterhaltung nur bei dir.")}
+        ${IS_ADMIN ? T("„Für alle löschen\" entfernt sie mitsamt Nachrichten und Anhängen bei allen.") : ""}</p>
       <div class="row"><button class="btn ghost" id="m-cancel">${T("Schließen")}</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelector(".avatar-vorschau").addEventListener("click", () => {
@@ -4754,7 +4761,7 @@
     if (weg) weg.addEventListener("click", async () => {
       const res = await api(`/api/rooms/${room.id}/avatar`, {method: "DELETE"});
       if (!res.ok) { toast(T("Entfernen fehlgeschlagen.")); return; }
-      toast("Gruppenbild entfernt.");
+      toast(T("Gruppenbild entfernt."));
       closeModal();
       await loadState();
       if (currentRoom === room.id) openRoom(room.id);
@@ -4809,12 +4816,12 @@
     const others = state.users.filter((u) => u.id !== ME && u.active !== false);
     const root = modal(`<h2>${T("Neue Unterhaltung")}</h2>
       <div class="field"><label>${T("Gruppenname (leer lassen für Einzelchat)")}</label>
-      <input id="m-name" placeholder="z. B. Familie"></div>
+      <input id="m-name" placeholder="${T("z. B. Familie")}"></div>
       <div id="m-users">${others.map((u) =>
         `<div class="pick" data-id="${u.id}"><span class="dot ${state.online.has(u.id) ? "on" : ""}"></span>${esc(u.display_name)}</div>`
       ).join("") || `<p class="hint">${T("Es gibt noch keine anderen Konten.")}</p>`}</div>
       <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>
-      <button class="btn" id="m-ok">Anlegen</button></div>`);
+      <button class="btn" id="m-ok">${T("Anlegen")}</button></div>`);
     const sel = new Set();
     root.querySelectorAll(".pick").forEach((el) => el.addEventListener("click", () => {
       const id = parseInt(el.dataset.id, 10);
@@ -4844,7 +4851,7 @@
     const room = roomById(currentRoom);
     const inRoom = new Set(room.members.map((m) => m.id));
     const cands = state.users.filter((u) => !inRoom.has(u.id) && u.active !== false);
-    const root = modal(`<h2>Person zu „${esc(room.name)}“ hinzufügen</h2>
+    const root = modal(`<h2>${T("Person hinzufügen")}: ${esc(room.name)}</h2>
       ${cands.map((u) => `<div class="pick" data-id="${u.id}">${esc(u.display_name)}</div>`).join("")
         || `<p class="hint">${T("Alle Konten sind schon in dieser Gruppe.")}</p>`}
       <div class="row"><button class="btn ghost" id="m-cancel">${T("Schließen")}</button></div>`);
@@ -4866,9 +4873,9 @@
       <div class="mein-bild">
         <div class="avatar-vorschau">${meinBild}</div>
         <div class="row schmal"><button class="btn ghost" id="me-bild">${T("Bild wählen")}</button>
-        ${state.me && state.me.avatar ? '<button class="btn ghost" id="me-bild-weg">Entfernen</button>' : ""}</div>
+        ${state.me && state.me.avatar ? `<button class="btn ghost" id="me-bild-weg">${T("Entfernen")}</button>` : ""}</div>
       </div>
-      <div class="field"><label>Aktuelles Passwort</label><input id="p-old" type="password"></div>
+      <div class="field"><label>${T("Aktuelles Passwort")}</label><input id="p-old" type="password"></div>
       <div class="field"><label>${T("Neues Passwort")}</label><input id="p-new" type="password"></div>
       <button class="btn" id="p-ok">${T("Passwort ändern")}</button>
       <hr class="sep">
@@ -4912,7 +4919,7 @@
       <p class="hint" id="push-lage">${T("Wird geprüft …")}</p>
       <button class="btn ghost" id="push-an" hidden>${T("Benachrichtigungen einschalten")}</button>
       ${IS_ADMIN ? `<hr class="sep">
-        <h2>Name</h2>
+        <h2>${T("Name")}</h2>
         <p class="hint">${T("Wie die Oberfläche heißt – in der Seitenleiste, im Fenstertitel und auf der Anmeldeseite. Gilt für alle. Das Add-on selbst heißt weiterhin „Chat Server“.")}</p>
         <div class="field">
           <input id="an-name" autocomplete="off" maxlength="40"
@@ -4996,7 +5003,7 @@
       const daten = await res.json().catch(() => ({}));
       if (!res.ok) { toast(daten.error || T("Das ging nicht.")); return; }
       if (state.me) state.me.geburtstag = daten.geburtstag;
-      toast(daten.geburtstag ? "Geburtstag gespeichert." : "Geburtstag entfernt.");
+      toast(daten.geburtstag ? T("Geburtstag gespeichert.") : T("Geburtstag entfernt."));
       geburtstageLaden();
     });
     const themaFeld = root.querySelector("#thema-wahl");
@@ -5142,7 +5149,7 @@
     const bRes = await api("/api/passwort-bitten");
     if (bRes.ok) bitten = await bRes.json();
     const bittenHtml = bitten.length ? `<div class="bitten">
-      <h3>Passwort vergessen <span class="chip warn">${bitten.length}</span></h3>
+      <h3>${T("Passwort vergessen")} <span class="chip warn">${bitten.length}</span></h3>
       ${bitten.map((b) => `<div class="urow bitte" data-id="${b.user_id}">
         <div class="uinfo">
           <span class="uname">${esc(b.name)}</span>
@@ -5157,7 +5164,7 @@
       </div>`).join("")}
     </div>` : "";
     const antragsHtml = antraege.length ? `<div class="antraege">
-      <h3>Zugangsanträge <span class="chip warn">${antraege.length}</span></h3>
+      <h3>${T("Zugangsanträge")} <span class="chip warn">${antraege.length}</span></h3>
       ${antraege.map((u) => `<div class="urow antrag" data-id="${u.id}">
         <div class="uinfo">
           <span class="uname">${esc(u.display_name)}</span>
@@ -5180,16 +5187,16 @@
         <div class="uinfo">
           <span class="uname">${esc(u.display_name)}</span>
           <span class="utag">@${esc(u.username)}</span>
-          ${u.is_admin ? '<span class="chip admin">Admin</span>' : ""}
+          ${u.is_admin ? `<span class="chip admin">${T("Admin")}</span>` : ""}
           ${u.active ? "" : `<span class="chip off">${T("gesperrt")}</span>`}
           ${selbst ? `<span class="chip me">${T("du")}</span>` : ""}
         </div>
         <div class="uacts">
-          <button class="act" data-act="pw" title=T("Passwort zurücksetzen")>Passwort</button>
+          <button class="act" data-act="pw" title="${T("Passwort zurücksetzen")}">${T("Passwort")}</button>
           ${schuetzen ? "" : `
-          <button class="act" data-act="admin" title="${u.is_admin ? "Administratorrecht entziehen" : "Zum Administrator machen"}">${u.is_admin ? T("Kein Admin") : "Admin"}</button>
-          <button class="act" data-act="active" title="${u.active ? "Konto sperren" : "Konto entsperren"}">${u.active ? T("Sperren") : T("Entsperren")}</button>
-          <button class="act del" data-act="del" title=T("Konto endgültig löschen")>${T("Löschen")}</button>`}
+          <button class="act" data-act="admin" title="${u.is_admin ? T("Administratorrecht entziehen") : T("Zum Administrator machen")}">${u.is_admin ? T("Kein Admin") : T("Admin")}</button>
+          <button class="act" data-act="active" title="${u.active ? T("Konto sperren") : T("Konto entsperren")}">${u.active ? T("Sperren") : T("Entsperren")}</button>
+          <button class="act del" data-act="del" title="${T("Konto endgültig löschen")}">${T("Löschen")}</button>`}
           ${!selbst && u.is_admin && letzterAdmin
             ? `<span class="hint inline">${T("letzter Administrator")}</span>` : ""}
         </div>
@@ -5262,7 +5269,7 @@
       const d2 = await res2.json().catch(() => ({}));
       if (!res2.ok) { toast(d2.error || T("Das ging nicht.")); return; }
       feld.value = d2.token;
-      toast("Neues Token erzeugt – jetzt in Home Assistant eintragen.");
+      toast(T("Neues Token erzeugt – jetzt in Home Assistant eintragen."));
     });
     root.querySelector("#ha-kopieren").addEventListener("click", async () => {
       feld.select();
@@ -5279,12 +5286,12 @@
 
   function passwordDialog(user, settingsRoot) {
     const root = modal(`<h2>${T("Passwort zurücksetzen")}</h2>
-      <p class="hint">für <strong>${esc(user.display_name)}</strong> (@${esc(user.username)})</p>
-      <div class="field"><label>Neues Passwort (min. 6 Zeichen)</label>
+      <p class="hint">${T("für")} <strong>${esc(user.display_name)}</strong> (@${esc(user.username)})</p>
+      <div class="field"><label>${T("Neues Passwort (min. 6 Zeichen)")}</label>
         <input id="r-pw" type="text" autocomplete="off"></div>
       <p class="hint">${T("Das Konto wird auf allen Geräten abgemeldet. Gib das Passwort persönlich weiter und lass es danach selbst ändern.")}</p>
       <div class="row"><button class="btn ghost" id="r-cancel">${T("Abbrechen")}</button>
-      <button class="btn" id="r-ok">Zurücksetzen</button></div>`);
+      <button class="btn" id="r-ok">${T("Zurücksetzen")}</button></div>`);
     root.querySelector("#r-cancel").addEventListener("click", closeModal);
     root.querySelector("#r-ok").addEventListener("click", async () => {
       const ok = await adminCall(`/api/users/${user.id}/password`, {
@@ -5297,15 +5304,15 @@
   }
 
   function newUserDialog() {
-    const root = modal(`<h2>Neues Konto anlegen</h2>
-      <div class="field"><label>Benutzername (zum Anmelden, klein geschrieben)</label>
+    const root = modal(`<h2>${T("Neues Konto anlegen")}</h2>
+      <div class="field"><label>${T("Benutzername (zum Anmelden, klein geschrieben)")}</label>
         <input id="u-name" autocomplete="off"></div>
-      <div class="field"><label>Anzeigename</label><input id="u-disp" autocomplete="off"></div>
-      <div class="field"><label>Passwort (min. 6 Zeichen)</label>
+      <div class="field"><label>${T("Anzeigename")}</label><input id="u-disp" autocomplete="off"></div>
+      <div class="field"><label>${T("Passwort (min. 6 Zeichen)")}</label>
         <input id="u-pw" type="text" autocomplete="off"></div>
-      <label class="check"><input type="checkbox" id="u-admin"> Administrator</label>
+      <label class="check"><input type="checkbox" id="u-admin"> ${T("Administrator")}</label>
       <div class="row"><button class="btn ghost" id="n-cancel">${T("Abbrechen")}</button>
-      <button class="btn" id="n-ok">Anlegen</button></div>`);
+      <button class="btn" id="n-ok">${T("Anlegen")}</button></div>`);
     root.querySelector("#n-cancel").addEventListener("click", closeModal);
     root.querySelector("#n-ok").addEventListener("click", async () => {
       const ok = await adminCall("/api/users", {
@@ -5316,7 +5323,7 @@
           password: root.querySelector("#u-pw").value,
           is_admin: root.querySelector("#u-admin").checked,
         }),
-      }, "Konto angelegt.");
+      }, T("Konto angelegt."));
       if (ok) { closeModal(); loadState(); $("btn-settings").click(); }
     });
   }
@@ -5352,7 +5359,7 @@
         <button class="act" id="md-auswahl">${T("Auswählen")}</button>
         <span id="md-zahl" class="hint inline"></span>
         <span style="flex:1"></span>
-        <button class="act" id="md-alle" hidden>Alle</button>
+        <button class="act" id="md-alle" hidden>${T("Alle")}</button>
         <button class="act del" id="md-weg" hidden>${T("Löschen")}</button>
       </div>
       <div id="md-body" class="media-body"><p class="hint">${T("Wird geladen …")}</p></div>
@@ -5386,9 +5393,9 @@
 
     root.querySelector("#md-weg").addEventListener("click", async () => {
       if (!auswahl.size) return;
-      if (!confirm(`${auswahl.size} ${auswahl.size === 1 ? "Datei" : "Dateien"} `
-                   + "endgültig löschen?\n\n"
-                   + "Sie verschwinden aus den Unterhaltungen und vom Server.")) return;
+      if (!confirm(`${auswahl.size} ${auswahl.size === 1 ? T("Datei") : T("Dateien")} `
+                   + T("endgültig löschen?") + "\n\n"
+                   + T("Sie verschwinden aus den Unterhaltungen und vom Server."))) return;
       const res = await api("/api/media/delete", {
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({ids: [...auswahl]}),
@@ -5396,8 +5403,8 @@
       const daten = await res.json().catch(() => ({}));
       if (!res.ok) { toast(daten.error || T("Löschen fehlgeschlagen.")); return; }
       toast(daten.abgelehnt
-        ? `${daten.geloescht} gelöscht, ${daten.abgelehnt} ${T("nicht erlaubt.")}`
-        : `${daten.geloescht} ${daten.geloescht === 1 ? "Datei" : "Dateien"} gelöscht.`);
+        ? `${daten.geloescht} ${T("gelöscht,")} ${daten.abgelehnt} ${T("nicht erlaubt.")}`
+        : `${daten.geloescht} ${daten.geloescht === 1 ? T("Datei") : T("Dateien")} ${T("gelöscht.")}`);
       auswahl.clear();
       auswahlAnzeigen(root);
       ladeMedien(root);
@@ -5415,7 +5422,7 @@
     root.querySelector("#md-alle").hidden = !auswahlModus;
     root.querySelector("#md-weg").hidden = !auswahlModus || !auswahl.size;
     root.querySelector("#md-zahl").textContent =
-      auswahlModus && auswahl.size ? `${auswahl.size} ausgewählt` : "";
+      auswahlModus && auswahl.size ? `${auswahl.size} ${T("ausgewählt")}` : "";
     root.querySelector("#md-body").classList.toggle("waehlbar", auswahlModus);
   }
 
@@ -5432,7 +5439,7 @@
     const istVideo = (m) => (m.mime || "").startsWith("video/");
     const bilder = alle.filter((m) => istBild(m) || istVideo(m));
     const dateien = alle.filter((m) => !istBild(m) && !istVideo(m));
-    const raumName = (id) => roomById(id)?.name || "Unterhaltung";
+    const raumName = (id) => roomById(id)?.name || T("Unterhaltung");
     const herkunft = (m) => `${esc(m.author)} · ${medienRaum ? "" : esc(raumName(m.room_id)) + " · "}${shortTime(m.at)}`;
 
     box.innerHTML = `
@@ -5449,7 +5456,7 @@
           ${m.mine ? `<button class="media-frei" data-frei="${m.id}"
              title="${FREI_TITEL[m.galerie || "aus"]}">${
              FREI_ZEICHEN[m.galerie || "aus"]}</button>` : ""}
-          ${m.can_delete ? '<button class="media-del" data-act="del" title=T("Löschen")>✕</button>' : ""}
+          ${m.can_delete ? `<button class="media-del" data-act="del" title="${T("Löschen")}">✕</button>` : ""}
         </figure>`).join("")}</div>` : ""}
       ${dateien.length ? `<div class="media-files">${dateien.map((m) => `
         <div class="media-row ${auswahl.has(m.id) ? "gewaehlt" : ""}"
@@ -5491,9 +5498,9 @@
       btn.addEventListener("click", async () => {
         const el = btn.closest("[data-id]");
         const eintrag = alle.find((m) => m.id === parseInt(el.dataset.id, 10));
-        if (!confirm(`„${eintrag.name}“ endgültig löschen?\n\n`
-                     + "Die Datei verschwindet aus der Unterhaltung und wird vom "
-                     + "Server entfernt. Das lässt sich nicht rückgängig machen."))
+        if (!confirm(`„${eintrag.name}“ ${T("endgültig löschen?")}\n\n`
+                     + T("Die Datei verschwindet aus der Unterhaltung und wird vom "
+                         + "Server entfernt. Das lässt sich nicht rückgängig machen.")))
           return;
         const res = await api(`/api/media/${eintrag.id}`, {method: "DELETE"});
         if (!res.ok) {
@@ -5523,7 +5530,7 @@
     zahl.textContent = offen || "";
     const teile = [];
     if (antraege) {
-      teile.push(`${antraege} ${antraege === 1 ? "Zugangsantrag"
+      teile.push(`${antraege} ${antraege === 1 ? T("Zugangsantrag")
                                               : T("Zugangsanträge")}`);
     }
     if (bitten) {
@@ -5582,7 +5589,7 @@
       const strom = await navigator.mediaDevices.getUserMedia({video: true});
       strom.getTracks().forEach((s) => s.stop());
     }]);
-    schritte.push(["Standort", () => new Promise((fertig) => {
+    schritte.push([T("Standort"), () => new Promise((fertig) => {
       navigator.geolocation.getCurrentPosition(() => fertig(), () => fertig(),
                                                {timeout: 12000});
     })]);
@@ -5603,11 +5610,11 @@
     const streifen = document.createElement("div");
     streifen.id = "erlaubnis-streifen";
     streifen.className = "push-streifen";
-    streifen.innerHTML = `<span>Einmal alles freigeben – Benachrichtigungen,
-      Mikrofon, Kamera und Standort? Ohne sie fehlen Anrufe, Sprachnachrichten
-      und die Karte.</span>
+    streifen.innerHTML = `<span>${T("Einmal alles freigeben – Benachrichtigungen, "
+      + "Mikrofon, Kamera und Standort? Ohne sie fehlen Anrufe, Sprachnachrichten "
+      + "und die Karte.")}</span>
       <button class="btn" id="erl-ja">${T("Erlauben")}</button>
-      <button class="icon-btn" id="erl-nein" title=T("Später")>✕</button>`;
+      <button class="icon-btn" id="erl-nein" title="${T("Später")}">✕</button>`;
     document.body.appendChild(streifen);
     const weg = () => {
       try { localStorage.setItem(ERLAUBT_GEFRAGT, "1"); } catch (err) { /* egal */ }
@@ -5669,7 +5676,7 @@
       return false;
     }
     if (!sichererKontext()) {
-      if (laut) toast("Dafür braucht es HTTPS – öffne den Chat über deine externe Adresse.");
+      if (laut) toast(T("Dafür braucht es HTTPS – öffne den Chat über deine externe Adresse."));
       return false;
     }
     const perm = await Notification.requestPermission();
@@ -5682,7 +5689,7 @@
       if (laut) toast(T("Benachrichtigungen sind aktiv."));
       return true;
     } catch (err) {
-      if (laut) toast("Das ging nicht: " + err.message);
+      if (laut) toast(T("Das ging nicht:") + " " + err.message);
       return false;
     }
   }
@@ -5716,7 +5723,7 @@
     streifen.className = "push-streifen";
     streifen.innerHTML = `<span>${T("Benachrichtigungen einschalten, damit du neue Nachrichten mitbekommst?")}</span>
       <button class="btn" id="push-ja">${T("Ja")}</button>
-      <button class="icon-btn" id="push-nein" title=T("Nicht jetzt")>✕</button>`;
+      <button class="icon-btn" id="push-nein" title="${T("Nicht jetzt")}">✕</button>`;
     document.body.appendChild(streifen);
     const weg = (merken) => {
       if (merken) localStorage.setItem(PUSH_GEFRAGT, "1");
@@ -5738,13 +5745,13 @@
       if (!pushMoeglich()) {
         lage.textContent = sichererKontext()
           ? T("Dieser Browser kennt keine Benachrichtigungen.")
-          : "Dafür braucht es HTTPS – über die externe Adresse geht es.";
+          : T("Dafür braucht es HTTPS – über die externe Adresse geht es.");
         knopf.hidden = true;
         return;
       }
       if (Notification.permission === "granted") {
-        lage.textContent = "Eingeschaltet. Dieses Gerät bekommt Bescheid, "
-          + "auch wenn der Chat geschlossen ist.";
+        lage.textContent = T("Eingeschaltet. Dieses Gerät bekommt Bescheid, "
+          + "auch wenn der Chat geschlossen ist.");
         knopf.hidden = true;
       } else if (Notification.permission === "denied") {
         lage.textContent = T("Vom Browser abgelehnt. Das lässt sich nur dort "

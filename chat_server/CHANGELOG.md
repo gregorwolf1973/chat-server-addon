@@ -1,5 +1,30 @@
 # Änderungsverlauf
 
+## 0.46.0
+
+- **Die englische Oberfläche war nur halb englisch.** Rund 200 Texte liefen
+  gar nicht erst durch die Übersetzung und blieben deutsch stehen – unter
+  anderem die ganze Live-Karte („Live-Karte", „Alles/Heute/Morgen/7 Tage",
+  „Meinen Standort verwenden"), das Menü an jeder Nachricht („Antworten",
+  „Weiterleiten"), die Empfehlungen, die Freundesliste, die Emoji-Gruppen,
+  die Hintergrundmuster und ein Großteil der Einstellungen
+- **Elf Hinweistexte standen falsch im Code**: `title=T("…")` lag innerhalb
+  der Zeichenkette statt im Code, sodass der Browser wörtlich `T("Löschen`
+  als Hinweis anzeigte
+- **Datum und Uhrzeit** waren fest auf das deutsche Format eingestellt und
+  blieben es auch im englischen Text. Jetzt richten sie sich nach der
+  gewählten Sprache
+- Vier englische Sätze nannten noch die **deutschen Menünamen** („Termine",
+  „In Karten öffnen"), obwohl das Menü daneben englisch beschriftet war
+- Die Emoji-Gruppe „Aktivitaet" hieß ohne Umlaut
+- Im Dialog „Neue Abstimmung" heißt die Beschriftung jetzt
+  **„Antwortmöglichkeiten"**. Vorher stand dort „Antworten" – dasselbe Wort
+  wie am Knopf zum Zurückschreiben, was sich nicht in zwei verschiedene
+  englische Wörter übersetzen ließ
+- **Neue Testreihe `test_sprache`** (16 Prüfungen), die genau das künftig
+  abfängt: sie besteht nur, wenn jeder Oberflächentext durch die
+  Übersetzung läuft und für jeden Schlüssel eine englische Fassung vorliegt
+
 ## 0.45.0
 
 - **Die Installation lädt jetzt ein fertiges Abbild** aus der

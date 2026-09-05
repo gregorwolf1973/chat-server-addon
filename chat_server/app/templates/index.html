@@ -75,7 +75,7 @@
         <span style="flex:1"></span>
         <button class="icon-btn" id="btn-meine-galerie"
                 title="{{ t('Deine Bilder und Filme') }}">{{ t("Galerie") }}</button>
-        <button class="icon-btn" id="btn-freunde" title="Freunde">{{ t("Freunde") }}</button>
+        <button class="icon-btn" id="btn-freunde" title="{{ t('Freunde') }}">{{ t("Freunde") }}</button>
         <button class="icon-btn" id="btn-settings" title="{{ t('Einstellungen') }}">…<span
           class="antrags-zahl" id="antrags-zahl" hidden></span></button>
       </footer>
@@ -88,7 +88,7 @@
         <div class="kopf-namen">
           <div class="titelzeile">
             <div class="title" id="room-title"></div>
-            <button class="galerie-link" id="btn-galerie" hidden>🎞️ Galerie</button>
+            <button class="galerie-link" id="btn-galerie" hidden>🎞️ {{ t("Galerie") }}</button>
           </div>
           <div class="sub" id="room-sub"></div>
         </div>
@@ -104,7 +104,7 @@
 
       <div class="suchleiste" id="suchleiste" hidden>
         <input id="suche-feld" name="suche" type="search" autocomplete="off"
-               aria-label="Im Verlauf suchen"
+               aria-label="{{ t('Im Verlauf suchen') }}"
                data-1p-ignore data-lpignore="true" data-bwignore="true"
                data-form-type="other"
                placeholder="{{ t('Im Verlauf suchen …') }}">
@@ -135,9 +135,9 @@
       </div>
 
       <div class="anhang-menue" id="anhang-menue" hidden>
-        <button type="button" data-tat="datei"><span>📎</span>Datei oder Bild</button>
-        <button type="button" data-tat="ort"><span>📍</span>Standort senden</button>
-        <button type="button" data-tat="live"><span>🛰️</span>Standort live teilen</button>
+        <button type="button" data-tat="datei"><span>📎</span>{{ t("Datei oder Bild") }}</button>
+        <button type="button" data-tat="ort"><span>📍</span>{{ t("Standort senden") }}</button>
+        <button type="button" data-tat="live"><span>🛰️</span>{{ t("Standort live teilen") }}</button>
         <button type="button" data-tat="abstimmung"><span>📊</span>{{ t("Abstimmung") }}</button>
         <button type="button" data-tat="event"><span>📅</span>{{ t("Einladung") }}</button>
       </div>
@@ -147,7 +147,7 @@
         <span class="aufnahme-text">{{ t("Halten zum Aufnehmen – Loslassen schickt ab") }}</span>
         <span class="aufnahme-zeit" id="aufnahme-zeit">0:00</span>
         <span style="flex:1"></span>
-        <button class="btn ghost klein" id="aufnahme-weg">Verwerfen</button>
+        <button class="btn ghost klein" id="aufnahme-weg">{{ t("Verwerfen") }}</button>
       </div>
 
       <div class="composer" id="composer" hidden>
@@ -176,7 +176,7 @@
     <div class="schau-buehne" id="schau-buehne"></div>
     <button class="schau-pfeil links" id="schau-zurueck"
             title="{{ t('Zurück') }}">‹</button>
-    <button class="schau-pfeil rechts" id="schau-vor" title="Weiter">›</button>
+    <button class="schau-pfeil rechts" id="schau-vor" title="{{ t('Weiter') }}">›</button>
     <div class="schau-leiste" id="schau-leiste"></div>
   </div>
 
@@ -186,8 +186,8 @@
       <div class="ar-titel" id="ruf-titel">{{ t("Anruf") }}</div>
       <div class="ar-sub" id="ruf-sub"></div>
     </div>
-    <button class="btn ghost klein" id="ruf-ablehnen">Ablehnen</button>
-    <button class="btn klein" id="ruf-annehmen">Annehmen</button>
+    <button class="btn ghost klein" id="ruf-ablehnen">{{ t("Ablehnen") }}</button>
+    <button class="btn klein" id="ruf-annehmen">{{ t("Annehmen") }}</button>
   </div>
 
   <div class="anruf-fenster" id="anruf-fenster" hidden>

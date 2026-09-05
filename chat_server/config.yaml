@@ -1,5 +1,5 @@
 name: Chat Server
-version: "0.45.0"
+version: "0.46.0"
 slug: chat_server
 # Fertige Abbilder aus der GitHub-Registrierung. Ohne diese Zeile baut
 # jedes Geraet selbst - auf einem Pi dauert das viele Minuten.

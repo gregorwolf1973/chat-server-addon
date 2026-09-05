@@ -158,7 +158,7 @@ DATA_DIR=/tmp/chat ADMIN_USER=admin ADMIN_PASSWORD=test1234 python server.py
 Danach steht der Chat auf `http://127.0.0.1:8099`. `run.sh` und bashio werden
 dafür nicht gebraucht.
 
-**Testreihen** — 18 Stück, rund 770 Prüfungen. Jede braucht einen frisch
+**Testreihen** — 19 Stück, gut 800 Prüfungen. Jede braucht einen frisch
 gestarteten Server auf einem leeren `DATA_DIR`:
 
 ```bash
