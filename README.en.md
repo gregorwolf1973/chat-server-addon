@@ -65,7 +65,7 @@ Raspberry Pi is enough.
 
 ## Installing
 
-1. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ →
+1. In Home Assistant: **Settings → Apps → Install app → ⋮ →
    Repositories**, add
    `https://github.com/gregorwolf1973/chat-server-addon`
    (or use the button above).

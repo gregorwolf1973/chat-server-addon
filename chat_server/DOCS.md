@@ -67,7 +67,7 @@ die ersten beiden Abschnitte.
 
 ## Installation
 
-1. In Home Assistant: **Einstellungen → Add-ons → Add-on Store → ⋮ → Repositories**
+1. In Home Assistant: **Einstellungen → Apps → Install app → ⋮ → Repositories**
    und `https://github.com/gregorwolf1973/chat-server-addon` hinzufügen.
 2. „Chat Server“ installieren, unter **Konfiguration** `admin_user` und
    `admin_password` setzen, starten.
