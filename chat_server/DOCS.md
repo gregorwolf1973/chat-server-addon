@@ -9,6 +9,8 @@ auf einem Raspberry Pi; alle Daten bleiben in `/data`.
 Dieses Handbuch beschreibt **jede** Funktion. Wer nur loslegen will, braucht
 die ersten beiden Abschnitte.
 
+🇬🇧 [This manual in English](./DOCS.en.md)
+
 ## Wo steht was
 
 **Einrichten**

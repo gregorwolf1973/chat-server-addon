@@ -1,5 +1,12 @@
 # Änderungsverlauf
 
+## 0.43.1
+
+- **Englische Doku**: `README.en.md` und `chat_server/DOCS.en.md`, gegenseitig
+  mit den deutschen Fassungen verlinkt. Beide sagen ausdrücklich, dass die
+  **Oberfläche weiterhin deutsch** ist – wo ein Knopf gemeint ist, steht seine
+  deutsche Beschriftung dabei
+
 ## 0.43.0
 
 **Achtung:** Der voreingestellte Name der Oberfläche ist jetzt **„Chat"**

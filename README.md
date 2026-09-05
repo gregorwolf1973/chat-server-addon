@@ -7,6 +7,8 @@ Raspberry Pi.
 
 [![Repository zu Home Assistant hinzufügen](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fgregorwolf1973%2Fchat-server-addon)
 
+🇬🇧 [This page in English](./README.en.md)
+
 > **Sprache:** Die Oberfläche ist auf Deutsch. Eine Übersetzung gibt es bisher
 > nicht.
 

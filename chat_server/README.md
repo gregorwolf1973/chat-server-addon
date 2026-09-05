@@ -10,6 +10,10 @@ Telefonnummern.
 
 > **Die ausführliche Anleitung steht im Reiter „Dokumentation".** Dort ist
 > jede Funktion beschrieben — hier stehen nur die ersten Schritte.
+>
+> 🇬🇧 English: [README.en.md](https://github.com/gregorwolf1973/chat-server-addon/blob/main/README.en.md)
+> · [DOCS.en.md](https://github.com/gregorwolf1973/chat-server-addon/blob/main/chat_server/DOCS.en.md)
+> — note that the **user interface is German only**.
 
 ## Loslegen
 
