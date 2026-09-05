@@ -157,6 +157,25 @@ der Chat-Server die Nachricht ablehnt. Der Grund steht im **Add-on-Protokoll**
 | `abgelehnt: weder Gruppe noch Person mit dem Namen '…'` | Der Name unter `room` stimmt nicht; das Protokoll listet die vorhandenen Gruppen auf |
 | `zugestellt, 0 benachrichtigt` | Angekommen, aber niemand wurde benachrichtigt – alle hatten den Chat offen. Mit `"always": true` klingelt es trotzdem |
 
+## Passwort vergessen
+
+Unter dem Anmeldeformular steht **Passwort vergessen?**. Eine Mail verschickt
+dieser Chat nicht – stattdessen erfährt der **Administrator** davon:
+
+1. Du gibst deinen Benutzernamen ein und schickst ab
+2. Alle Administratoren bekommen eine Push-Nachricht, und der Antrag steht
+   unter *Einstellungen → Benutzer verwalten* ganz oben
+3. Dort liegt neben dem Namen **Neues Passwort** – der Administrator setzt
+   eins und sagt dir, wie es lautet. Damit ist die Bitte erledigt. **Erledigt**
+   hakt sie ab, ohne etwas zu ändern
+
+Ob es das Konto gibt oder nicht, **die Antwort ist immer dieselbe**. Sonst
+ließe sich hier durchprobieren, welche Benutzernamen vergeben sind. Drei
+Bitten je Stunde und Absender, dann ist Schluss.
+
+Am Passwortfeld selbst steht **Zeigen** – falls du dir nicht sicher bist, ob
+du dich vertippt hast.
+
 ## Zugang beantragen
 
 Auf der Anmeldeseite steht **Zugang beantragen**. Wer das ausfüllt, gibt
@@ -782,6 +801,19 @@ wenn jemand schreibt, worauf er Lust hätte.
 Alle Schaltflächen sind auf Berührungsgeräten mindestens **44 Pixel** hoch –
 darunter trifft ein Finger nicht mehr verlässlich. Das gilt nur dort: mit der
 Maus bleibt die Oberfläche kompakt.
+
+**Dialoge füllen den ganzen Bildschirm.** Ein 400 Pixel breites Fenster
+mitten auf einem schmalen Display lässt ringsum Luft und innen zu wenig Platz;
+auf dem Telefon nimmt ein Dialog deshalb die ganze Fläche, wie eine eigene
+Seite. Die Knopfreihe bleibt dabei unten stehen. Eingabefelder sind 16 Pixel
+groß – bei kleinerer Schrift zoomt iOS beim Antippen hinein und der Rest der
+Seite verrutscht.
+
+**Beim ersten Öffnen** fragt ein Streifen einmal nach allen Erlaubnissen
+zusammen: Benachrichtigungen, Mikrofon, Kamera, Standort. Von selbst geht das
+nicht – Browser verlangen für jede dieser Fragen eine Berührung, und ein
+Fenster, das ungefragt aufspringt, gilt als abgelehnt. Wer wegtippt, wird
+nicht wieder gefragt; einschalten geht später in den Einstellungen.
 
 **Im Querformat** rücken die Knöpfe eines Anrufs über das Videobild statt
 darunter: bei liegendem Telefon bleibt sonst nicht genug Höhe, und die Kacheln

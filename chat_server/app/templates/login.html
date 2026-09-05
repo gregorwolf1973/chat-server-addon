@@ -26,11 +26,14 @@
         </div>
         <button class="btn" type="submit">Anmelden</button>
       </form>
+      <p class="hint"><a href="{{ url_for('passwort_vergessen') }}">Passwort
+        vergessen?</a></p>
       {% if registration_open %}
       <p class="hint">Noch kein Konto?
         <a href="{{ url_for('register_page') }}">Zugang beantragen</a></p>
       {% endif %}
     </div>
   </div>
+  <script src="{{ statisch('login.js') }}"></script>
 </body>
 </html>

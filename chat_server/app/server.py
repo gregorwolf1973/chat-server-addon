@@ -220,6 +220,14 @@ CREATE TABLE IF NOT EXISTS poll_votes (
 -- Serverweite Einstellungen. Bisher steht nur der Anzeigename darin; die
 -- Tabelle ist der Platz fuer alles Weitere, was allen gemeinsam gehoert und
 -- nicht am einzelnen Konto haengt.
+-- Wer sein Passwort vergessen hat, hinterlaesst hier eine Bitte. Eine je
+-- Person: ein zweites Mal fragen verschiebt nur den Zeitpunkt. Zuruecksetzen
+-- kann sie nur ein Administrator - per Mail ginge es nicht, das Add-on
+-- verschickt keine.
+CREATE TABLE IF NOT EXISTS passwort_bitten (
+    user_id INTEGER PRIMARY KEY,
+    created_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS einstellungen (
     schluessel TEXT PRIMARY KEY,
     wert TEXT
@@ -1043,6 +1051,14 @@ def _standort_aus_anfrage():
     return (lat, lon)
 
 
+def offene_bitten(conn=None):
+    """Wie viele Leute gerade auf ein neues Passwort warten."""
+    conn = conn or db()
+    return conn.execute(
+        "SELECT COUNT(*) c FROM passwort_bitten b"
+        " JOIN users u ON u.id=b.user_id WHERE u.active=1").fetchone()["c"]
+
+
 def offene_antraege(conn=None):
     """Wie viele Zugangsantraege noch auf eine Antwort warten.
 
@@ -1251,7 +1267,8 @@ ANTRAEGE_PRO_STUNDE = 3
 ANTRAEGE_OFFEN_MAX = 20
 
 
-def zu_viele_antraege(adresse):
+def zu_viele_antraege(adresse, grenze=None):
+    grenze = ANTRAEGE_PRO_STUNDE if grenze is None else grenze
     jetzt = time.time()
     with ANTRAEGE_LOCK:
         frisch = [t for t in ANTRAEGE.get(adresse, []) if jetzt - t < 3600]
@@ -1259,7 +1276,7 @@ def zu_viele_antraege(adresse):
         for schluessel in [k for k, v in ANTRAEGE.items()
                            if all(jetzt - t >= 3600 for t in v)]:
             ANTRAEGE.pop(schluessel, None)
-        if len(frisch) >= ANTRAEGE_PRO_STUNDE:
+        if len(frisch) >= grenze:
             ANTRAEGE[adresse] = frisch
             return True
         frisch.append(jetzt)
@@ -1414,6 +1431,71 @@ def versuche_vergessen(*schluessel):
             VERSUCHE.pop(k, None)
 
 
+# Wer sein Passwort vergessen hat, kann es sich nicht selbst schicken lassen -
+# das Add-on verschickt keine Mail. Stattdessen erfaehrt der Administrator
+# davon und setzt es zurueck. Dieselbe Bremse wie bei den Zugangsantraegen,
+# damit daraus keine Flut wird.
+BITTEN_PRO_STUNDE = 3
+
+
+@app.route("/passwort-vergessen", methods=["GET", "POST"])
+def passwort_vergessen():
+    """Bitte um ein neues Passwort - der Administrator setzt es zurueck."""
+    if request.method == "GET":
+        return render_template("vergessen.html")
+
+    name = (request.form.get("username") or "").strip().lower()
+    if zu_viele_antraege(_absender(), BITTEN_PRO_STUNDE):
+        log.warning("Passwortbitte gebremst fuer %r", name or "(leer)")
+        return render_template(
+            "vergessen.html",
+            error="Zu viele Anfragen. Bitte warte eine Stunde."), 429
+
+    conn = db()
+    row = conn.execute(
+        "SELECT id, display_name FROM users"
+        " WHERE lower(username)=? AND active=1 AND pending=0", (name,)).fetchone()
+    # Immer dieselbe Antwort, ob es das Konto gibt oder nicht. Sonst liesse
+    # sich hier durchprobieren, welche Benutzernamen vergeben sind.
+    if row is not None:
+        conn.execute("INSERT INTO passwort_bitten (user_id, created_at)"
+                     " VALUES (?,?) ON CONFLICT(user_id) DO UPDATE"
+                     " SET created_at=excluded.created_at",
+                     (row["id"], int(time.time())))
+        conn.commit()
+        admins = [r["id"] for r in conn.execute(
+            "SELECT id FROM users WHERE is_admin=1 AND active=1").fetchall()]
+        ziel = f"{EXTERNAL_URL}/" if EXTERNAL_URL else "./"
+        push_to_users(admins, "Passwort vergessen",
+                      f"{row['display_name']} braucht ein neues Passwort", ziel)
+        socketio.emit("passwort_bitte", {"name": row["display_name"]})
+        log.info("Passwortbitte von Nutzer %s", row["id"])
+    return render_template("vergessen.html", done=True)
+
+
+@app.get("/api/passwort-bitten")
+@admin_required
+def api_passwort_bitten():
+    """Wer wartet auf ein neues Passwort."""
+    rows = db().execute(
+        "SELECT b.user_id, b.created_at, u.display_name, u.username, u.email"
+        " FROM passwort_bitten b JOIN users u ON u.id=b.user_id"
+        " WHERE u.active=1 ORDER BY b.created_at", ()).fetchall()
+    return jsonify([{"user_id": r["user_id"], "name": r["display_name"],
+                     "username": r["username"], "email": r["email"] or "",
+                     "at": r["created_at"]} for r in rows])
+
+
+@app.delete("/api/passwort-bitten/<int:user_id>")
+@admin_required
+def api_passwort_bitte_weg(user_id):
+    """Die Bitte abhaken, ohne das Passwort zu aendern."""
+    conn = db()
+    conn.execute("DELETE FROM passwort_bitten WHERE user_id=?", (user_id,))
+    conn.commit()
+    return jsonify({"ok": True})
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login_page():
     if request.method == "POST":
@@ -1531,6 +1613,7 @@ def api_state():
                "karten_app": me["karten_app"] or "geraet",
                "klingelton": me["klingelton"] or "klassisch",
                "antraege": offene_antraege(conn) if me["is_admin"] else 0,
+               "bitten": offene_bitten(conn) if me["is_admin"] else 0,
                "geburtstage_an": bool(me["geburtstage_an"]),
                "gesehen": gesehen_lesen(me)},
         "anzeigename": anzeigename(),
@@ -1853,6 +1936,8 @@ def api_reset_password(user_id):
                                  f"{MIN_PASSWORD} Zeichen."}), 400
     db().execute("UPDATE users SET pw_hash=?, pw_version=pw_version+1 WHERE id=?",
                  (generate_password_hash(new), user_id))
+    # Wer ein neues Passwort bekommen hat, wartet nicht mehr darauf
+    db().execute("DELETE FROM passwort_bitten WHERE user_id=?", (user_id,))
     db().commit()
     if row["id"] == session.get("uid"):
         session["pwv"] = row["pw_version"] + 1  # eigene Sitzung weiterlaufen lassen

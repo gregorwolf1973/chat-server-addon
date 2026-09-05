@@ -5112,6 +5112,24 @@
     // Der letzte verbliebene Administrator darf sich nicht selbst entmachten -
     // dann gaebe es niemanden mehr, der Konten verwaltet.
     const letzterAdmin = users.filter((u) => u.is_admin && u.active).length <= 1;
+    let bitten = [];
+    const bRes = await api("/api/passwort-bitten");
+    if (bRes.ok) bitten = await bRes.json();
+    const bittenHtml = bitten.length ? `<div class="bitten">
+      <h3>Passwort vergessen <span class="chip warn">${bitten.length}</span></h3>
+      ${bitten.map((b) => `<div class="urow bitte" data-id="${b.user_id}">
+        <div class="uinfo">
+          <span class="uname">${esc(b.name)}</span>
+          <span class="utag">@${esc(b.username)}</span>
+          ${b.email ? `<a class="kontakt" href="mailto:${esc(b.email)}">${esc(b.email)}</a>` : ""}
+          <span class="utag">${esc(shortTime(b.at))}</span>
+        </div>
+        <div class="uacts">
+          <button class="act ok" data-act="pw">Neues Passwort</button>
+          <button class="act" data-act="bitte-weg">Erledigt</button>
+        </div>
+      </div>`).join("")}
+    </div>` : "";
     const antragsHtml = antraege.length ? `<div class="antraege">
       <h3>Zugangsanträge <span class="chip warn">${antraege.length}</span></h3>
       ${antraege.map((u) => `<div class="urow antrag" data-id="${u.id}">
@@ -5128,7 +5146,7 @@
         </div>
       </div>`).join("")}
     </div>` : "";
-    box.innerHTML = antragsHtml + users.map((u) => {
+    box.innerHTML = bittenHtml + antragsHtml + users.map((u) => {
       const selbst = u.id === ME;
       const schuetzen = selbst || (u.is_admin && letzterAdmin);
       return `
@@ -5181,6 +5199,9 @@
       } else if (btn.dataset.act === "active") {
         ok = await adminCall(`/api/users/${id}`, json({active: !user.active}),
                              user.active ? "Konto gesperrt." : "Konto entsperrt.");
+      } else if (btn.dataset.act === "bitte-weg") {
+        ok = await adminCall(`/api/passwort-bitten/${id}`, {method: "DELETE"},
+                             "Abgehakt.");
       } else if (btn.dataset.act === "del") {
         if (!confirm(`Konto „${user.display_name}“ endgültig löschen?\n\n`
                      + "Die Nachrichten bleiben im Verlauf stehen, erscheinen aber "
@@ -5469,13 +5490,21 @@
   function antraegeZeigen() {
     const zahl = $("antrags-zahl");
     if (!zahl) return;
-    const offen = (state.me && state.me.antraege) || 0;
+    const antraege = (state.me && state.me.antraege) || 0;
+    const bitten = (state.me && state.me.bitten) || 0;
+    const offen = antraege + bitten;
     zahl.hidden = !offen;
     zahl.textContent = offen || "";
-    $("btn-settings").title = offen
-      ? `Einstellungen – ${offen} ${offen === 1 ? "Zugangsantrag wartet"
-          : "Zugangsanträge warten"}`
-      : "Einstellungen";
+    const teile = [];
+    if (antraege) {
+      teile.push(`${antraege} ${antraege === 1 ? "Zugangsantrag"
+                                              : "Zugangsanträge"}`);
+    }
+    if (bitten) {
+      teile.push(`${bitten} mal Passwort vergessen`);
+    }
+    $("btn-settings").title = teile.length
+      ? `Einstellungen – ${teile.join(", ")}` : "Einstellungen";
   }
 
   /** Den Namen der Oberfläche überall setzen, ohne Neuladen. */
@@ -5488,6 +5517,90 @@
   }
 
   socket.on("name_geaendert", (d) => namenSetzen(d && d.name));
+
+  /**
+   * Einmal beim ersten Öffnen nach allen Erlaubnissen fragen.
+   *
+   * Nicht von selbst: Browser verlangen für jede dieser Fragen eine echte
+   * Berührung, und ein Fenster, das ungefragt aufspringt, wird stumm
+   * abgelehnt - danach steht "nein" fest. Deshalb steht einmal ein Streifen
+   * da, und erst der Tipp darauf holt die Fragen nacheinander.
+   */
+  const ERLAUBT_GEFRAGT = "erlaubnisse-gefragt";
+
+  function erlaubnisseNoetig() {
+    if (!sichererKontext()) return [];
+    const offen = [];
+    if ("Notification" in window && Notification.permission === "default") {
+      offen.push("nachrichten");
+    }
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      offen.push("mikrofon", "kamera");
+    }
+    if (navigator.geolocation) offen.push("standort");
+    return offen;
+  }
+
+  async function erlaubnisseHolen() {
+    const schritte = [];
+    if ("Notification" in window && Notification.permission === "default") {
+      schritte.push(["Benachrichtigungen", async () => {
+        await pushEinschalten(false);
+      }]);
+    }
+    schritte.push(["Mikrofon", async () => {
+      const strom = await navigator.mediaDevices.getUserMedia({audio: true});
+      strom.getTracks().forEach((s) => s.stop());
+    }]);
+    schritte.push(["Kamera", async () => {
+      const strom = await navigator.mediaDevices.getUserMedia({video: true});
+      strom.getTracks().forEach((s) => s.stop());
+    }]);
+    schritte.push(["Standort", () => new Promise((fertig) => {
+      navigator.geolocation.getCurrentPosition(() => fertig(), () => fertig(),
+                                               {timeout: 12000});
+    })]);
+
+    for (const [name, tun] of schritte) {
+      toast(`${name} …`);
+      try {
+        await tun();
+      } catch (err) {
+        // Abgelehnt oder nicht vorhanden - das ist in Ordnung, weiter geht es
+      }
+    }
+    toast("Fertig. Ändern kannst du das jederzeit im Browser.");
+  }
+
+  function erlaubnisStreifenZeigen() {
+    if ($("erlaubnis-streifen")) return;
+    const streifen = document.createElement("div");
+    streifen.id = "erlaubnis-streifen";
+    streifen.className = "push-streifen";
+    streifen.innerHTML = `<span>Einmal alles freigeben – Benachrichtigungen,
+      Mikrofon, Kamera und Standort? Ohne sie fehlen Anrufe, Sprachnachrichten
+      und die Karte.</span>
+      <button class="btn" id="erl-ja">Freigeben</button>
+      <button class="icon-btn" id="erl-nein" title="Später">✕</button>`;
+    document.body.appendChild(streifen);
+    const weg = () => {
+      try { localStorage.setItem(ERLAUBT_GEFRAGT, "1"); } catch (err) { /* egal */ }
+      streifen.remove();
+    };
+    $("erl-ja").addEventListener("click", async () => {
+      weg();
+      await erlaubnisseHolen();
+    });
+    $("erl-nein").addEventListener("click", weg);
+  }
+
+  function erlaubnisseBeimStart() {
+    let gefragt = null;
+    try { gefragt = localStorage.getItem(ERLAUBT_GEFRAGT); } catch (err) { /* egal */ }
+    if (gefragt) return;
+    if (!erlaubnisseNoetig().length) return;
+    erlaubnisStreifenZeigen();
+  }
 
   // ---------- Push ----------
   const b64 = (s) => {
@@ -5692,6 +5805,12 @@
   loadState().then(() => {
     const wanted = parseInt(new URLSearchParams(location.search).get("room"), 10);
     if (wanted && roomById(wanted)) openRoom(wanted);
-    pushBeimStart();
+    // Der eine Streifen fragt alles auf einmal ab - der reine Push-Streifen
+    // waere daneben eine zweite Nachfrage zum selben Thema.
+    let schonGefragt = null;
+    try {
+      schonGefragt = localStorage.getItem(ERLAUBT_GEFRAGT);
+    } catch (err) { /* privates Fenster */ }
+    if (schonGefragt) pushBeimStart(); else erlaubnisseBeimStart();
   });
 })();

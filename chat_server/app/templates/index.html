@@ -87,7 +87,7 @@
         <div class="kopf-namen">
           <div class="titelzeile">
             <div class="title" id="room-title"></div>
-            <button class="galerie-link" id="btn-galerie" hidden>🖼 Galerie</button>
+            <button class="galerie-link" id="btn-galerie" hidden>🎞️ Galerie</button>
           </div>
           <div class="sub" id="room-sub"></div>
         </div>
@@ -102,7 +102,10 @@
       </div>
 
       <div class="suchleiste" id="suchleiste" hidden>
-        <input id="suche-feld" type="search" autocomplete="off"
+        <input id="suche-feld" name="suche" type="search" autocomplete="off"
+               aria-label="Im Verlauf suchen"
+               data-1p-ignore data-lpignore="true" data-bwignore="true"
+               data-form-type="other"
                placeholder="Im Verlauf suchen …">
         <label class="check schmal"><input type="checkbox" id="suche-alle">
           Alle Unterhaltungen</label>

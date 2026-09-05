@@ -1010,8 +1010,8 @@ audio.abspieler { width: min(260px, 100%); }
 .ort { margin-bottom: 6px; }
 .ortskarte {
   position: relative;
-  width: min(300px, 68vw);
-  aspect-ratio: 1.6;
+  width: min(380px, 78vw);
+  aspect-ratio: 1.45;
   background: var(--kartengrund);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1143,7 +1143,7 @@ audio.abspieler { width: min(260px, 100%); }
 .grosskarte {
   position: relative;
   width: 100%;
-  aspect-ratio: 1.6;
+  aspect-ratio: 1.25;
   background: var(--kartengrund);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1307,13 +1307,17 @@ audio.abspieler { width: min(260px, 100%); }
 /* ---------- Straßenkarte (Leaflet) ---------- */
 .echtkarte {
   width: 100%;
-  height: min(420px, 52vh);
+  /* Die Karte ist das Wichtigste in diesem Fenster - sie darf den Platz
+     nehmen. Die Listen darunter erreicht man durch Scrollen. */
+  height: min(640px, 68vh);
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--kartengrund);
 }
 .ev-kartenflaeche { margin: 8px 0 0; }
-.ev-kartenflaeche .echtkarte { height: min(300px, 42vh); }
+/* Beim Ort-Aussuchen im Einladungsdialog: dort steht darunter noch ein
+   Formular, deshalb weniger hoch - aber mehr als vorher. */
+.ev-kartenflaeche .echtkarte { height: min(420px, 52vh); }
 /* Leaflet gibt dem Symbol sonst weissen Grund und einen Rahmen. Die Huelle
    bleibt absichtlich ohne Groesse: Leaflet setzt sie auf den Punkt, und der
    Inhalt zentriert sich per translate darauf. */
@@ -2452,4 +2456,68 @@ a.btn {
   font-weight: 700;
   line-height: 16px;
   text-align: center;
+}
+
+/* ---------- Auge am Passwortfeld ---------- */
+.field.mit-auge { position: relative; }
+.field.mit-auge input { padding-right: 84px; }
+.auge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.auge:hover { color: var(--text); border-color: var(--accent); }
+
+/* ---------- Offene Anliegen in der Verwaltung ---------- */
+.bitten { margin-bottom: 14px; }
+.bitten h3 { margin: 0 0 8px; font-size: 14px; }
+.urow.bitte { border-left: 3px solid var(--accent); }
+
+/* ---------- Dialoge auf dem Handy ---------- */
+/* Ein 400 Pixel breites Fenster mitten auf einem schmalen Bildschirm lässt
+   ringsum Luft und innen zu wenig Platz. Auf dem Telefon nimmt ein Dialog
+   deshalb die ganze Fläche - so wie eine eigene Seite. */
+@media (max-width: 720px) {
+  .modal-bg {
+    padding: 0;
+    place-items: stretch;
+  }
+  .modal,
+  .modal.wide,
+  .modal.hoch {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+  /* Die Knopfreihe bleibt unten am Rand stehen, statt weit oben zu hängen */
+  .modal > .row:last-child {
+    position: sticky;
+    bottom: calc(-18px - env(safe-area-inset-bottom));
+    margin-top: auto;
+    padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+    background: var(--surface);
+  }
+  .modal { display: flex; flex-direction: column; }
+  .modal h2 { font-size: 19px; }
+  /* Mehr Luft zum Tippen */
+  .modal .field { margin-bottom: 14px; }
+  .modal input,
+  .modal select,
+  .modal textarea { padding: 11px 12px; font-size: 16px; }
+  .media-body { max-height: none; }
+  .user-list { max-height: none; }
+  .echtkarte { height: min(520px, 58vh); }
 }

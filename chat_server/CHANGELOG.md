@@ -1,5 +1,26 @@
 # Änderungsverlauf
 
+## 0.42.0
+
+- **Passwort anzeigen**: ein „Zeigen"-Knopf im Passwortfeld, auf der
+  Anmeldeseite und beim Zugangsantrag
+- **Passwort vergessen**: ein Verweis unter der Anmeldung. Weil das Add-on
+  keine Mail verschickt, erfährt der Administrator davon – per Push und als
+  Eintrag in der Benutzerverwaltung, mit *Neues Passwort* und *Erledigt*
+  daneben. Die Zahl am Zahnrad zählt beides zusammen. Ein erfundener Name
+  bekommt dieselbe Antwort wie ein echter, damit sich nicht durchprobieren
+  lässt, welche Konten es gibt
+- **Dialoge füllen auf dem Handy den ganzen Bildschirm** statt als schmales
+  Fenster mittendrin zu stehen. Eingabefelder sind 16 Pixel groß – kleiner,
+  und iOS zoomt beim Antippen hinein
+- **Einmal beim ersten Öffnen** fragt ein Streifen nach allen Erlaubnissen
+  auf einmal: Benachrichtigungen, Mikrofon, Kamera, Standort
+- **Karten größer**: die Live-Karte nimmt jetzt zwei Drittel der Fensterhöhe
+  statt gut der Hälfte, die Ortsvorschau in Nachrichten ist ebenfalls gewachsen
+- **Das Suchfeld** brachte Passwortverwalter dazu, ein Passwort anbieten zu
+  wollen
+- **Galeriesymbol** ist jetzt 🎞️
+
 ## 0.41.0
 
 **Achtung, eine Änderung, die etwas kaputt machen kann:** Das API-Token wird
