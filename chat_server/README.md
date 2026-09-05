@@ -8,6 +8,8 @@ Push-Benachrichtigungen aufs Handy.
 Alles bleibt auf deiner Hardware. Keine Konten bei fremden Anbietern, keine
 Telefonnummern.
 
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/gregorwolf1973)
+
 > **Die ausführliche Anleitung steht im Reiter „Dokumentation".** Dort ist
 > jede Funktion beschrieben — hier stehen nur die ersten Schritte.
 >

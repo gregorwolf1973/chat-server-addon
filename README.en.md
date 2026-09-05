@@ -9,6 +9,8 @@ Raspberry Pi is enough.
 
 🇩🇪 [Diese Seite auf Deutsch](./README.md)
 
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/gregorwolf1973)
+
 > **Language note:** the **user interface is German only**. This
 > documentation is in English so you can judge whether the project fits, but
 > the app itself has not been translated yet. If that matters to you, please

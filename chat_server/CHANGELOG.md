@@ -1,5 +1,10 @@
 # Änderungsverlauf
 
+## 0.43.2
+
+- **„Buy Me A Coffee"-Knopf** wie im EasyNAS-Add-on – im Repository, in der
+  englischen Fassung und im Info-Reiter des Add-ons
+
 ## 0.43.1
 
 - **Englische Doku**: `README.en.md` und `chat_server/DOCS.en.md`, gegenseitig
