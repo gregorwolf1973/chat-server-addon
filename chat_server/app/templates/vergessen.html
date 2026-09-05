@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ sprache }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Passwort vergessen</title>
+  <title>{{ t("Passwort vergessen") }}</title>
   <link rel="icon" href="{{ statisch('favicon.png') }}" type="image/png">
   <link rel="apple-touch-icon" href="{{ statisch('icon-180.png') }}">
   <link rel="stylesheet" href="{{ statisch('style.css') }}">
@@ -12,28 +12,23 @@
   <div class="login-wrap">
     <div class="login-card">
       <img class="brand-logo" src="{{ statisch('icon-192.png') }}" alt="">
-      <h1>Passwort vergessen</h1>
+      <h1>{{ t("Passwort vergessen") }}</h1>
       {% if done %}
-        <p class="sub">Danke – die Nachricht ist raus.</p>
-        <p class="hint">Wenn es das Konto gibt, weiß der Administrator jetzt
-          Bescheid und setzt dir ein neues Passwort. Er sagt dir, wie es
-          lautet.</p>
-        <p class="hint"><a href="{{ url_for('login_page') }}">Zurück zur
-          Anmeldung</a></p>
+        <p class="sub">{{ t("Danke – die Nachricht ist raus.") }}</p>
+        <p class="hint">{{ t("Wenn es das Konto gibt, weiß der Administrator jetzt Bescheid und setzt dir ein neues Passwort. Er sagt dir, wie es lautet.") }}</p>
+        <p class="hint"><a href="{{ url_for('login_page') }}">{{ t("Zurück zur Anmeldung") }}</a></p>
       {% else %}
-        <p class="sub">Dieser Chat verschickt keine Mail. Stattdessen erfährt
-          der Administrator davon und setzt dir ein neues Passwort.</p>
+        <p class="sub">{{ t("Dieser Chat verschickt keine Mail. Stattdessen erfährt der Administrator davon und setzt dir ein neues Passwort.") }}</p>
         {% if error %}<div class="error">{{ error }}</div>{% endif %}
         <form method="post">
           <div class="field">
-            <label for="username">Dein Benutzername</label>
+            <label for="username">{{ t("Dein Benutzername") }}</label>
             <input id="username" name="username" autocomplete="username"
                    autofocus required>
           </div>
-          <button class="btn" type="submit">Administrator benachrichtigen</button>
+          <button class="btn" type="submit">{{ t("Administrator benachrichtigen") }}</button>
         </form>
-        <p class="hint"><a href="{{ url_for('login_page') }}">Zurück zur
-          Anmeldung</a></p>
+        <p class="hint"><a href="{{ url_for('login_page') }}">{{ t("Zurück zur Anmeldung") }}</a></p>
       {% endif %}
     </div>
   </div>

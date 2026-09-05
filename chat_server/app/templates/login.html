@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ sprache }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Anmelden</title>
+  <title>{{ t("Anmelden") }}</title>
   <link rel="icon" href="{{ statisch('favicon.png') }}" type="image/png">
   <link rel="apple-touch-icon" href="{{ statisch('icon-180.png') }}">
   <link rel="stylesheet" href="{{ statisch('style.css') }}">
@@ -13,24 +13,22 @@
     <div class="login-card">
       <img class="brand-logo" src="{{ statisch('icon-192.png') }}" alt="">
       <h1>{{ anzeigename }}</h1>
-      <p class="sub">Melde dich mit deinem Konto an.</p>
+      <p class="sub">{{ t("Melde dich mit deinem Konto an.") }}</p>
       {% if error %}<div class="error">{{ error }}</div>{% endif %}
       <form method="post">
         <div class="field">
-          <label for="username">Benutzername</label>
+          <label for="username">{{ t("Benutzername") }}</label>
           <input id="username" name="username" autocomplete="username" autofocus required>
         </div>
         <div class="field">
-          <label for="password">Passwort</label>
+          <label for="password">{{ t("Passwort") }}</label>
           <input id="password" name="password" type="password" autocomplete="current-password" required>
         </div>
-        <button class="btn" type="submit">Anmelden</button>
+        <button class="btn" type="submit">{{ t("Anmelden") }}</button>
       </form>
-      <p class="hint"><a href="{{ url_for('passwort_vergessen') }}">Passwort
-        vergessen?</a></p>
+      <p class="hint"><a href="{{ url_for('passwort_vergessen') }}">{{ t("Passwort vergessen?") }}</a></p>
       {% if registration_open %}
-      <p class="hint">Noch kein Konto?
-        <a href="{{ url_for('register_page') }}">Zugang beantragen</a></p>
+      <p class="hint">{{ t("Noch kein Konto?") }}<a href="{{ url_for('register_page') }}">{{ t("Zugang beantragen") }}</a></p>
       {% endif %}
     </div>
   </div>

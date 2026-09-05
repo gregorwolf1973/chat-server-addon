@@ -15,6 +15,7 @@ import threading
 import time
 from functools import wraps
 
+import texte
 from flask import (Flask, abort, g, jsonify, redirect, render_template,
                    request, send_file, session, url_for)
 from flask_socketio import SocketIO, emit, join_room
@@ -143,6 +144,7 @@ CREATE TABLE IF NOT EXISTS users (
     blasenfarbe TEXT,
     karten_app TEXT,
     klingelton TEXT,
+    sprache TEXT,
     geburtstage_an INTEGER NOT NULL DEFAULT 1,
     gesehen_karten INTEGER,
     gesehen_stimmung INTEGER,
@@ -436,6 +438,8 @@ def migrate(conn):
         conn.execute("ALTER TABLE users ADD COLUMN karten_app TEXT")
     if "klingelton" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN klingelton TEXT")
+    if "sprache" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN sprache TEXT")
     if "geburtstage_an" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN geburtstage_an"
                      " INTEGER NOT NULL DEFAULT 1")
@@ -673,8 +677,13 @@ def anzeigename():
 @app.context_processor
 def vorlagen_werte():
     """Steht allen Vorlagen zur Verfuegung - etwa fuer den Link zur Anmeldung."""
+    sprache = sprache_jetzt()
     return {"registration_open": ALLOW_REGISTRATION, "statisch": statisch,
             "anzeigename": anzeigename(),
+            "sprache": sprache,
+            # In den Vorlagen steht {{ t("Deutscher Satz") }} - fehlt die
+            # Uebersetzung, bleibt der deutsche Satz stehen.
+            "t": lambda s: texte.uebersetzt(s, sprache),
             "csp_nonce": g.get("csp_nonce", "")}
 
 
@@ -1545,7 +1554,7 @@ def logout():
 def index():
     user = current_user()
     return render_template("index.html", me=dict(user), base=request.script_root,
-                           vapid=VAPID["public_key"])
+                           vapid=VAPID["public_key"], sprache=sprache_jetzt())
 
 
 @app.get("/manifest.webmanifest")
@@ -1612,6 +1621,7 @@ def api_state():
                "blasenfarbe": me["blasenfarbe"],
                "karten_app": me["karten_app"] or "geraet",
                "klingelton": me["klingelton"] or "klassisch",
+               "sprache": me["sprache"] or browsersprache(),
                "antraege": offene_antraege(conn) if me["is_admin"] else 0,
                "bitten": offene_bitten(conn) if me["is_admin"] else 0,
                "geburtstage_an": bool(me["geburtstage_an"]),
@@ -2846,6 +2856,51 @@ def api_set_klingelton():
     conn.execute("UPDATE users SET klingelton=? WHERE id=?", (wahl, session["uid"]))
     conn.commit()
     return jsonify({"ok": True, "ton": wahl})
+
+
+# Deutsch ist die Quelle, Englisch die Uebersetzung. Wo eine fehlt, bleibt
+# der deutsche Satz stehen - das ist immer noch besser als eine Luecke.
+SPRACHEN = ("de", "en")
+
+
+def browsersprache():
+    """Was der Browser mitschickt - nur als Vorgabe, wenn nichts gewaehlt ist."""
+    roh = (request.headers.get("Accept-Language") or "").lower()
+    for stueck in roh.split(","):
+        kennung = stueck.split(";")[0].strip()[:2]
+        if kennung in SPRACHEN:
+            return kennung
+    return "de"
+
+
+def sprache_jetzt():
+    """Die Sprache dieser Anfrage - aus dem Konto, sonst aus dem Browser."""
+    uid = session.get("uid")
+    if uid:
+        row = db().execute("SELECT sprache FROM users WHERE id=?",
+                           (uid,)).fetchone()
+        if row and row["sprache"] in SPRACHEN:
+            return row["sprache"]
+    return browsersprache()
+
+
+@app.post("/api/me/sprache")
+@login_required
+def api_set_sprache():
+    """Welche Sprache die Oberflaeche sprechen soll."""
+    wahl = (request.get_json(force=True).get("sprache") or "").strip().lower()
+    if wahl not in SPRACHEN:
+        return jsonify({"error": "Diese Sprache gibt es nicht."}), 400
+    conn = db()
+    conn.execute("UPDATE users SET sprache=? WHERE id=?", (wahl, session["uid"]))
+    conn.commit()
+    return jsonify({"ok": True, "sprache": wahl})
+
+
+@app.get("/api/sprachen")
+@login_required
+def api_sprachen():
+    return jsonify(list(SPRACHEN))
 
 
 @app.get("/api/klingeltoene")

@@ -15,7 +15,7 @@ Telefonnummern.
 >
 > 🇬🇧 English: [README.en.md](https://github.com/gregorwolf1973/chat-server-addon/blob/main/README.en.md)
 > · [DOCS.en.md](https://github.com/gregorwolf1973/chat-server-addon/blob/main/chat_server/DOCS.en.md)
-> — note that the **user interface is German only**.
+> — the interface speaks English too, switchable in the settings.
 
 ## Loslegen
 
@@ -48,4 +48,5 @@ beides steht in der Dokumentation.
   ausgenommen — sonst würde jede Sicherung schnell unhandlich
 * **Keine Ende-zu-Ende-Verschlüsselung.** Auf dem Server stehen die
   Nachrichten im Klartext; wer den Server hat, hat sie. Das bist du
-* Die Oberfläche ist deutsch
+* Die Oberfläche spricht Deutsch und Englisch – umschaltbar in den
+  Einstellungen

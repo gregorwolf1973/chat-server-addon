@@ -9,9 +9,10 @@ data stays in `/data`.
 🇩🇪 [Dieses Handbuch auf Deutsch](./DOCS.md) — the German version is the
 original and always the more detailed one.
 
-> **The user interface is German.** This manual is in English so you can set
-> the add-on up and judge whether it suits you. Where a button matters, its
-> German label is given in **bold** with the English meaning next to it.
+> **The interface speaks English too.** Switch it under *Einstellungen →
+> Aussehen → Sprache* (settings → appearance → language); without a choice it
+> follows your browser. This manual sometimes names a button in German with
+> the English meaning next to it — handy if someone left the chat in German.
 
 ---
 
@@ -351,6 +352,5 @@ you want the files included.
 
 * **No end-to-end encryption.** Transport is encrypted; on the server the
   messages are in the clear
-* The interface is German
 * Deleted messages keep their row; text and file reference are emptied
 * No directory, no phone numbers, no federation with other servers

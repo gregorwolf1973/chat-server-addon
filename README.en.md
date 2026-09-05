@@ -11,10 +11,10 @@ Raspberry Pi is enough.
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/gregorwolf1973)
 
-> **Language note:** the **user interface is German only**. This
-> documentation is in English so you can judge whether the project fits, but
-> the app itself has not been translated yet. If that matters to you, please
-> open an issue — it is on the list.
+> **Language:** German and English. Switch it under *Einstellungen →
+> Aussehen → Sprache* (settings → appearance → language); without a choice the
+> chat follows your browser. Comments and identifiers in the source stay
+> German.
 
 ---
 
@@ -124,7 +124,6 @@ the map tiles, and those can be turned off.
   messages sit in the clear. Whoever owns the server can read them — at home,
   that is you
 * No directory, no phone numbers, no ties to other services
-* No translation: the interface is German
 * Deleted messages keep their row; text and attachment are emptied
 
 ## Security in brief
@@ -156,7 +155,7 @@ DATA_DIR=/tmp/chat ADMIN_USER=admin ADMIN_PASSWORD=test1234 python server.py
 The chat is then on `http://127.0.0.1:8099`. `run.sh` and bashio are not
 needed for this.
 
-**Test suites** — 18 of them, roughly 770 assertions. Each needs a freshly
+**Test suites** — 18 of them, roughly 780 assertions. Each needs a freshly
 started server on an empty `DATA_DIR`:
 
 ```bash

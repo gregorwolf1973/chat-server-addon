@@ -907,6 +907,21 @@ Die Reiterleiste braucht mit fünf Einträgen zwei Zeilen (rund 100 Pixel). Das
 ist der Preis dafür, dass jeder Reiter mit dem Finger zu treffen ist und
 keiner außerhalb des Bildes liegt.
 
+## Sprache
+
+Unter *Einstellungen → Aussehen → Sprache* stehen **Deutsch** und **English**.
+Die Wahl hängt am Konto und gilt damit auf allen deinen Geräten; nach dem
+Umschalten lädt die Seite einmal neu. Wer nichts gewählt hat, bekommt die
+Sprache, die sein Browser mitschickt.
+
+Anmeldung, Registrierung und „Passwort vergessen" richten sich ebenfalls nach
+dem Browser – dort ist ja noch niemand angemeldet.
+
+**Deutsch ist die Quelle.** Im Quelltext stehen die deutschen Sätze,
+`static/i18n.js` und `texte.py` halten die englischen daneben. Fehlt eine
+Übersetzung, bleibt der deutsche Satz stehen: eine Lücke fällt auf, bricht
+aber nichts. Kommentare im Quelltext bleiben deutsch.
+
 ## Aussehen
 
 In den Einstellungen unter **Aussehen** wählst du **Wie das Gerät**, **Hell**

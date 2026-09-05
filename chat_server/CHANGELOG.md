@@ -1,5 +1,16 @@
 # Änderungsverlauf
 
+## 0.44.0
+
+- **Die Oberfläche spricht Englisch.** Umschaltbar unter *Einstellungen →
+  Aussehen → Sprache*; die Wahl hängt am Konto und gilt auf allen Geräten.
+  Wer noch nichts gewählt hat, bekommt die Sprache seines Browsers
+- Anmeldung, Registrierung und „Passwort vergessen" richten sich nach dem
+  Browser, noch bevor jemand angemeldet ist – samt der Datenschutzerklärung
+- **Deutsch bleibt die Quelle.** Im Quelltext stehen die deutschen Sätze;
+  `static/i18n.js` hält die englischen daneben. Fehlt eine Übersetzung,
+  bleibt der deutsche Satz stehen – eine Lücke fällt auf, bricht aber nichts
+
 ## 0.43.2
 
 - **„Buy Me A Coffee"-Knopf** wie im EasyNAS-Add-on – im Repository, in der

@@ -11,8 +11,8 @@ Raspberry Pi.
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/gregorwolf1973)
 
-> **Sprache:** Die Oberfläche ist auf Deutsch. Eine Übersetzung gibt es bisher
-> nicht.
+> **Sprache:** Deutsch und Englisch. Umschaltbar in den Einstellungen; ohne
+> Wahl richtet sich der Chat nach dem Browser.
 
 ---
 

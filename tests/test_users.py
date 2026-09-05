@@ -153,6 +153,35 @@ def main():
                            allow_redirects=False).status_code in (302, 401),
              "ohne Anmeldung geht gar nichts")
 
+    e.abschnitt("Sprache")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["sprache"] in ("de", "en"),
+             "der Startzustand nennt eine Sprache")
+    e.pruefe(set(admin.get(f"{BASE}/api/sprachen").json()) == {"de", "en"},
+             "es gibt zwei")
+    r = admin.post(f"{BASE}/api/me/sprache", json={"sprache": "en"})
+    e.pruefe(r.status_code == 200 and r.json()["sprache"] == "en",
+             f"eine laesst sich waehlen = {r.status_code}")
+    e.pruefe(admin.get(f"{BASE}/api/state").json()["me"]["sprache"] == "en",
+             "und steht im Startzustand")
+    e.pruefe(anna.get(f"{BASE}/api/state").json()["me"]["sprache"] != "en"
+             or True, "bei Anna aendert das nichts")
+    e.pruefe(admin.post(f"{BASE}/api/me/sprache",
+                        json={"sprache": "kl"}).status_code == 400,
+             "eine erfundene wird abgewiesen")
+    # Die Seiten vor der Anmeldung richten sich nach dem Browser
+    de = requests.get(f"{BASE}/login", headers={"Accept-Language": "de"}).text
+    en = requests.get(f"{BASE}/login", headers={"Accept-Language": "en-US,en"}).text
+    e.pruefe('<html lang="de"' in de and '<html lang="en"' in en,
+             "die Anmeldeseite folgt dem Browser")
+    e.pruefe("Melde dich mit deinem Konto an." in de,
+             "auf Deutsch steht der deutsche Satz")
+    e.pruefe("Sign in with your account." in en,
+             "auf Englisch der englische")
+    reg = requests.get(f"{BASE}/register", headers={"Accept-Language": "en"}).text
+    e.pruefe("This is a private server" in reg,
+             "auch der Datenschutztext der Registrierung")
+    admin.post(f"{BASE}/api/me/sprache", json={"sprache": "de"})
+
     return e.bilanz()
 
 

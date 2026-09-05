@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ sprache }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Zugang beantragen</title>
+  <title>{{ t("Zugang beantragen") }}</title>
   <link rel="icon" href="{{ statisch('favicon.png') }}" type="image/png">
   <link rel="apple-touch-icon" href="{{ statisch('icon-180.png') }}">
   <link rel="stylesheet" href="{{ statisch('style.css') }}">
@@ -14,91 +14,75 @@
       <img class="brand-logo" src="{{ statisch('icon-192.png') }}" alt="">
 
       {% if closed %}
-        <h1>Zugang beantragen</h1>
-        <p class="sub">Die Registrierung ist zurzeit geschlossen. Wende dich an
-          jemanden, der bereits ein Konto hat.</p>
-        <a class="btn ghost block" href="{{ url_for('login_page') }}">Zur Anmeldung</a>
+        <h1>{{ t("Zugang beantragen") }}</h1>
+        <p class="sub">{{ t("Die Registrierung ist zurzeit geschlossen. Wende dich an jemanden, der bereits ein Konto hat.") }}</p>
+        <a class="btn ghost block" href="{{ url_for('login_page') }}">{{ t("Zur Anmeldung") }}</a>
 
       {% elif done %}
-        <h1>Antrag ist unterwegs</h1>
-        <p class="sub">Ein Administrator schaut ihn sich an und schaltet dein
-          Konto frei. Danach kannst du dich mit deinem Benutzernamen und
-          Passwort anmelden.</p>
-        <a class="btn block" href="{{ url_for('login_page') }}">Zur Anmeldung</a>
+        <h1>{{ t("Antrag ist unterwegs") }}</h1>
+        <p class="sub">{{ t("Ein Administrator schaut ihn sich an und schaltet dein Konto frei. Danach kannst du dich mit deinem Benutzernamen und Passwort anmelden.") }}</p>
+        <a class="btn block" href="{{ url_for('login_page') }}">{{ t("Zur Anmeldung") }}</a>
 
       {% else %}
-        <h1>Zugang beantragen</h1>
-        <p class="sub">Sag uns kurz, wer du bist – ein Administrator gibt den
-          Zugang danach frei.</p>
+        <h1>{{ t("Zugang beantragen") }}</h1>
+        <p class="sub">{{ t("Sag uns kurz, wer du bist – ein Administrator gibt den Zugang danach frei.") }}</p>
         {% if error %}<div class="error">{{ error }}</div>{% endif %}
         <form method="post">
           <div class="field">
-            <label for="username">Benutzername</label>
+            <label for="username">{{ t("Benutzername") }}</label>
             <input id="username" name="username" autocomplete="username" required
                    value="{{ form.username if form else '' }}">
           </div>
           <div class="field">
-            <label for="display_name">Anzeigename</label>
+            <label for="display_name">{{ t("Anzeigename") }}</label>
             <input id="display_name" name="display_name" autocomplete="name" required
                    value="{{ form.display_name if form else '' }}">
           </div>
           <div class="field">
-            <label for="password">Passwort (mindestens 6 Zeichen)</label>
+            <label for="password">{{ t("Passwort (mindestens 6 Zeichen)") }}</label>
             <input id="password" name="password" type="password"
                    autocomplete="new-password" required>
           </div>
 
-          <p class="hint">Mindestens eines von beiden, damit wir dich erreichen können:</p>
+          <p class="hint">{{ t("Mindestens eines von beiden, damit wir dich erreichen können:") }}</p>
           <div class="field">
-            <label for="email">E-Mail</label>
+            <label for="email">{{ t("E-Mail") }}</label>
             <input id="email" name="email" type="email" autocomplete="email"
                    value="{{ form.email if form else '' }}">
           </div>
           <div class="field">
-            <label for="phone">Telefon</label>
+            <label for="phone">{{ t("Telefon") }}</label>
             <input id="phone" name="phone" type="tel" autocomplete="tel"
                    value="{{ form.phone if form else '' }}">
           </div>
 
           <div class="field">
-            <label for="geburtstag">Geburtstag (freiwillig)</label>
+            <label for="geburtstag">{{ t("Geburtstag (freiwillig)") }}</label>
             <input id="geburtstag" name="geburtstag" type="date"
                    value="{{ form.geburtstag if form else '' }}">
-            <p class="hint">Wenn du ihn angibst, erscheint er bei deinen
-              Freunden unter „Termine“. Ohne Angabe bleibt er einfach leer.</p>
+            <p class="hint">{{ t("Wenn du ihn angibst, erscheint er bei deinen Freunden unter „Termine“. Ohne Angabe bleibt er einfach leer.") }}</p>
           </div>
 
           <div class="field">
-            <label for="note">Weshalb möchtest du Zugang?</label>
+            <label for="note">{{ t("Weshalb möchtest du Zugang?") }}</label>
             <textarea id="note" name="note" rows="3" required>{{ form.note if form else '' }}</textarea>
           </div>
 
           <details class="datenschutz">
-            <summary>Was wird gespeichert?</summary>
-            <p>Dies ist ein privater Server. Gespeichert werden Benutzername,
-              Anzeigename, dein Passwort (nur als Prüfsumme, nicht im
-              Klartext), deine Kontaktangabe, deine Begründung und – falls
-              angegeben – dein Geburtstag. Dazu kommt alles, was du später
-              selbst schreibst oder hochlädst: Nachrichten, Bilder, Dateien,
-              Standorte und Sprachaufnahmen.</p>
-            <p>Sichtbar ist das jeweils nur für die Personen, mit denen du
-              schreibst, sowie für den Administrator dieses Servers. Die Daten
-              liegen auf dessen Gerät und werden nicht an Dritte
-              weitergegeben.</p>
-            <p>Du kannst jederzeit verlangen, dass dein Konto und deine
-              Beiträge gelöscht werden – wende dich dazu an den
-              Administrator.</p>
+            <summary>{{ t("Was wird gespeichert?") }}</summary>
+            <p>{{ t("Dies ist ein privater Server. Gespeichert werden Benutzername, Anzeigename, dein Passwort (nur als Prüfsumme, nicht im Klartext), deine Kontaktangabe, deine Begründung und – falls angegeben – dein Geburtstag. Dazu kommt alles, was du später selbst schreibst oder hochlädst: Nachrichten, Bilder, Dateien, Standorte und Sprachaufnahmen.") }}</p>
+            <p>{{ t("Sichtbar ist das jeweils nur für die Personen, mit denen du schreibst, sowie für den Administrator dieses Servers. Die Daten liegen auf dessen Gerät und werden nicht an Dritte weitergegeben.") }}</p>
+            <p>{{ t("Du kannst jederzeit verlangen, dass dein Konto und deine Beiträge gelöscht werden – wende dich dazu an den Administrator.") }}</p>
           </details>
 
           <label class="check">
             <input type="checkbox" id="zustimmung" name="zustimmung" required>
-            <span>Ich bin einverstanden, dass meine Angaben zu diesem Zweck
-              gespeichert werden.</span>
+            <span>{{ t("Ich bin einverstanden, dass meine Angaben zu diesem Zweck gespeichert werden.") }}</span>
           </label>
 
-          <button class="btn" type="submit">Antrag abschicken</button>
+          <button class="btn" type="submit">{{ t("Antrag abschicken") }}</button>
         </form>
-        <p class="hint"><a href="{{ url_for('login_page') }}">Ich habe schon ein Konto</a></p>
+        <p class="hint"><a href="{{ url_for('login_page') }}">{{ t("Ich habe schon ein Konto") }}</a></p>
       {% endif %}
     </div>
   </div>

@@ -5,6 +5,19 @@
   const IS_ADMIN = B.dataset.admin === "1";
   const VAPID = B.dataset.vapid;
 
+  // ---------- Sprache ----------
+  // Deutsch ist die Quelle: im Quelltext stehen die deutschen Saetze. T()
+  // schlaegt bei Englisch die Entsprechung in i18n.js nach und gibt sonst den
+  // deutschen Satz zurueck. Eine fehlende Uebersetzung faellt damit auf
+  // Deutsch zurueck, statt eine Luecke zu hinterlassen.
+  let SPRACHE = B.dataset.sprache === "en" ? "en" : "de";
+  const WORTE = (window.WORTE_EN || {});
+
+  function T(text) {
+    if (SPRACHE !== "en") return text;
+    return WORTE[text] || text;
+  }
+
   const $ = (id) => document.getElementById(id);
   const api = (p, opt) => fetch(BASE + p, Object.assign({credentials: "same-origin"}, opt));
 
@@ -31,7 +44,7 @@
     const same = (a, b) => a.toDateString() === b.toDateString();
     if (same(d, now)) return "Heute";
     const y = new Date(now.getTime() - 86400000);
-    if (same(d, y)) return "Gestern";
+    if (same(d, y)) return T("Gestern");
     return d.toLocaleDateString("de-DE", {weekday: "short", day: "2-digit", month: "2-digit", year: "numeric"});
   };
 
@@ -92,10 +105,10 @@
           bild, (bild.width - seite) / 2, (bild.height - seite) / 2, seite, seite,
           0, 0, kante, kante);
         URL.revokeObjectURL(bild.src);
-        leinwand.toBlob((b) => b ? fertig(b) : fehler(new Error("Bild fehlerhaft")),
+        leinwand.toBlob((b) => b ? fertig(b) : fehler(new Error(T("Bild fehlerhaft"))),
                         "image/jpeg", 0.85);
       };
-      bild.onerror = () => fehler(new Error("Das ist kein lesbares Bild."));
+      bild.onerror = () => fehler(new Error(T("Das ist kein lesbares Bild.")));
       bild.src = URL.createObjectURL(datei);
     });
   }
@@ -154,8 +167,8 @@
         fd.append("file", klein, "avatar.jpg");
         const res = await api(ziel, {method: "POST", body: fd});
         const daten = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(daten.error || "Hochladen fehlgeschlagen."); return; }
-        toast("Bild gespeichert.");
+        if (!res.ok) { toast(daten.error || T("Hochladen fehlgeschlagen.")); return; }
+        toast(T("Bild gespeichert."));
         await loadState();
         if (fertig) fertig();
       } catch (err) {
@@ -177,7 +190,7 @@
   function renderRooms() {
     const list = $("rooms");
     if (!state.rooms.length) {
-      list.innerHTML = '<div class="empty" style="padding:24px">Noch keine Unterhaltung. Leg mit „+ Neu“ los.</div>';
+      list.innerHTML = `<div class="empty" style="padding:24px">${T("Noch keine Unterhaltung. Leg mit „+ Neu“ los.")}</div>`;
       reiterZahlen();
       return;
     }
@@ -211,7 +224,7 @@
     $("composer").hidden = false;
     $("btn-invite").hidden = !room.is_group;
     $("room-avatar").innerHTML = raumAvatar(room, "gross");
-    $("room-avatar").title = "Angaben zur Unterhaltung";
+    $("room-avatar").title = T("Angaben zur Unterhaltung");
     $("room-avatar").classList.add("aenderbar");
     hintergrundAnwenden(room);
     $("room-title").textContent = room.name;
@@ -476,7 +489,7 @@
       : "";
 
     if (m.deleted) {
-      inner += `<span class="gone-text">Nachricht gelöscht</span>`
+      inner += `<span class="gone-text">${T("Nachricht gelöscht")}</span>`
         + `<div class="inhalt"><span class="meta">${timeOf(m.at)}</span></div>`;
       blase.innerHTML = inner;
       wrap.appendChild(blase);
@@ -512,7 +525,7 @@
       + `<div class="actions"><button class="act" data-act="reply">Antworten</button>`
       + (m.poll || m.event ? ""
          : '<button class="act" data-act="weiter">Weiterleiten</button>')
-      + (canDelete ? '<button class="act del" data-act="delete">Löschen</button>' : "")
+      + (canDelete ? `<button class="act del" data-act="delete">${T("Löschen")}</button>` : "")
       + `</div>`;
     blase.innerHTML = inner;
     wrap.appendChild(blase);
@@ -528,7 +541,7 @@
         target.classList.add("flash");
         setTimeout(() => target.classList.remove("flash"), 1200);
       } else {
-        toast("Die zitierte Nachricht liegt weiter oben im Verlauf.");
+        toast(T("Die zitierte Nachricht liegt weiter oben im Verlauf."));
       }
       return;
     }
@@ -554,13 +567,13 @@
   function weiterleitenDialog(msgId) {
     const ziele = (state.rooms || []).filter((r) => r.id !== currentRoom);
     if (!ziele.length) {
-      toast("Es gibt keine andere Unterhaltung.");
+      toast(T("Es gibt keine andere Unterhaltung."));
       return;
     }
     const root = modal(`<h2>Weiterleiten an</h2>
       <div class="wl-liste">${ziele.map((r) => `<div class="pick" data-id="${r.id}">
         ${raumAvatar(r)}<span>${esc(r.name)}</span></div>`).join("")}</div>
-      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button></div>`);
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelectorAll(".pick").forEach((el) =>
       el.addEventListener("click", async () => {
@@ -570,10 +583,10 @@
           body: JSON.stringify({room_id: ziel}),
         });
         const daten = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+        if (!res.ok) { toast(daten.error || T("Das ging nicht.")); return; }
         closeModal();
         const raum = roomById(ziel);
-        toast(`Weitergeleitet an ${raum ? raum.name : "die Unterhaltung"}.`);
+        toast(`Weitergeleitet an ${raum ? raum.name : T("die Unterhaltung")}.`);
       }));
   }
 
@@ -600,7 +613,7 @@
     const res = await api(`/api/messages/${id}`, {method: "DELETE"});
     if (!res.ok) {
       const data = await res.json();
-      toast(data.error || "Löschen fehlgeschlagen.");
+      toast(data.error || T("Löschen fehlgeschlagen."));
     }
   }
 
@@ -661,7 +674,7 @@
     const feld = $("suchtreffer");
     if (frage.length < 2) {
       trefferZeigen(false);
-      $("suche-zahl").textContent = frage ? "mind. 2 Zeichen" : "";
+      $("suche-zahl").textContent = frage ? T("mind. 2 Zeichen") : "";
       return;
     }
     const lauf = ++sucheLauf;
@@ -670,21 +683,21 @@
       + (ueberall || !currentRoom ? "" : `&room=${currentRoom}`);
     const res = await api(ziel);
     if (lauf !== sucheLauf) return;   // eine neuere Anfrage ist schon unterwegs
-    if (!res.ok) { toast("Die Suche ging schief."); return; }
+    if (!res.ok) { toast(T("Die Suche ging schief.")); return; }
     const daten = await res.json();
     const treffer = daten.treffer || [];
     $("suche-zahl").textContent = treffer.length
       ? `${treffer.length}${daten.mehr ? "+" : ""} ${
-          treffer.length === 1 ? "Treffer" : "Treffer"}`
-      : "nichts gefunden";
+          treffer.length === 1 ? T("Treffer") : T("Treffer")}`
+      : T("nichts gefunden");
     trefferZeigen(true);
     if (!treffer.length) {
       // Das Suchfeld bleibt stehen - man will ja gleich etwas anderes
       // eintippen, nicht erst die Suche neu aufmachen.
       feld.innerHTML = `<p class="hint">Zu „${esc(frage)}" steht nichts im `
         + `Verlauf${ueberall ? "" : " dieser Unterhaltung"}.</p>`
-        + (ueberall ? "" : '<p class="hint">Setz den Haken oben, um in allen '
-          + 'Unterhaltungen zu suchen.</p>');
+        + (ueberall ? "" : `<p class="hint">${T("Setz den Haken oben, um in allen")} `
+          + `${T("Unterhaltungen zu suchen.")}</p>`);
       return;
     }
     feld.innerHTML = treffer.map((m) => {
@@ -756,7 +769,7 @@
     if (el && d.room_id === currentRoom) {
       el.classList.add("gone");
       el.querySelector(".bubble").innerHTML =
-        `<span class="gone-text">Nachricht gelöscht</span>`;
+        `<span class="gone-text">${T("Nachricht gelöscht")}</span>`;
     }
     const room = roomById(d.room_id);
     if (room) loadState();
@@ -857,7 +870,7 @@
     if ((!body && !fileId) || !currentRoom) return;
     if (!socket.connected) {
       verbindungAnzeigen(false);
-      toast("Keine Verbindung – die Nachricht wurde nicht gesendet.");
+      toast(T("Keine Verbindung – die Nachricht wurde nicht gesendet."));
       return;
     }
     const entwurf = input.value;
@@ -869,9 +882,9 @@
        album: album || null},
       (zeitfehler, antwort) => {
         if (zeitfehler) {
-          toast("Der Server hat nicht geantwortet – bitte noch einmal senden.");
+          toast(T("Der Server hat nicht geantwortet – bitte noch einmal senden."));
         } else if (antwort && antwort.ok === false) {
-          toast(antwort.error || "Die Nachricht wurde nicht angenommen.");
+          toast(antwort.error || T("Die Nachricht wurde nicht angenommen."));
         } else {
           return;
         }
@@ -893,7 +906,7 @@
       balken = document.createElement("div");
       balken.id = "verbindung";
       balken.className = "verbindung";
-      balken.textContent = "Keine Verbindung zum Server – Nachrichten warten.";
+      balken.textContent = T("Keine Verbindung zum Server – Nachrichten warten.");
       $("composer").parentNode.insertBefore(balken, $("composer"));
     }
     balken.hidden = !!verbunden;
@@ -916,7 +929,7 @@
       <div class="frage">📊 ${esc(poll.frage)}</div>
       <div class="wahlen">${balken}</div>
       <div class="wahl-fuss">${gesamt === 1 ? "1 Stimme" : `${gesamt} Stimmen`}${
-        poll.mehrfach ? " · mehrere Antworten möglich" : ""}</div>
+        poll.mehrfach ? " " + T("· mehrere Antworten möglich") : ""}</div>
     </div>`;
   }
 
@@ -931,23 +944,23 @@
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({option_id: parseInt(knopf.dataset.option, 10)}),
     });
-    if (!res.ok) { toast("Die Stimme ging nicht durch."); return; }
+    if (!res.ok) { toast(T("Die Stimme ging nicht durch.")); return; }
     kasten.outerHTML = abstimmungHtml(await res.json());
   }, true);
 
   function abstimmungDialog() {
     if (!currentRoom) return;
-    const root = modal(`<h2>Neue Abstimmung</h2>
-      <div class="field"><label>Frage</label><input id="ab-frage" autocomplete="off"></div>
+    const root = modal(`<h2>${T("Neue Abstimmung")}</h2>
+      <div class="field"><label>${T("Frage")}</label><input id="ab-frage" autocomplete="off"></div>
       <div class="field"><label>Antworten</label><div id="ab-optionen"></div></div>
       <button class="btn ghost" id="ab-mehr">+ Antwort</button>
       <label class="check"><input type="checkbox" id="ab-mehrfach">
         Mehrere Antworten erlaubt</label>
-      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>
       <button class="btn" id="ab-ok">Abstimmung starten</button></div>`);
     const liste = root.querySelector("#ab-optionen");
     const zeileAnfuegen = () => {
-      if (liste.children.length >= 12) { toast("Zwölf Antworten sind genug."); return; }
+      if (liste.children.length >= 12) { toast(T("Zwölf Antworten sind genug.")); return; }
       const zeile = document.createElement("div");
       zeile.className = "ab-zeile";
       zeile.innerHTML = `<input class="ab-option" autocomplete="off"
@@ -967,7 +980,7 @@
       const frage = root.querySelector("#ab-frage").value.trim();
       const optionen = [...root.querySelectorAll(".ab-option")]
         .map((i) => i.value.trim()).filter(Boolean);
-      if (!frage) { toast("Die Frage fehlt."); return; }
+      if (!frage) { toast(T("Die Frage fehlt.")); return; }
       if (optionen.length < 2) { toast("Es braucht mindestens zwei Antworten."); return; }
       const res = await api(`/api/rooms/${currentRoom}/poll`, {
         method: "POST", headers: {"Content-Type": "application/json"},
@@ -975,7 +988,7 @@
                               mehrfach: root.querySelector("#ab-mehrfach").checked}),
       });
       const daten = await res.json().catch(() => ({}));
-      if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
+      if (!res.ok) { toast(daten.error || T("Das hat nicht geklappt.")); return; }
       closeModal();
     });
   }
@@ -984,7 +997,7 @@
   // ---------- Standort ----------
   // Die Weltkarte liegt als SVG im Add-on - fuer die Vorschau wird ein
   // Ausschnitt um den Punkt gezeigt. Es wird nichts von fremden Servern
-  // nachgeladen; erst ein Tipp auf "In Karten öffnen" verlaesst das Haus.
+  // nachgeladen; erst ein Tipp auf T("In Karten öffnen") verlaesst das Haus.
   const KARTE_BREITE = 1000, KARTE_HOEHE = 650;
   const KARTE_OBEN = 83.0, KARTE_UNTEN = -60.0;
 
@@ -1057,7 +1070,7 @@
   // Schema nicht, dort fuehrt derselbe Verweis auf eine Netzkarte. Welche,
   // steht in den Einstellungen.
   const KARTEN_APPS = [
-    ["geraet", "Standard-App des Geräts"],
+    ["geraet", T("Standard-App des Geräts")],
     ["google", "Google Maps"],
     ["apple", "Apple Karten"],
     ["osm", "OpenStreetMap"],
@@ -1124,14 +1137,14 @@
     return `<div class="ort" data-lat="${ort.lat}" data-lon="${ort.lon}">
       ${karteHtml(ort)}
       <div class="ortszeile"><span class="ortsgrad">📍 ${grad}</span>
-        ${kartenLinkHtml(ort.lat, ort.lon, "", "ortslink", "In Karten öffnen")}</div>
+        ${kartenLinkHtml(ort.lat, ort.lon, "", "ortslink", T("In Karten öffnen"))}</div>
     </div>`;
   }
 
   function ortSenden() {
     if (!currentRoom) return;
     if (!navigator.geolocation) {
-      toast("Dieser Browser kennt keinen Standort.");
+      toast(T("Dieser Browser kennt keinen Standort."));
       return;
     }
     if (!sichererKontext()) {
@@ -1139,23 +1152,23 @@
             + "externe Adresse.");
       return;
     }
-    toast("Standort wird bestimmt …");
+    toast(T("Standort wird bestimmt …"));
     navigator.geolocation.getCurrentPosition((pos) => {
       const ort = {lat: pos.coords.latitude, lon: pos.coords.longitude};
-      if (!socket.connected) { toast("Keine Verbindung."); return; }
+      if (!socket.connected) { toast(T("Keine Verbindung.")); return; }
       socket.timeout(8000).emit("send",
         {room_id: currentRoom, body: input.value.trim(), file_id: null,
          reply_to: replyTo, ort},
         (fehler, antwort) => {
           if (fehler || (antwort && antwort.ok === false)) {
-            toast("Der Standort ließ sich nicht senden.");
+            toast(T("Der Standort ließ sich nicht senden."));
           }
         });
       input.value = "";
       cancelReply();
     }, (err) => {
-      toast(err.code === 1 ? "Du hast den Zugriff auf den Standort abgelehnt."
-                           : "Der Standort ließ sich nicht bestimmen.");
+      toast(err.code === 1 ? T("Du hast den Zugriff auf den Standort abgelehnt.")
+                           : T("Der Standort ließ sich nicht bestimmen."));
     }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 60000});
   }
 
@@ -1182,8 +1195,8 @@
 
   function uebersichtHtml(punkte) {
     if (!punkte.length) {
-      return '<div class="karte-leer">Hier ist gerade nichts los – niemand '
-        + 'teilt seinen Standort, und keine Einladung hat einen Ort.</div>';
+      return `<div class="karte-leer">${T("Hier ist gerade nichts los – niemand")} `
+        + `${T("teilt seinen Standort, und keine Einladung hat einen Ort.")}</div>`;
     }
     const a = ausschnittFuer(punkte);
     const nadeln = punkte.map((p) => {
@@ -1239,7 +1252,7 @@
       js.addEventListener("load", () => fertig());
       js.addEventListener("error", () => {
         leafletLaeuft = null;
-        fehler(new Error("Die Kartenbibliothek ließ sich nicht laden."));
+        fehler(new Error(T("Die Kartenbibliothek ließ sich nicht laden.")));
       });
       document.head.appendChild(js);
     });
@@ -1294,7 +1307,7 @@
       await leafletLaden();
     } catch (err) {
       behaelter.insertAdjacentHTML("beforeend",
-        `<p class="hint">${esc(err.message)} Es bleibt bei den Umrissen.</p>`);
+        `<p class="hint">${esc(err.message)} ${T("Es bleibt bei den Umrissen.")}</p>`);
       return;
     }
     behaelter.innerHTML = '<div class="echtkarte"></div>';
@@ -1362,7 +1375,7 @@
   function standortHolen() {
     return new Promise((fertig, fehler) => {
       if (!navigator.geolocation) {
-        fehler(new Error("Dieser Browser kennt keinen Standort."));
+        fehler(new Error(T("Dieser Browser kennt keinen Standort.")));
         return;
       }
       if (!sichererKontext()) {
@@ -1374,17 +1387,17 @@
         (pos) => fertig({lat: pos.coords.latitude, lon: pos.coords.longitude,
                          genauigkeit: pos.coords.accuracy}),
         (err) => fehler(new Error(err.code === 1
-          ? "Du hast den Zugriff auf den Standort abgelehnt."
-          : "Der Standort ließ sich nicht bestimmen.")),
+          ? T("Du hast den Zugriff auf den Standort abgelehnt.")
+          : T("Der Standort ließ sich nicht bestimmen."))),
         {enableHighAccuracy: true, timeout: 15000, maximumAge: 60000});
     });
   }
 
   function liveDialog() {
     const gruppen = state.rooms;
-    if (!gruppen.length) { toast("Es gibt noch keine Unterhaltung."); return; }
+    if (!gruppen.length) { toast(T("Es gibt noch keine Unterhaltung.")); return; }
     const laufend = meineFreigaben();
-    const root = modal(`<h2>Standort teilen</h2>
+    const root = modal(`<h2>${T("Standort teilen")}</h2>
       <p class="hint">Nur die Mitglieder der gewählten Unterhaltung sehen dich –
         und nur, solange die Freigabe läuft.</p>
       <div class="field"><label>Wer soll dich sehen?</label>
@@ -1398,7 +1411,7 @@
           `<option value="${r.id}" ${r.id === currentRoom ? "selected" : ""}>${
             esc(r.name)}</option>`).join("")}</select></div>
       <div class="field" id="live-umkreis-feld" hidden>
-        <label for="live-umkreis">Umkreis</label>
+        <label for="live-umkreis">${T("Umkreis")}</label>
         <select id="live-umkreis">
           <option value="1">1 km</option>
           <option value="5" selected>5 km</option>
@@ -1418,7 +1431,7 @@
       ${laufend.length ? `<div class="live-laufend">Läuft gerade: ${
         laufend.map((l) => `${esc(l.raum)} (${restzeit(l.bis_at)})`).join(", ")}
         <button class="btn ghost klein" id="live-stopp">Alle beenden</button></div>` : ""}
-      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>
       <button class="btn" id="live-ok">Teilen</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     let liveArt = "raum";
@@ -1435,7 +1448,7 @@
     root.querySelector("#live-ok").addEventListener("click", async () => {
       const knopf = root.querySelector("#live-ok");
       knopf.disabled = true;
-      knopf.textContent = "Standort wird bestimmt …";
+      knopf.textContent = T("Standort wird bestimmt …");
       try {
         const ort = await standortHolen();
         const res = await api("/api/live", {
@@ -1448,9 +1461,9 @@
           }, ort)),
         });
         const daten = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
+        if (!res.ok) { toast(daten.error || T("Das hat nicht geklappt.")); return; }
         closeModal();
-        toast("Standort wird geteilt.");
+        toast(T("Standort wird geteilt."));
         await liveLaden();
       } catch (err) {
         toast(err.message);
@@ -1466,9 +1479,9 @@
       method: "DELETE", headers: {"Content-Type": "application/json"},
       body: JSON.stringify(roomId ? {room_id: roomId} : {}),
     });
-    if (!res.ok) { toast("Das Beenden ging schief."); return; }
+    if (!res.ok) { toast(T("Das Beenden ging schief.")); return; }
     closeModal();
-    toast("Standort wird nicht mehr geteilt.");
+    toast(T("Standort wird nicht mehr geteilt."));
     await liveLaden();
   }
 
@@ -1569,7 +1582,7 @@
     const aktiv = kartenFilter.zeit !== "alle" || kartenFilter.kategorien.size;
     return `<div class="kartenfilter">
       <div class="kf-zeile">
-        <span class="kf-titel">Einladungen</span>
+        <span class="kf-titel">${T("Einladungen")}</span>
         ${ZEITRAEUME.map(([wert, text]) =>
           `<button class="mini-btn ${kartenFilter.zeit === wert ? "an" : ""}"
                    data-zeit="${wert}">${text}</button>`).join("")}
@@ -1580,30 +1593,30 @@
                    data-kat="${k}">${esc(KATEGORIEN[k])}</button>`).join("")}
       </div>` : ""}
       <div class="kf-zeile">
-        <span class="kf-titel">Umkreis</span>
+        <span class="kf-titel">${T("Umkreis")}</span>
         ${meinOrt
           ? KARTEN_UMKREISE.map((km) =>
               `<button class="mini-btn ${kartenUmkreis === km ? "an" : ""}"
-                       data-ukm="${km}">${km ? `${km} km` : "Überall"}</button>`).join("")
-            + '<button class="mini-btn" id="kf-ort-neu" title="Standort neu bestimmen">↻</button>'
+                       data-ukm="${km}">${km ? `${km} km` : T("Überall")}</button>`).join("")
+            + '<button class="mini-btn" id="kf-ort-neu" title=T("Standort neu bestimmen")>↻</button>'
           : '<button class="mini-btn" id="kf-ort">📍 Meinen Standort verwenden</button>'}
       </div>
       ${tippZahl ? `<div class="kf-zeile">
-        <span class="kf-titel">Empfehlungen</span>
+        <span class="kf-titel">${T("Empfehlungen")}</span>
         <button class="mini-btn ${kartenTipps ? "an" : ""}" id="kf-tipps"
           >${tippZahl} auf der Karte</button>
       </div>` : ""}
       ${aktiv ? `<div class="kf-zeile">
         <span class="kf-zahl">${gezeigt} von ${alleTermine.length} ${
-          alleTermine.length === 1 ? "Einladung" : "Einladungen"}</span>
-        <button class="mini-btn" id="kf-weg">Filter aufheben</button>
+          alleTermine.length === 1 ? T("Einladung") : T("Einladungen")}</span>
+        <button class="mini-btn" id="kf-weg">${T("Filter aufheben")}</button>
       </div>` : ""}
     </div>`;
   }
 
   function kartenAnsicht() {
     const root = modal(`<div class="karten-kopf"><h2>Live-Karte</h2>
-      <button class="btn ghost klein" id="karte-teilen">Standort teilen</button>
+      <button class="btn ghost klein" id="karte-teilen">${T("Standort teilen")}</button>
       <span style="flex:1"></span>
       <button class="icon-btn" id="m-cancel">✕</button></div>
       <div id="karte-inhalt"></div>`);
@@ -1619,32 +1632,32 @@
     if (!behaelter) return;
     const {personen, termine, tipps, alleTermine, alleTipps, alle} = kartenPunkte();
     const oeffnen = (p) =>
-      kartenLinkHtml(p.lat, p.lon, p.name || "", "ortslink", "Öffnen");
+      kartenLinkHtml(p.lat, p.lon, p.name || "", "ortslink", T("Öffnen"));
     behaelter.innerHTML = `${filterLeiste(alleTermine, termine.length,
                                           alleTipps.length)}
       <div id="karte-flaeche"></div>
       <div class="karten-fuss">
-        ${personen.length ? '<div class="karten-gruppe">Wer teilt gerade</div>'
+        ${personen.length ? `<div class="karten-gruppe">${T("Wer teilt gerade")}</div>`
           + personen.map((p) => `<div class="karten-zeile">
             ${avatarHtml("u", p.user_id, p.name, p.avatar, "klein")}
             <div><div class="kz-name">${esc(p.name)}${p.ich ? " (du)" : ""}</div>
               <div class="kz-sub">${esc(p.raum)} · ${restzeit(p.bis_at)}</div></div>
             <span style="flex:1"></span>
             ${oeffnen(p)}
-            ${p.ich ? `<button class="act del" data-stopp="${p.room_id}">Beenden</button>` : ""}
+            ${p.ich ? `<button class="act del" data-stopp="${p.room_id}">${T("Beenden")}</button>` : ""}
           </div>`).join("") : ""}
-        ${termine.length ? '<div class="karten-gruppe">Einladungen</div>'
+        ${termine.length ? `<div class="karten-gruppe">${T("Einladungen")}</div>`
           + termine.map((t) => `<div class="karten-zeile termin"
                                      data-termin="${t.event_id}">
             <span class="karten-fahne klein">📅</span>
             <div><div class="kz-name">${esc(t.name)}</div>
               <div class="kz-sub">${terminZeit(t.beginnt_at)}${
                 t.ort_text ? ` · ${esc(t.ort_text)}` : ""} · ${
-                t.zusagen} ${t.zusagen === 1 ? "Zusage" : "Zusagen"}</div></div>
+                t.zusagen} ${t.zusagen === 1 ? T("Zusage") : T("Zusagen")}</div></div>
             <span style="flex:1"></span>
             ${oeffnen(t)}
           </div>`).join("") : ""}
-        ${tipps.length ? '<div class="karten-gruppe">Empfehlungen</div>'
+        ${tipps.length ? `<div class="karten-gruppe">${T("Empfehlungen")}</div>`
           + tipps.map((x) => `<div class="karten-zeile tipp-zeile"
                                    data-tipp="${x.tipp_id}">
             <span class="karten-fahne klein">⭐</span>
@@ -1655,9 +1668,9 @@
             ${oeffnen(x)}
           </div>`).join("") : ""}
         ${alle.length ? "" : `<p class="hint">${alleTermine.length
-          ? "Zu diesem Filter passt keine Einladung."
+          ? T("Zu diesem Filter passt keine Einladung.")
           : "Sobald jemand seinen Standort teilt oder eine Einladung einen Ort "
-            + "bekommt, erscheint sie hier."}</p>`}
+            + T("bekommt, erscheint sie hier.")}</p>`}
       </div>`;
     karteZeichnen(behaelter.querySelector("#karte-flaeche"), alle);
 
@@ -1676,7 +1689,7 @@
     const ortKnopf = behaelter.querySelector("#kf-ort")
       || behaelter.querySelector("#kf-ort-neu");
     if (ortKnopf) ortKnopf.addEventListener("click", async () => {
-      ortKnopf.textContent = "Standort wird bestimmt …";
+      ortKnopf.textContent = T("Standort wird bestimmt …");
       try {
         const gefunden = await standortHolen();
         meinOrt = {lat: gefunden.lat, lon: gefunden.lon};
@@ -1796,11 +1809,11 @@
     }
     if (alleTermine.length) {
       teile.push(`${alleTermine.length} ${
-        alleTermine.length === 1 ? "Einladung" : "Einladungen"}`);
+        alleTermine.length === 1 ? T("Einladung") : T("Einladungen")}`);
     }
     if (alleTipps.length) {
       teile.push(`${alleTipps.length} ${
-        alleTipps.length === 1 ? "Empfehlung" : "Empfehlungen"}`);
+        alleTipps.length === 1 ? "Empfehlung" : T("Empfehlungen")}`);
     }
     liste.innerHTML = `<div class="karten-eintrag" id="karte-oeffnen">
         <span class="karten-symbol">🗺️</span>
@@ -1851,26 +1864,26 @@
 
   function stimmungDialog() {
     const meine = (state.stimmung || []).find((s) => s.meine);
-    const root = modal(`<h2>Worauf hast du Lust?</h2>
-      <p class="hint">Sichtbar für alle, mit denen du eine Unterhaltung teilst.</p>
+    const root = modal(`<h2>${T("Worauf hast du Lust?")}</h2>
+      <p class="hint">${T("Sichtbar für alle, mit denen du eine Unterhaltung teilst.")}</p>
       <div class="stimmung-emojis" id="st-emojis"></div>
       <div class="st-alle" id="st-alle" hidden></div>
-      <div class="field"><label for="st-text">Kurz gesagt</label>
+      <div class="field"><label for="st-text">${T("Kurz gesagt")}</label>
         <input id="st-text" autocomplete="off" maxlength="280"
                placeholder="Heute Abend Kino – wer kommt mit?"
                value="${meine ? esc(meine.text) : ""}"></div>
-      <div class="field"><label for="st-dauer">Gilt für</label>
+      <div class="field"><label for="st-dauer">${T("Gilt für")}</label>
         <select id="st-dauer">
           <option value="2">2 Stunden</option>
           <option value="4" selected>4 Stunden</option>
           <option value="12">12 Stunden</option>
           <option value="24">Bis morgen</option>
         </select></div>
-      <label class="check"><input type="checkbox" id="st-ort"> Meinen Standort dazu</label>
+      <label class="check"><input type="checkbox" id="st-ort"> ${T("Meinen Standort dazu")}</label>
       <div class="row">${meine
-        ? '<button class="btn ghost" id="st-weg">Meldung löschen</button>'
-        : '<button class="btn ghost" id="m-cancel">Abbrechen</button>'}
-      <button class="btn" id="st-ok">Setzen</button></div>`);
+        ? `<button class="btn ghost" id="st-weg">${T("Meldung löschen")}</button>`
+        : `<button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>`}
+      <button class="btn" id="st-ok">${T("Setzen")}</button></div>`);
     let emoji = meine ? meine.emoji : "";
 
     // Die Reihe zeigt die Favoriten - und das gerade gewaehlte Zeichen immer,
@@ -1885,7 +1898,7 @@
         `<button type="button" class="st-emoji ${emoji === e ? "gewaehlt" : ""}"
                  data-e="${e}">${e}</button>`).join("")
         + `<button type="button" class="st-emoji st-mehr" id="st-mehr"
-                   title="Alle Zeichen">＋</button>`;
+                   title=T("Alle Zeichen")>＋</button>`;
       reihe.querySelectorAll("[data-e]").forEach((b) =>
         b.addEventListener("click", () => {
           emoji = emoji === b.dataset.e ? "" : b.dataset.e;
@@ -1937,7 +1950,7 @@
     });
     root.querySelector("#st-ok").addEventListener("click", async () => {
       const text = root.querySelector("#st-text").value.trim();
-      if (!text) { toast("Schreib kurz, worauf du Lust hast."); return; }
+      if (!text) { toast(T("Schreib kurz, worauf du Lust hast.")); return; }
       stimmungFavoritMerken(emoji);
       const nutzlast = {text, emoji,
         stunden: parseInt(root.querySelector("#st-dauer").value, 10)};
@@ -1945,7 +1958,7 @@
         try {
           Object.assign(nutzlast, await standortHolen());
         } catch (err) {
-          toast(err.message + " Die Meldung geht ohne Ort raus.");
+          toast(err.message + " " + T("Die Meldung geht ohne Ort raus."));
         }
       }
       const res = await api("/api/stimmung", {
@@ -1953,7 +1966,7 @@
         body: JSON.stringify(nutzlast),
       });
       const daten = await res.json().catch(() => ({}));
-      if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
+      if (!res.ok) { toast(daten.error || T("Das hat nicht geklappt.")); return; }
       closeModal();
       await stimmungLaden();
     });
@@ -1973,8 +1986,8 @@
     const alle = (state.stimmung || []).filter((s) => s.bis_at > jetzt);
     reiterZahlen();
     if (!alle.length) {
-      liste.innerHTML = '<div class="abschnitt-leer">Noch nichts geplant. '
-        + 'Sag, worauf du Lust hast.</div>';
+      liste.innerHTML = `<div class="abschnitt-leer">${T("Noch nichts geplant.")} `
+        + `${T("Sag, worauf du Lust hast.")}</div>`;
       return;
     }
     liste.innerHTML = alle.map((s) => `<div class="stimmung-zeile" data-id="${s.id}">
@@ -1988,7 +2001,7 @@
           s.ort.lon.toFixed(3)}</div>` : ""}
         <div class="st-fuss">
           <button class="mini-btn ${s.ich_mache_mit ? "an" : ""}" data-mit="${s.id}">
-            ${s.ich_mache_mit ? "Ich bin dabei" : "Ich mach mit"}</button>
+            ${s.ich_mache_mit ? "Ich bin dabei" : T("Ich mach mit")}</button>
           ${s.mit.length ? `<span class="st-mit" title="${esc(
             s.mit.map((m) => m.name).join(", "))}">${s.mit.length} dabei</span>` : ""}
         </div>
@@ -1997,7 +2010,7 @@
     liste.querySelectorAll("[data-mit]").forEach((b) =>
       b.addEventListener("click", async () => {
         const res = await api(`/api/stimmung/${b.dataset.mit}/mit`, {method: "POST"});
-        if (!res.ok) { toast("Das ging nicht."); return; }
+        if (!res.ok) { toast(T("Das ging nicht.")); return; }
         await stimmungLaden();
       }));
     liste.querySelectorAll(".st-person.anklickbar").forEach((el) =>
@@ -2034,8 +2047,8 @@
       // Absage den Verlauf und die Listen, es waere also nichts mehr da, worauf
       // man tippen koennte. Deshalb warnt die Nachfrage vorher.
     } else {
-      if (darfAendern) knoepfe.push('<button class="act ev-bearbeiten">Bearbeiten</button>');
-      if (meiner) knoepfe.push('<button class="act del ev-absagen">Termin absagen</button>');
+      if (darfAendern) knoepfe.push(`<button class="act ev-bearbeiten">${T("Bearbeiten")}</button>`);
+      if (meiner) knoepfe.push(`<button class="act del ev-absagen">${T("Termin absagen")}</button>`);
     }
     return knoepfe.length
       ? `<div class="ev-verwalten">${knoepfe.join("")}</div>` : "";
@@ -2062,11 +2075,11 @@
       ${ev.ort ? karteHtml(ev.ort, 56, "ortskarte ev-karte") : ""}
       ${ev.beschreibung ? `<div class="ev-text">${esc(ev.beschreibung)}</div>` : ""}
       ${marken}
-      <div class="ev-von">Eingeladen von ${esc(ev.von.name)}</div>
+      <div class="ev-von">${T("Eingeladen von")} ${esc(ev.von.name)}</div>
       ${ev.abgesagt
         ? '<div class="ev-weg">Abgesagt</div>'
         : `<div class="ev-antworten">${knopf("ja", "Bin dabei")}${
-            knopf("vielleicht", "Vielleicht")}${knopf("nein", "Kann nicht")}</div>`}
+            knopf("vielleicht", T("Vielleicht"))}${knopf("nein", "Kann nicht")}</div>`}
       ${dabei.length ? `<div class="ev-dabei">${dabei.map((w) =>
         avatarHtml("u", w.id, w.name, w.avatar, "winzig")).join("")}
         <span>${dabei.length === 1 ? "1 Zusage" : `${dabei.length} Zusagen`}</span></div>` : ""}
@@ -2108,7 +2121,7 @@
         // Noch einmal auf dieselbe Antwort tippen nimmt sie zurück
         body: JSON.stringify({antwort: gewaehlt ? "" : antwort.dataset.antwort}),
       });
-      if (!res.ok) { toast("Die Antwort ging nicht durch."); return; }
+      if (!res.ok) { toast(T("Die Antwort ging nicht durch.")); return; }
       kasten.outerHTML = eventHtml(await res.json());
       terminLaden();
       return;
@@ -2119,7 +2132,7 @@
       e.stopPropagation();
       const id = bearbeiten.closest(".event").dataset.event;
       const res = await api(`/api/events/${id}`);
-      if (!res.ok) { toast("Der Termin ist nicht mehr da."); return; }
+      if (!res.ok) { toast(T("Der Termin ist nicht mehr da.")); return; }
       terminDialog(await res.json());
       return;
     }
@@ -2128,12 +2141,12 @@
       e.preventDefault();
       e.stopPropagation();
       const kasten = absagen.closest(".event");
-      if (!confirm("Den Termin für alle absagen?" + "\n\n"
-                   + "Die Einladung verschwindet danach aus der Unterhaltung "
-                   + "und aus allen Terminlisten. Zurücknehmen geht dann "
-                   + "nicht mehr – du müsstest neu einladen.")) return;
+      if (!confirm(T("Den Termin für alle absagen?") + "\n\n"
+                   + T("Die Einladung verschwindet danach aus der Unterhaltung "
+                       + "und aus allen Terminlisten. Zurücknehmen geht dann "
+                       + "nicht mehr – du müsstest neu einladen."))) return;
       const res = await api(`/api/events/${kasten.dataset.event}`, {method: "DELETE"});
-      if (!res.ok) { toast("Das Absagen ging nicht."); return; }
+      if (!res.ok) { toast(T("Das Absagen ging nicht.")); return; }
       eventNeuZeichnen(kasten.dataset.event);
       terminLaden();
     }
@@ -2148,21 +2161,21 @@
         <p class="hint">Zum Antippen braucht es die Straßenkarte. Die
           Umrisskarte im Add-on kennt keine Straßen – ein Punkt darauf läge
           leicht mehrere Kilometer daneben.</p>
-        <button class="btn ghost klein" type="button" id="ow-an">Straßenkarte einschalten</button>
+        <button class="btn ghost klein" type="button" id="ow-an">${T("Straßenkarte einschalten")}</button>
       </div>`;
       box.querySelector("#ow-an").addEventListener("click", async () => {
         const res = await api("/api/me/karten", {
           method: "POST", headers: {"Content-Type": "application/json"},
           body: JSON.stringify({kacheln: true}),
         });
-        if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
+        if (!res.ok) { toast(T("Das ließ sich nicht speichern.")); return; }
         if (state.me) state.me.kacheln = true;
         ortsWaehler(box, start, beiWahl);
       });
       return;
     }
     box.innerHTML = '<div class="echtkarte"></div>'
-      + '<p class="hint">Tippe auf die Karte, um den Ort zu setzen.</p>';
+      + `<p class="hint">${T("Tippe auf die Karte, um den Ort zu setzen.")}</p>`;
     try {
       await leafletLaden();
     } catch (err) {
@@ -2201,7 +2214,7 @@
     const aendern = !!ev;
     frei = aendern ? (ev.sicht || "raum") !== "raum" : !!frei;
     if (!aendern && !frei && !currentRoom) {
-      toast("Öffne zuerst eine Unterhaltung.");
+      toast(T("Öffne zuerst eine Unterhaltung."));
       return;
     }
     let sicht = aendern ? (ev.sicht || "raum") : (frei ? "freunde" : "raum");
@@ -2219,41 +2232,41 @@
         + `T${p(d.getHours())}:${p(d.getMinutes())}`;
     })();
 
-    const root = modal(`<h2>${aendern ? "Einladung ändern"
-      : frei ? "Termin ohne Unterhaltung" : "Einladung"}</h2>
-      ${frei && !aendern ? '<p class="hint">Er hängt an keiner Unterhaltung – '
-        + 'du bestimmst unten selbst, wer ihn sieht.</p>' : ""}
-      <div class="field"><label for="ev-titel">Was ist geplant?</label>
+    const root = modal(`<h2>${aendern ? T("Einladung ändern")
+      : frei ? T("Termin ohne Unterhaltung") : T("Einladung")}</h2>
+      ${frei && !aendern ? `<p class="hint">${T("Er hängt an keiner "
+        + "Unterhaltung – du bestimmst unten selbst, wer ihn sieht.")}</p>` : ""}
+      <div class="field"><label for="ev-titel">${T("Was ist geplant?")}</label>
         <input id="ev-titel" autocomplete="off" placeholder="Grillen im Garten"
                value="${aendern ? esc(ev.titel) : ""}"></div>
-      <div class="field"><label for="ev-wann">Wann</label>
+      <div class="field"><label for="ev-wann">${T("Wann")}</label>
         <input id="ev-wann" type="datetime-local" value="${wannWert}"></div>
       <div class="field"><label for="ev-ort">Wo</label>
         <input id="ev-ort" autocomplete="off" placeholder="Im Gemeindehaus, Hauptstraße 3"
                value="${aendern ? esc(ev.ort_text) : ""}">
         <div class="row schmal">
-          <button class="btn ghost klein" type="button" id="ev-karte">Auf der Karte wählen</button>
-          <button class="btn ghost klein" type="button" id="ev-hier">Aktueller Ort</button>
+          <button class="btn ghost klein" type="button" id="ev-karte">${T("Auf der Karte wählen")}</button>
+          <button class="btn ghost klein" type="button" id="ev-hier">${T("Aktueller Ort")}</button>
         </div>
         <div class="ortswahl" id="ev-kartenwahl" hidden></div>
         <div class="ev-ortstand">
           <span class="hint" id="ev-ort-status"></span>
-          <button class="mini-btn" type="button" id="ev-ort-weg" hidden>Ort entfernen</button>
+          <button class="mini-btn" type="button" id="ev-ort-weg" hidden>${T("Ort entfernen")}</button>
         </div>
       </div>
-      <div class="field"><label for="ev-text">Beschreibung</label>
+      <div class="field"><label for="ev-text">${T("Beschreibung")}</label>
         <textarea id="ev-text" rows="3">${aendern ? esc(ev.beschreibung) : ""}</textarea></div>
-      ${frei ? `<div class="field"><label>Wer soll es sehen?</label>
+      ${frei ? `<div class="field"><label>${T("Wer soll es sehen?")}</label>
         <div class="kf-zeile" id="ev-sicht">
-          <button type="button" class="mini-btn" data-sicht="freunde">Ausgewählte Freunde</button>
-          <button type="button" class="mini-btn" data-sicht="umkreis">Alle im Umkreis</button>
+          <button type="button" class="mini-btn" data-sicht="freunde">${T("Ausgewählte Freunde")}</button>
+          <button type="button" class="mini-btn" data-sicht="umkreis">${T("Alle im Umkreis")}</button>
         </div>
         <div id="ev-freunde" class="ev-freunde"></div>
         <div id="ev-umkreis" class="kf-zeile" hidden>${TERMIN_UMKREISE.map((km) =>
           `<button type="button" class="mini-btn" data-km="${km}">${km} km</button>`).join("")}</div>
         <p class="hint" id="ev-sicht-hint"></p>
       </div>` : ""}
-      <div class="field"><label>Was ist geboten?</label>
+      <div class="field"><label>${T("Was ist geboten?")}</label>
         <div class="ev-kats">${Object.entries(KATEGORIEN).map(([k, txt]) =>
           `<button type="button" class="ev-kat ${
             aendern && ev.kategorien.includes(k) ? "gewaehlt" : ""}"
@@ -2261,14 +2274,14 @@
       </div>
       <div class="field"><label>Bild</label>
         <div class="row schmal">
-          <button class="btn ghost klein" type="button" id="ev-bild">Bild wählen</button>
+          <button class="btn ghost klein" type="button" id="ev-bild">${T("Bild wählen")}</button>
           <button class="btn ghost klein" type="button" id="ev-bild-weg"
-                  ${bildId ? "" : "hidden"}>Bild entfernen</button>
+                  ${bildId ? "" : "hidden"}>${T("Bild entfernen")}</button>
         </div>
-        <span class="hint" id="ev-bild-name">${bildId ? "Ein Bild ist hinterlegt." : ""}</span></div>
-      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
+        <span class="hint" id="ev-bild-name">${bildId ? T("Ein Bild ist hinterlegt.") : ""}</span></div>
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>
       <button class="btn" id="ev-ok">${
-        aendern ? "Änderungen speichern" : "Einladen"}</button></div>`);
+        aendern ? T("Änderungen speichern") : T("Einladen")}</button></div>`);
     if (frei) root.querySelector(".modal").classList.add("wide");
     root.querySelector(".modal").classList.add("hoch");
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
@@ -2286,8 +2299,8 @@
           .filter(Boolean)
           .sort((a, b) => a.display_name.localeCompare(b.display_name, "de"));
         if (!liste.length) {
-          freundeFeld.innerHTML = '<p class="hint">Du hast noch keine '
-            + 'bestätigten Freunde. Über „Freunde“ unten links geht das.</p>';
+          freundeFeld.innerHTML = `<p class="hint">${T("Du hast noch keine")} `
+            + `${T("bestätigten Freunde. Über „Freunde“ unten links geht das.")}</p>`;
           return;
         }
         freundeFeld.innerHTML = liste.map((u) =>
@@ -2315,7 +2328,7 @@
           ? `${gaeste.size} ${gaeste.size === 1 ? "Person" : "Personen"} ausgewählt.`
           : "Sichtbar für alle in deinem Umkreis, die gerade selbst ihren "
             + "Standort teilen – sonst wüsste der Server nicht, wo sie sind. "
-            + "Der Termin braucht dafür einen Ort auf der Karte.";
+            + T("Der Termin braucht dafür einen Ort auf der Karte.");
       };
 
       root.querySelectorAll("[data-sicht]").forEach((b) =>
@@ -2334,7 +2347,7 @@
     const ortAnzeigen = () => {
       status.textContent = ort
         ? `Ort gesetzt: ${ort.lat.toFixed(5)}, ${ort.lon.toFixed(5)}`
-        : "Noch kein Punkt auf der Karte.";
+        : T("Noch kein Punkt auf der Karte.");
       wegKnopf.hidden = !ort;
     };
     ortAnzeigen();
@@ -2353,7 +2366,7 @@
     });
 
     root.querySelector("#ev-hier").addEventListener("click", async () => {
-      status.textContent = "Standort wird bestimmt …";
+      status.textContent = T("Standort wird bestimmt …");
       try {
         const gefunden = await standortHolen();
         ort = {lat: gefunden.lat, lon: gefunden.lon};
@@ -2380,13 +2393,13 @@
     root.querySelector("#ev-bild-weg").addEventListener("click", () => {
       bildDatei = null;
       bildId = null;
-      root.querySelector("#ev-bild-name").textContent = "Kein Bild.";
+      root.querySelector("#ev-bild-name").textContent = T("Kein Bild.");
       root.querySelector("#ev-bild-weg").hidden = true;
     });
 
     root.querySelector("#ev-ok").addEventListener("click", async () => {
       const titel = root.querySelector("#ev-titel").value.trim();
-      if (!titel) { toast("Der Titel fehlt."); return; }
+      if (!titel) { toast(T("Der Titel fehlt.")); return; }
       const knopf = root.querySelector("#ev-ok");
       knopf.disabled = true;
       try {
@@ -2395,7 +2408,7 @@
           fd.append("file", await heicUmschreiben(bildDatei));
           const hoch = await api("/api/upload", {method: "POST", body: fd});
           const daten = await hoch.json().catch(() => ({}));
-          if (!hoch.ok) { toast(daten.error || "Das Bild ging nicht durch."); return; }
+          if (!hoch.ok) { toast(daten.error || T("Das Bild ging nicht durch.")); return; }
           bildId = daten.id;
         }
         const wann = root.querySelector("#ev-wann").value;
@@ -2413,7 +2426,7 @@
         if (frei) {
           nutzlast.sicht = sicht;
           if (sicht === "freunde") {
-            if (!gaeste.size) { toast("Wähle mindestens eine Person aus."); return; }
+            if (!gaeste.size) { toast(T("Wähle mindestens eine Person aus.")); return; }
             nutzlast.gaeste = [...gaeste];
           } else {
             if (!ort) { toast("Ein Umkreis braucht einen Ort auf der Karte."); return; }
@@ -2428,11 +2441,11 @@
               method: "POST", headers: {"Content-Type": "application/json"},
               body: JSON.stringify(nutzlast)});
         const daten = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
+        if (!res.ok) { toast(daten.error || T("Das hat nicht geklappt.")); return; }
         closeModal();
         if (aendern) {
           eventNeuZeichnen(ev.id);
-          toast("Einladung geändert.");
+          toast(T("Einladung geändert."));
         } else if (frei) {
           toast(sicht === "freunde"
             ? "Eingeladen. Die Ausgewählten finden es unter „Termine“."
@@ -2457,7 +2470,7 @@
   }
 
   /** Die Unterhaltung mit einer Person oeffnen - und sie anlegen, wenn es
-   *  noch keine gibt. Sonst muesste man erst durch "+ Neu". */
+   *  noch keine gibt. Sonst muesste man erst durch T("+ Neu"). */
   async function chatMitOeffnen(userId) {
     if (userId === ME) return;
     const raum = (state.rooms || []).find((r) => !r.is_group
@@ -2468,7 +2481,7 @@
       body: JSON.stringify({members: [userId], is_group: false}),
     });
     const daten = await res.json().catch(() => ({}));
-    if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+    if (!res.ok) { toast(daten.error || T("Das ging nicht.")); return; }
     await loadState();
     openRoom(daten.id);
   }
@@ -2485,7 +2498,7 @@
   }
 
   const geburtstagText = (g) => {
-    if (g.heute) return "Heute!";
+    if (g.heute) return T("Heute!");
     const d = new Date(g.naechster_at * 1000);
     const tage = Math.round((d - new Date().setHours(0, 0, 0, 0)) / 86400000);
     const datum = d.toLocaleDateString("de-DE",
@@ -2540,7 +2553,7 @@
     if (!gezeigt.length && !geburtstage.length) {
       liste.innerHTML = `<div class="abschnitt-leer">${alle.length
         ? "Dazu steht nichts an."
-        : "Nichts steht an. Mit ‚Einladung‘ im Chat legst du etwas an."
+        : T("Nichts steht an. Mit ‚Einladung‘ im Chat legst du etwas an.")
         }</div>`;
       reiterZahlen();
       renderKarten();
@@ -2583,7 +2596,7 @@
       <div class="tz-sub">${esc(ev.von.name)}${ev.ort_text
         ? ` · ${esc(ev.ort_text)}` : ""} · ${
         (ev.wer.ja || []).length} ${
-        (ev.wer.ja || []).length === 1 ? "Zusage" : "Zusagen"}${
+        (ev.wer.ja || []).length === 1 ? T("Zusage") : T("Zusagen")}${
         ev.meine ? ` · du: ${{ja: "dabei", nein: "abgesagt",
                                    vielleicht: "vielleicht"}[ev.meine]}` : ""}</div>
     </div>`;
@@ -2591,15 +2604,15 @@
 
   async function terminAnsicht(eventId, zurueck) {
     const res = await api(`/api/events/${eventId}`);
-    if (!res.ok) { toast("Der Termin ist nicht mehr da."); return; }
+    if (!res.ok) { toast(T("Der Termin ist nicht mehr da.")); return; }
     const ev = await res.json();
     const root = modal(`<div class="karten-kopf"><h2>Termin</h2>
       <span style="flex:1"></span>
       <button class="icon-btn" id="m-cancel">✕</button></div>
       ${eventHtml(ev)}
       <div class="row">${zurueck
-        ? '<button class="btn ghost" id="ev-zurueck">← Zur Karte</button>' : ""}
-      <button class="btn ghost" id="ev-zum-chat">Zur Unterhaltung</button></div>`);
+        ? `<button class="btn ghost" id="ev-zurueck">${T("← Zur Karte")}</button>` : ""}
+      <button class="btn ghost" id="ev-zum-chat">${T("Zur Unterhaltung")}</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     // In der ganzseitigen Ansicht lohnt die echte Karte - in der Sprechblase
     // bleibt es bei den Umrissen.
@@ -2730,7 +2743,7 @@
 
   async function standortFuerUmkreis() {
     const knopf = $("tipp-ort");
-    if (knopf) knopf.textContent = "Standort wird bestimmt …";
+    if (knopf) knopf.textContent = T("Standort wird bestimmt …");
     try {
       const gefunden = await standortHolen();
       meinOrt = {lat: gefunden.lat, lon: gefunden.lon};
@@ -2787,14 +2800,14 @@
         naehe.innerHTML = "";
       } else if (!meinOrt) {
         naehe.innerHTML = '<button class="mini-btn" id="tipp-ort">'
-          + '📍 In meiner Nähe</button>';
+          + `${T("📍 In meiner Nähe")}</button>`;
         naehe.querySelector("#tipp-ort")
           .addEventListener("click", standortFuerUmkreis);
       } else {
         naehe.innerHTML = UMKREISE.map((km) =>
           `<button class="mini-btn ${tippUmkreis === km ? "an" : ""}"
-                   data-km="${km}">${km ? `${km} km` : "Überall"}</button>`).join("")
-          + '<button class="mini-btn" id="tipp-ort-neu" title="Standort neu bestimmen">↻</button>';
+                   data-km="${km}">${km ? `${km} km` : T("Überall")}</button>`).join("")
+          + '<button class="mini-btn" id="tipp-ort-neu" title=T("Standort neu bestimmen")>↻</button>';
         naehe.querySelectorAll("[data-km]").forEach((b) =>
           b.addEventListener("click", () => {
             tippUmkreis = parseInt(b.dataset.km, 10);
@@ -2809,9 +2822,9 @@
       liste.innerHTML = `<div class="abschnitt-leer">${
         meinOrt && tippUmkreis
           ? `In ${tippUmkreis} km ist nichts dabei.${
-              ohneOrt ? ` ${ohneOrt} ohne Ortsangabe nicht berücksichtigt.` : ""}`
-          : alle.length ? "Zu diesem Filter gibt es nichts."
-                        : "Noch keine Empfehlung. Sag, was gut war."}</div>`;
+              ohneOrt ? ` ${ohneOrt} ${T("ohne Ortsangabe nicht berücksichtigt.")}` : ""}`
+          : alle.length ? T("Zu diesem Filter gibt es nichts.")
+                        : T("Noch keine Empfehlung. Sag, was gut war.")}</div>`;
       reiterZahlen();
       renderKarten();
       return;
@@ -2838,8 +2851,8 @@
       </div>
     </div>`).join("")
       + (ohneOrt ? `<div class="abschnitt-leer">${ohneOrt} ${
-          ohneOrt === 1 ? "Empfehlung hat" : "Empfehlungen haben"} keinen Ort und
-          ${ohneOrt === 1 ? "steht" : "stehen"} deshalb nicht in dieser Liste.</div>`
+          ohneOrt === 1 ? "Empfehlung hat" : T("Empfehlungen haben")} ${T("keinen Ort und")}
+          ${ohneOrt === 1 ? "steht" : "stehen"} ${T("deshalb nicht in dieser Liste.")}</div>`
         : "");
 
     reiterZahlen();
@@ -2849,7 +2862,7 @@
         e.stopPropagation();
         const res = await api(`/api/tipps/${b.dataset.merken}/merken`,
                               {method: "POST"});
-        if (!res.ok) { toast("Das ging nicht."); return; }
+        if (!res.ok) { toast(T("Das ging nicht.")); return; }
         await tippsLaden();
       }));
     liste.querySelectorAll("[data-bearbeiten]").forEach((b) =>
@@ -2869,10 +2882,10 @@
   /** Ein Tipp in ganzer Groesse - mit Strassenkarte, wenn ein Ort dranhaengt. */
   async function tippAnsicht(tippId, zurueck) {
     const t = (state.tipps || []).find((x) => x.id === tippId);
-    if (!t) { toast("Diese Empfehlung ist nicht mehr da."); return; }
+    if (!t) { toast(T("Diese Empfehlung ist nicht mehr da.")); return; }
     const kartenKnopf = t.ort
       ? kartenLinkHtml(t.ort.lat, t.ort.lon, t.titel,
-                       "btn ghost tp-a-osm", "In Karten öffnen")
+                       "btn ghost tp-a-osm", T("In Karten öffnen"))
       : "";
     const root = modal(`<div class="karten-kopf"><h2>${esc(t.titel)}</h2>
       <span style="flex:1"></span>
@@ -2885,7 +2898,7 @@
       ${t.ort ? '<div class="ortswahl" id="tp-karte-flaeche"></div>' : ""}
       <div class="tp-fuss">
         ${avatarHtml("u", t.user_id, t.name, t.avatar, "klein")}
-        <span class="tp-von">Empfohlen von ${esc(t.name)}${t.meiner ? " (du)" : ""}</span>
+        <span class="tp-von">${T("Empfohlen von")} ${esc(t.name)}${t.meiner ? " (du)" : ""}</span>
       </div>
       ${t.gemerkt.length ? `<div class="tp-gemerkt">${t.gemerkt.map((m) =>
         avatarHtml("u", m.id, m.name, m.avatar, "winzig")).join("")}
@@ -2893,9 +2906,9 @@
                                        : `${t.gemerkt.length} haben es sich gemerkt`}</span>
         </div>` : ""}
       <div class="row">
-        ${zurueck ? '<button class="btn ghost" id="tp-zurueck">← Zur Karte</button>' : ""}
+        ${zurueck ? `<button class="btn ghost" id="tp-zurueck">${T("← Zur Karte")}</button>` : ""}
         <button class="btn ghost" id="tp-a-merken">${
-          t.ich_merke ? "Nicht mehr merken" : "Merken"}</button>
+          t.ich_merke ? T("Nicht mehr merken") : "Merken"}</button>
         ${kartenKnopf}
         ${t.meiner ? '<button class="btn" id="tp-a-aendern">Ändern</button>' : ""}
       </div>`);
@@ -2910,7 +2923,7 @@
     if (tippZurueck) tippZurueck.addEventListener("click", () => zurueck());
     root.querySelector("#tp-a-merken").addEventListener("click", async () => {
       const res = await api(`/api/tipps/${t.id}/merken`, {method: "POST"});
-      if (!res.ok) { toast("Das ging nicht."); return; }
+      if (!res.ok) { toast(T("Das ging nicht.")); return; }
       await tippsLaden();
       closeModal();
     });
@@ -2926,7 +2939,7 @@
     let bildId = aendern ? vorhanden.file_id : null;
     let sterne = aendern ? vorhanden.sterne : 0;
 
-    const root = modal(`<h2>${aendern ? "Empfehlung ändern" : "Empfehlung"}</h2>
+    const root = modal(`<h2>${aendern ? T("Empfehlung ändern") : "Empfehlung"}</h2>
       <div class="field"><label for="tp-art">Was ist es?</label>
         <select id="tp-art">${Object.entries(TIPP_ARTEN).map(([k, txt]) =>
           `<option value="${k}" ${aendern && vorhanden.art === k ? "selected" : ""}
@@ -2942,25 +2955,25 @@
         <input id="tp-ort" autocomplete="off" placeholder="Hauptstraße 4"
                value="${aendern ? esc(vorhanden.ort_text) : ""}">
         <div class="row schmal">
-          <button class="btn ghost klein" type="button" id="tp-karte">Auf der Karte wählen</button>
-          <button class="btn ghost klein" type="button" id="tp-hier">Aktueller Ort</button>
+          <button class="btn ghost klein" type="button" id="tp-karte">${T("Auf der Karte wählen")}</button>
+          <button class="btn ghost klein" type="button" id="tp-hier">${T("Aktueller Ort")}</button>
         </div>
         <div class="ortswahl" id="tp-kartenwahl" hidden></div>
         <div class="ev-ortstand"><span class="hint" id="tp-ortstand"></span>
-          <button class="mini-btn" type="button" id="tp-ort-weg" hidden>Ort entfernen</button></div>
+          <button class="mini-btn" type="button" id="tp-ort-weg" hidden>${T("Ort entfernen")}</button></div>
       </div>
-      <div class="field"><label for="tp-text">Was sollte man wissen?</label>
+      <div class="field"><label for="tp-text">${T("Was sollte man wissen?")}</label>
         <textarea id="tp-text" rows="3">${aendern ? esc(vorhanden.text) : ""}</textarea></div>
       <div class="field"><label>Bild</label>
         <div class="row schmal">
-          <button class="btn ghost klein" type="button" id="tp-bild">Bild wählen</button>
+          <button class="btn ghost klein" type="button" id="tp-bild">${T("Bild wählen")}</button>
           <button class="btn ghost klein" type="button" id="tp-bild-weg"
-                  ${bildId ? "" : "hidden"}>Bild entfernen</button></div>
-        <span class="hint" id="tp-bild-name">${bildId ? "Ein Bild ist hinterlegt." : ""}</span></div>
+                  ${bildId ? "" : "hidden"}>${T("Bild entfernen")}</button></div>
+        <span class="hint" id="tp-bild-name">${bildId ? T("Ein Bild ist hinterlegt.") : ""}</span></div>
       <div class="row">${aendern
-        ? '<button class="btn ghost" id="tp-weg">Löschen</button>'
-        : '<button class="btn ghost" id="m-cancel">Abbrechen</button>'}
-      <button class="btn" id="tp-ok">${aendern ? "Speichern" : "Empfehlen"}</button></div>`);
+        ? `<button class="btn ghost" id="tp-weg">${T("Löschen")}</button>`
+        : `<button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>`}
+      <button class="btn" id="tp-ok">${aendern ? T("Speichern") : "Empfehlen"}</button></div>`);
     root.querySelector(".modal").classList.add("hoch");
     const abbruch = root.querySelector("#m-cancel");
     if (abbruch) abbruch.addEventListener("click", closeModal);
@@ -2977,7 +2990,7 @@
     const ortAnzeigen = () => {
       stand.textContent = ort
         ? `Ort gesetzt: ${ort.lat.toFixed(5)}, ${ort.lon.toFixed(5)}`
-        : "Noch kein Punkt auf der Karte.";
+        : T("Noch kein Punkt auf der Karte.");
       wegKnopf.hidden = !ort;
     };
     ortAnzeigen();
@@ -2992,7 +3005,7 @@
       ortsWaehler(box, ort, (neu) => { ort = neu; ortAnzeigen(); });
     });
     root.querySelector("#tp-hier").addEventListener("click", async () => {
-      stand.textContent = "Standort wird bestimmt …";
+      stand.textContent = T("Standort wird bestimmt …");
       try {
         const gefunden = await standortHolen();
         ort = {lat: gefunden.lat, lon: gefunden.lon};
@@ -3014,15 +3027,15 @@
     });
     root.querySelector("#tp-bild-weg").addEventListener("click", () => {
       bildDatei = null; bildId = null;
-      root.querySelector("#tp-bild-name").textContent = "Kein Bild.";
+      root.querySelector("#tp-bild-name").textContent = T("Kein Bild.");
       root.querySelector("#tp-bild-weg").hidden = true;
     });
 
     const weg = root.querySelector("#tp-weg");
     if (weg) weg.addEventListener("click", async () => {
-      if (!confirm("Diese Empfehlung löschen?")) return;
+      if (!confirm(T("Diese Empfehlung löschen?"))) return;
       const res = await api(`/api/tipps/${vorhanden.id}`, {method: "DELETE"});
-      if (!res.ok) { toast("Das ging nicht."); return; }
+      if (!res.ok) { toast(T("Das ging nicht.")); return; }
       closeModal();
       await tippsLaden();
     });
@@ -3039,7 +3052,7 @@
           fd.append("file", await heicUmschreiben(bildDatei));
           const hoch = await api("/api/upload", {method: "POST", body: fd});
           const daten = await hoch.json().catch(() => ({}));
-          if (!hoch.ok) { toast(daten.error || "Das Bild ging nicht durch."); return; }
+          if (!hoch.ok) { toast(daten.error || T("Das Bild ging nicht durch.")); return; }
           bildId = daten.id;
         }
         const nutzlast = {
@@ -3059,7 +3072,7 @@
               headers: {"Content-Type": "application/json"},
               body: JSON.stringify(nutzlast)});
         const daten = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(daten.error || "Das hat nicht geklappt."); return; }
+        if (!res.ok) { toast(daten.error || T("Das hat nicht geklappt.")); return; }
         closeModal();
         await tippsLaden();
       } finally {
@@ -3092,8 +3105,8 @@
   // Hell, dunkel oder was das Geraet sagt. Die Wahl steht am Geraet: sie
   // sagt nichts ueber die eigenen Daten aus, sondern nur, wie hell der
   // Bildschirm gerade sein soll.
-  const THEMEN = [["auto", "Wie das Gerät"], ["hell", "Hell"],
-                  ["dunkel", "Dunkel"]];
+  const THEMEN = [["auto", T("Wie das Gerät")], ["hell", T("Hell")],
+                  ["dunkel", T("Dunkel")]];
 
   function themaLesen() {
     try {
@@ -3183,7 +3196,7 @@
                type="button" data-muster="${wert}" title="${esc(text)}">${
         wert ? `<span class="muster-probe" data-p="${wert}"></span>`
              : '<span class="muster-leer">Keins</span>'}</button>`;
-    feld.innerHTML = knopf("", "Kein Muster")
+    feld.innerHTML = knopf("", T("Kein Muster"))
       + Object.entries(MUSTER).map(([k, m]) => knopf(k, m.name)).join("");
     feld.querySelectorAll(".muster-probe").forEach((p) => {
       p.style.backgroundImage = musterBild(p.dataset.p);
@@ -3195,7 +3208,7 @@
           method: "POST", headers: {"Content-Type": "application/json"},
           body: JSON.stringify({muster: wert}),
         });
-        if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
+        if (!res.ok) { toast(T("Das ließ sich nicht speichern.")); return; }
         room.hintergrund = wert || null;
         hintergrundAnwenden(room);
         feld.querySelectorAll("[data-muster]").forEach((x) =>
@@ -3213,9 +3226,9 @@
   // Freundschaft. Wer befreundet ist, sieht die Stimmung und die Tipps des
   // anderen - auch ohne gemeinsame Unterhaltung.
   async function freundeDialog() {
-    const root = modal(`<h2>Freunde</h2>
-      <div id="fr-inhalt"><p class="hint">Wird geladen …</p></div>
-      <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
+    const root = modal(`<h2>${T("Freunde")}</h2>
+      <div id="fr-inhalt"><p class="hint">${T("Wird geladen …")}</p></div>
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Schließen")}</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     await freundeZeichnen(root);
   }
@@ -3224,7 +3237,7 @@
     const feld = (root || document).querySelector("#fr-inhalt");
     if (!feld) return;
     const res = await api("/api/freunde");
-    if (!res.ok) { feld.innerHTML = '<p class="hint">Das ging nicht.</p>'; return; }
+    if (!res.ok) { feld.innerHTML = `<p class="hint">${T("Das ging nicht.")}</p>`; return; }
     const d = await res.json();
 
     const zeile = (u, knoepfe) => `<div class="fr-zeile" data-id="${u.id}">
@@ -3241,22 +3254,22 @@
     };
 
     feld.innerHTML =
-      gruppe("Wartet auf deine Antwort", d.eingehend, () =>
-        '<button class="mini-btn an" data-ja>Annehmen</button>'
-        + '<button class="mini-btn" data-nein>Ablehnen</button>', "")
+      gruppe(T("Wartet auf deine Antwort"), d.eingehend, () =>
+        `<button class="mini-btn an" data-ja>${T("Annehmen")}</button>`
+        + `<button class="mini-btn" data-nein>${T("Ablehnen")}</button>`, "")
       + gruppe("Deine Freunde", d.freunde, () =>
         '<button class="mini-btn" data-weg>Entfernen</button>',
-        "Noch niemand. Frag unten jemanden an.")
+        T("Noch niemand. Frag unten jemanden an."))
       + gruppe("Angefragt", d.ausgehend, () =>
         '<button class="mini-btn" data-zurueck>Zurücknehmen</button>', "")
       + gruppe("Weitere Personen", d.andere, () =>
-        '<button class="mini-btn" data-fragen>Anfragen</button>', "");
+        `<button class="mini-btn" data-fragen>${T("Anfragen")}</button>`, "");
 
     const tat = async (id, methode) => {
       const res = await api(`/api/freunde/${id}`, {method: methode});
       if (!res.ok) {
         const daten = await res.json().catch(() => ({}));
-        toast(daten.error || "Das ging nicht.");
+        toast(daten.error || T("Das ging nicht."));
         return;
       }
       await loadState();
@@ -3284,12 +3297,12 @@
     knopf.classList.toggle("wartet", offen > 0);
     knopf.title = offen
       ? `${offen} ${offen === 1 ? "Anfrage wartet" : "Anfragen warten"}`
-      : "Freunde";
+      : T("Freunde");
   }
 
   socket.on("freunde_geaendert", async (d) => {
     await loadState();
-    if (d && d.anfrage) toast("Jemand möchte sich mit dir befreunden.");
+    if (d && d.anfrage) toast(T("Jemand möchte sich mit dir befreunden."));
     const offen = document.querySelector("#fr-inhalt");
     if (offen) freundeZeichnen($("modal-root"));
   });
@@ -3384,7 +3397,7 @@
       return;
     }
     if (!window.RTCPeerConnection || !navigator.mediaDevices) {
-      toast("Dieser Browser kann keine Anrufe.");
+      toast(T("Dieser Browser kann keine Anrufe."));
       return;
     }
     await eisHolen();
@@ -3392,8 +3405,8 @@
       anruf.eigen = await medienHolen(art);
     } catch (err) {
       toast(err.name === "NotAllowedError"
-        ? "Du hast den Zugriff auf Mikrofon oder Kamera abgelehnt."
-        : "Mikrofon oder Kamera wurden nicht gefunden.");
+        ? T("Du hast den Zugriff auf Mikrofon oder Kamera abgelehnt.")
+        : T("Mikrofon oder Kamera wurden nicht gefunden."));
       return;
     }
     anruf.room = currentRoom;
@@ -3406,7 +3419,7 @@
     socket.timeout(8000).emit("anruf_beitreten", {room_id: anruf.room, art},
       async (fehler, antwort) => {
         if (fehler || !antwort || !antwort.ok) {
-          toast((antwort && antwort.error) || "Der Anruf kam nicht zustande.");
+          toast((antwort && antwort.error) || T("Der Anruf kam nicht zustande."));
           anrufBeenden();
           return;
         }
@@ -3449,7 +3462,7 @@
     } catch (err) {
       // Eine verspätete Wegbeschreibung ist kein Grund, das Gespräch
       // abzubrechen - sie gehört dann zu einer schon geschlossenen Leitung.
-      console.warn("Anruf-Signal nicht verwertbar:", err);
+      console.warn(T("Anruf-Signal nicht verwertbar:"), err);
     }
     anrufZeichnen();
   });
@@ -3464,7 +3477,7 @@
     if (d.room_id !== anruf.room) return;
     const raum = roomById(d.room_id);
     const wer = raum && raum.members.find((m) => m.id === d.user_id);
-    toast(`${wer ? wer.display_name : "Jemand"} hat abgelehnt.`);
+    toast(`${wer ? wer.display_name : "Jemand"} ${T("hat abgelehnt.")}`);
   });
 
   // Der Stand eines Anrufs geht an alle im Raum - auch an die, die nicht
@@ -3485,9 +3498,9 @@
   // Zahl der Herzen sieht jeder; die Kommentare bleiben zwischen zweien.
   const FREI_ZEICHEN = {aus: "🔒", freunde: "👥", alle: "🌍"};
   const FREI_TITEL = {
-    aus: "Nicht freigegeben – nur in der Unterhaltung sichtbar",
-    freunde: "Für deine Freunde freigegeben",
-    alle: "Für alle freigegeben",
+    aus: T("Nicht freigegeben – nur in der Unterhaltung sichtbar"),
+    freunde: T("Für deine Freunde freigegeben"),
+    alle: T("Für alle freigegeben"),
   };
 
   /** Freigabe einer eigenen Datei setzen oder zurücknehmen.
@@ -3502,7 +3515,7 @@
       if (zurueck) zurueck();
     };
     const jetzt = m.galerie || "aus";
-    const root = modal(`<h2>Wer darf das sehen?</h2>
+    const root = modal(`<h2>${T("Wer darf das sehen?")}</h2>
       <p class="hint">In der Unterhaltung sehen es die Mitglieder ohnehin.
         Hier geht es darum, ob es zusätzlich in deiner Galerie steht – der
         Sammlung, die andere über deinen Namen im Chat öffnen können.</p>
@@ -3511,10 +3524,10 @@
         <button class="mini-btn ${jetzt === "freunde" ? "an" : ""}" data-art="freunde">👥 Meine Freunde</button>
         <button class="mini-btn ${jetzt === "alle" ? "an" : ""}" data-art="alle">🌍 Alle</button>
       </div>
-      <div class="field"><label for="fg-titel">Bildunterschrift (freiwillig)</label>
+      <div class="field"><label for="fg-titel">${T("Bildunterschrift (freiwillig)")}</label>
         <input id="fg-titel" autocomplete="off" maxlength="200"
                value="${esc(m.galerie_titel || "")}"></div>
-      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button></div>`);
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", schliessen);
     root.querySelectorAll("[data-art]").forEach((b) =>
       b.addEventListener("click", async () => {
@@ -3528,10 +3541,10 @@
               method: "POST", headers: {"Content-Type": "application/json"},
               body: JSON.stringify({file_id: m.id, art, titel})});
         const daten = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
-        toast(art === "aus" ? "Freigabe zurückgenommen."
-              : art === "alle" ? "Für alle freigegeben."
-              : "Für deine Freunde freigegeben.");
+        if (!res.ok) { toast(daten.error || T("Das ging nicht.")); return; }
+        toast(art === "aus" ? T("Freigabe zurückgenommen.")
+              : art === "alle" ? T("Für alle freigegeben.")
+              : T("Für deine Freunde freigegeben."));
         schliessen();
       }));
   }
@@ -3540,7 +3553,7 @@
 
   async function galerieOeffnen(userId) {
     const res = await api(`/api/galerie/${userId}`);
-    if (!res.ok) { toast("Diese Galerie ließ sich nicht öffnen."); return; }
+    if (!res.ok) { toast(T("Diese Galerie ließ sich nicht öffnen.")); return; }
     const daten = await res.json();
     galerie.person = daten.person;
     galerie.meine = daten.meine;
@@ -3557,7 +3570,7 @@
 
   function galerieZeichnen() {
     $("galerie-titel").textContent = galerie.meine
-      ? "Deine Galerie" : `Bilder von ${galerie.person.name}`;
+      ? T("Deine Galerie") : `Bilder von ${galerie.person.name}`;
     $("galerie-neu").hidden = !galerie.meine;
     const feld = $("galerie-raster");
     if (!galerie.eintraege.length) {
@@ -3565,7 +3578,7 @@
         ? "Noch nichts hier. Über „＋ Bild hinzufügen“ oben legst du etwas "
           + "hinein – oder du gibst unter „Medien“ frei, was du ohnehin schon "
           + "verschickt hast."
-        : "Hier ist noch nichts freigegeben."}</p>`;
+        : T("Hier ist noch nichts freigegeben.")}</p>`;
       return;
     }
     feld.innerHTML = galerie.eintraege.map((g) => `
@@ -3576,15 +3589,15 @@
           : `<img src="${BASE}/files/${g.file_id}" alt="${esc(g.name)}" loading="lazy">`}
         <figcaption>
           <span class="ga-herz ${g.mein_herz ? "an" : ""}" data-herz="${g.id}"
-                title="Gefällt mir">${g.mein_herz ? "❤️" : "🤍"} ${g.herzen}</span>
-          <span class="ga-wort" data-wort="${g.id}" title="Kommentare">💬 ${g.worte}</span>
+                title=T("Gefällt mir")>${g.mein_herz ? "❤️" : "🤍"} ${g.herzen}</span>
+          <span class="ga-wort" data-wort="${g.id}" title=T("Kommentare")>💬 ${g.worte}</span>
           ${galerie.meine ? `<button class="ga-art" data-frei="${g.id}"
-             title="${FREI_TITEL[g.art]} – zum Ändern tippen">${
+             title="${FREI_TITEL[g.art]} ${T("– zum Ändern tippen")}">${
              FREI_ZEICHEN[g.art]}</button>` : ""}
         </figcaption>
         ${g.titel ? `<div class="ga-titel">${esc(g.titel)}</div>` : ""}
         ${galerie.meine ? `<button class="ga-weg" data-weg="${g.id}"
-           title="Endgültig löschen">✕</button>` : ""}
+           title=T("Endgültig löschen")>✕</button>` : ""}
       </figure>`).join("");
 
     feld.querySelectorAll("[data-herz]").forEach((el) =>
@@ -3592,7 +3605,7 @@
         e.stopPropagation();
         const id = parseInt(el.dataset.herz, 10);
         const res = await api(`/api/galerie/${id}/herz`, {method: "POST"});
-        if (!res.ok) { toast("Das ging nicht."); return; }
+        if (!res.ok) { toast(T("Das ging nicht.")); return; }
         const neu = await res.json();
         const i = galerie.eintraege.findIndex((g) => g.id === id);
         if (i >= 0) galerie.eintraege[i] = {...galerie.eintraege[i], ...neu};
@@ -3605,12 +3618,12 @@
           (x) => x.id === parseInt(el.dataset.weg, 10));
         if (!g) return;
         const film = (g.mime || "").startsWith("video/");
-        if (!confirm(`${film ? "Diesen Film" : "Dieses Bild"} endgültig `
-              + "löschen?" + "\n\n"
-              + "Es verschwindet aus der Galerie und vom Server – und damit "
-              + "auch aus jeder Unterhaltung, in der es steht. Herzen und "
-              + "Kommentare gehen mit.")) return;
-        // Derselbe Weg wie unter "Medien": das Löschen gehört zur Datei,
+        if (!confirm((film ? T("Diesen Film endgültig löschen?")
+                           : T("Dieses Bild endgültig löschen?")) + "\n\n"
+              + T("Es verschwindet aus der Galerie und vom Server – und damit "
+                  + "auch aus jeder Unterhaltung, in der es steht. Herzen und "
+                  + "Kommentare gehen mit."))) return;
+        // Derselbe Weg wie unter T("Medien"): das Löschen gehört zur Datei,
         // nicht zur Freigabe.
         const res = await api("/api/media/delete", {
           method: "POST", headers: {"Content-Type": "application/json"},
@@ -3621,7 +3634,7 @@
           toast(daten.error || "Löschen ging nicht.");
           return;
         }
-        toast(film ? "Film gelöscht." : "Bild gelöscht.");
+        toast(film ? T("Film gelöscht.") : T("Bild gelöscht."));
         await galerieOeffnen(galerie.person.id);
         if (currentRoom) openRoom(currentRoom);
       }));
@@ -3656,7 +3669,7 @@
     const ziel = `/api/galerie/${galerieId}/worte`
       + (mitId ? `?mit=${mitId}` : "");
     const res = await api(ziel);
-    if (!res.ok) { toast("Die Kommentare ließen sich nicht laden."); return; }
+    if (!res.ok) { toast(T("Die Kommentare ließen sich nicht laden.")); return; }
     const daten = await res.json();
     const kasten = $("galerie-faden");
     kasten.hidden = false;
@@ -3665,7 +3678,7 @@
     // ein Gespräch läuft. Jeder Faden gehört genau zwei Leuten.
     if (!daten.mit_id && daten.faeden.length) {
       kasten.innerHTML = `<div class="gf-kopf">
-          <strong>Kommentare</strong><span style="flex:1"></span>
+          <strong>${T("Kommentare")}</strong><span style="flex:1"></span>
           <button class="icon-btn" id="gf-zu">✕</button></div>
         <div class="gf-liste">${daten.faeden.map((f) => `
           <button class="gf-faden" data-mit="${f.mit_id}">
@@ -3679,10 +3692,10 @@
       return;
     }
     if (!daten.mit_id && !daten.faeden.length) {
-      kasten.innerHTML = `<div class="gf-kopf"><strong>Kommentare</strong>
+      kasten.innerHTML = `<div class="gf-kopf"><strong>${T("Kommentare")}</strong>
           <span style="flex:1"></span>
           <button class="icon-btn" id="gf-zu">✕</button></div>
-        <p class="hint">Hierzu hat noch niemand etwas geschrieben.</p>`;
+        <p class="hint">${T("Hierzu hat noch niemand etwas geschrieben.")}</p>`;
       $("gf-zu").addEventListener("click", () => { kasten.hidden = true; });
       return;
     }
@@ -3698,20 +3711,20 @@
         ? daten.worte.map((w) => `<div class="gf-wort ${w.meins ? "mein" : ""}">
             <div class="gf-wer">${esc(w.name)} · ${shortTime(w.at)}</div>
             <div class="gf-text">${esc(w.text)}</div>
-            ${w.meins ? `<button class="mini-btn" data-weg="${w.id}">Löschen</button>` : ""}
+            ${w.meins ? `<button class="mini-btn" data-weg="${w.id}">${T("Löschen")}</button>` : ""}
           </div>`).join("")
-        : '<p class="hint">Noch nichts geschrieben.</p>'}</div>
+        : `<p class="hint">${T("Noch nichts geschrieben.")}</p>`}</div>
       <div class="gf-schreiben">
         <input id="gf-text" autocomplete="off" maxlength="2000"
-               placeholder="Etwas dazu schreiben …">
-        <button class="btn" id="gf-ok">Senden</button>
+               placeholder=T("Etwas dazu schreiben …")>
+        <button class="btn" id="gf-ok">${T("Senden")}</button>
       </div>`;
     $("gf-zu").addEventListener("click", () => { kasten.hidden = true; });
     kasten.querySelectorAll("[data-weg]").forEach((b) =>
       b.addEventListener("click", async () => {
         const res = await api(`/api/galerie/worte/${b.dataset.weg}`,
                               {method: "DELETE"});
-        if (!res.ok) { toast("Das ging nicht."); return; }
+        if (!res.ok) { toast(T("Das ging nicht.")); return; }
         await galerieNeu(galerieId, daten.mit_id);
       }));
     const senden = async () => {
@@ -3723,7 +3736,7 @@
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify(nutzlast)});
       const antwort = await res.json().catch(() => ({}));
-      if (!res.ok) { toast(antwort.error || "Das ging nicht."); return; }
+      if (!res.ok) { toast(antwort.error || T("Das ging nicht.")); return; }
       $("gf-text").value = "";
       await galerieNeu(galerieId, daten.mit_id);
     };
@@ -3752,21 +3765,20 @@
    */
   function galerieHinzufuegen() {
     let datei = null;
-    const root = modal(`<h2>Bild oder Film hinzufügen</h2>
-      <p class="hint">Es landet nur in deiner Galerie – in keiner
-        Unterhaltung.</p>
+    const root = modal(`<h2>${T("Bild oder Film hinzufügen")}</h2>
+      <p class="hint">${T("Es landet nur in deiner Galerie – in keiner Unterhaltung.")}</p>
       <div class="field">
-        <button class="btn ghost" type="button" id="gn-datei">Datei wählen</button>
+        <button class="btn ghost" type="button" id="gn-datei">${T("Datei wählen")}</button>
         <span class="hint" id="gn-name"></span>
       </div>
-      <div class="field"><label for="gn-titel">Bildunterschrift (freiwillig)</label>
+      <div class="field"><label for="gn-titel">${T("Bildunterschrift (freiwillig)")}</label>
         <input id="gn-titel" autocomplete="off" maxlength="200"></div>
-      <div class="field"><label>Wer darf es sehen?</label>
+      <div class="field"><label>${T("Wer darf es sehen?")}</label>
         <div class="kf-zeile" id="gn-wahl">
           <button type="button" class="mini-btn an" data-art="freunde">👥 Meine Freunde</button>
           <button type="button" class="mini-btn" data-art="alle">🌍 Alle</button>
         </div></div>
-      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>
       <button class="btn" id="gn-ok">Hinzufügen</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     let art = "freunde";
@@ -3790,7 +3802,7 @@
     waehlen();
 
     root.querySelector("#gn-ok").addEventListener("click", async () => {
-      if (!datei) { toast("Wähle zuerst ein Bild oder einen Film."); return; }
+      if (!datei) { toast(T("Wähle zuerst ein Bild oder einen Film.")); return; }
       const knopf = root.querySelector("#gn-ok");
       knopf.disabled = true;
       try {
@@ -3804,7 +3816,7 @@
           body: JSON.stringify({file_id: daten.id, art,
             titel: root.querySelector("#gn-titel").value.trim()})});
         const antwort = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(antwort.error || "Das ging nicht."); return; }
+        if (!res.ok) { toast(antwort.error || T("Das ging nicht.")); return; }
         closeModal();
         toast(art === "alle" ? "Für alle sichtbar." : "Für deine Freunde sichtbar.");
         await galerieOeffnen(ME);
@@ -4029,13 +4041,13 @@
       <p class="hint">Gilt nur für dich, dafür auf allen deinen Geräten.
         ${istStumm ? `Zurzeit ${esc(stummText(room.stumm_bis))}.` : ""}</p>
       <div class="kf-zeile">
-        <button class="mini-btn ${!istStumm ? "an" : ""}" data-stunden="">Ton an</button>
+        <button class="mini-btn ${!istStumm ? "an" : ""}" data-stunden="">${T("Ton an")}</button>
         <button class="mini-btn" data-stunden="1">1 Stunde stumm</button>
         <button class="mini-btn" data-stunden="8">8 Stunden</button>
         <button class="mini-btn ${room.stumm_bis === 0 ? "an" : ""}"
-                data-stunden="0">Für immer</button>
+                data-stunden="0">${T("Für immer")}</button>
       </div>
-      <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Schließen")}</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelectorAll("[data-stunden]").forEach((b) =>
       b.addEventListener("click", async () => {
@@ -4045,7 +4057,7 @@
           body: JSON.stringify({stunden: wert === "" ? null : parseInt(wert, 10)}),
         });
         const daten = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+        if (!res.ok) { toast(daten.error || T("Das ging nicht.")); return; }
         room.stumm_bis = daten.stumm_bis;
         closeModal();
         renderRooms();
@@ -4081,15 +4093,15 @@
   // Klingeltoene entstehen im Browser, es liegt keine Tondatei im Add-on.
   // Je Eintrag: [Hertz, Versatz in Sekunden, Dauer].
   const KLINGEL_MUSTER = {
-    klassisch: {name: "Klassisch",
+    klassisch: {name: T("Klassisch"),
                 noten: [[660, 0, 0.34], [660, 0.42, 0.34]]},
-    sanft: {name: "Sanft",
+    sanft: {name: T("Sanft"),
             noten: [[523, 0, 0.5], [659, 0.24, 0.6]]},
-    perlen: {name: "Perlen",
+    perlen: {name: T("Perlen"),
              noten: [[988, 0, 0.12], [988, 0.16, 0.12], [1319, 0.32, 0.22]]},
-    tief: {name: "Tief",
+    tief: {name: T("Tief"),
            noten: [[330, 0, 0.42], [262, 0.36, 0.5]]},
-    folge: {name: "Kleine Folge",
+    folge: {name: T("Kleine Folge"),
             noten: [[587, 0, 0.16], [740, 0.16, 0.16],
                     [880, 0.32, 0.16], [1175, 0.5, 0.34]]},
   };
@@ -4168,7 +4180,7 @@
       .map((u) => (raum.members.find((m) => m.id === u) || {}).display_name)
       .filter(Boolean).join(", ");
     $("ruf-titel").textContent =
-      raum.anruf.art === "video" ? "Videoanruf" : "Anruf";
+      raum.anruf.art === "video" ? T("Videoanruf") : "Anruf";
     $("ruf-sub").textContent = `${raum.name} · ${namen}`;
     // Nur bei einem neuen Anruf von vorn laeuten, nicht bei jeder Meldung
     const kennung = `${raum.id}:${raum.anruf.seit}`;
@@ -4257,7 +4269,7 @@
       }
     });
     $("anruf-titel").textContent =
-      anruf.art === "video" ? "Videoanruf" : "Anruf";
+      anruf.art === "video" ? T("Videoanruf") : "Anruf";
     $("btn-anruf-stumm").classList.toggle("aus", anruf.stumm);
     $("btn-anruf-stumm").textContent = anruf.stumm ? "🔇" : "🎤";
     const kamera = $("btn-anruf-kamera");
@@ -4339,7 +4351,7 @@
   }
 
   async function aufnahmeStarten() {
-    if (!currentRoom) { toast("Öffne zuerst eine Unterhaltung."); return; }
+    if (!currentRoom) { toast(T("Öffne zuerst eine Unterhaltung.")); return; }
     if (aufnahme) return;
     if (!sichererKontext()) {
       toast("Das Mikrofon gibt der Browser nur über HTTPS frei – öffne den "
@@ -4347,7 +4359,7 @@
       return;
     }
     if (!navigator.mediaDevices || tonFormat() === null) {
-      toast("Dieser Browser kann keine Sprachnachrichten aufnehmen.");
+      toast(T("Dieser Browser kann keine Sprachnachrichten aufnehmen."));
       return;
     }
     aufnahmeGewollt = true;
@@ -4356,8 +4368,8 @@
       spur = await navigator.mediaDevices.getUserMedia({audio: true});
     } catch (err) {
       toast(err.name === "NotAllowedError"
-        ? "Du hast den Zugriff auf das Mikrofon abgelehnt."
-        : "Kein Mikrofon gefunden.");
+        ? T("Du hast den Zugriff auf das Mikrofon abgelehnt.")
+        : T("Kein Mikrofon gefunden."));
       return;
     }
     if (!aufnahmeGewollt) {
@@ -4418,14 +4430,14 @@
     fd.append("file", blob, `sprachnachricht.${endung}`);
     const res = await api("/api/upload", {method: "POST", body: fd});
     const daten = await res.json().catch(() => ({}));
-    if (!res.ok) { toast(daten.error || "Die Aufnahme ging nicht durch."); return; }
-    if (!socket.connected) { toast("Keine Verbindung."); return; }
+    if (!res.ok) { toast(daten.error || T("Die Aufnahme ging nicht durch.")); return; }
+    if (!socket.connected) { toast(T("Keine Verbindung.")); return; }
     socket.timeout(8000).emit("send",
       {room_id: currentRoom, body: "", file_id: daten.id, reply_to: replyTo,
        sprachdauer: sekunden},
       (fehler, antwort) => {
         if (fehler || (antwort && antwort.ok === false)) {
-          toast("Die Sprachnachricht ließ sich nicht senden.");
+          toast(T("Die Sprachnachricht ließ sich nicht senden."));
         }
       });
     cancelReply();
@@ -4453,7 +4465,7 @@
       document.querySelectorAll(".sprachnachricht audio").forEach((a) => {
         if (a !== ton) a.pause();
       });
-      ton.play().catch(() => toast("Die Aufnahme ließ sich nicht abspielen."));
+      ton.play().catch(() => toast(T("Die Aufnahme ließ sich nicht abspielen.")));
     } else {
       ton.pause();
     }
@@ -4510,12 +4522,12 @@
     if (!aufnahme) {
       // Losgelassen, bevor das Mikrofon bereit war
       aufnahmeGewollt = false;
-      toast("Zum Aufnehmen den Knopf gedrückt halten.");
+      toast(T("Zum Aufnehmen den Knopf gedrückt halten."));
       return;
     }
     // Unter einer halben Sekunde war es ein Verrutscher, keine Nachricht
     const zuKurz = Date.now() - aufnahme.seit < 500;
-    if (zuKurz) toast("Zum Aufnehmen den Knopf gedrückt halten.");
+    if (zuKurz) toast(T("Zum Aufnehmen den Knopf gedrückt halten."));
     aufnahmeStoppen(zuKurz);
   }
 
@@ -4615,13 +4627,13 @@
     let fertig = 0;
     for (const datei of dateien) {
       toast(dateien.length > 1
-        ? `Lade ${fertig + 1} von ${dateien.length} …` : "Datei wird hochgeladen …");
+        ? `Lade ${fertig + 1} von ${dateien.length} …` : T("Datei wird hochgeladen …"));
       const fd = new FormData();
       fd.append("file", await heicUmschreiben(datei));
       const res = await api("/api/upload", {method: "POST", body: fd});
       const daten = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast(`${datei.name}: ${daten.error || "Hochladen fehlgeschlagen."}`);
+        toast(`${datei.name}: ${daten.error || T("Hochladen fehlgeschlagen.")}`);
         continue;
       }
       if (currentRoom !== raum) return;   // inzwischen woanders
@@ -4642,7 +4654,7 @@
         + `<p class="gross-name">${esc(name)}</p>`
       : `<div class="gross-ersatz">${avatarHtml(kind, id, name, null, "riesig")}</div>`
         + `<p class="gross-name">${esc(name)}</p>`
-        + '<p class="hint">Für diesen Eintrag gibt es kein Bild.</p>');
+        + `<p class="hint">${T("Für diesen Eintrag gibt es kein Bild.")}</p>`);
     root.querySelector(".modal").classList.add("bildschau");
     root.querySelector(".modal").addEventListener("click", closeModal);
   }
@@ -4667,25 +4679,25 @@
     const root = modal(`<h2>${esc(room.name)}</h2>
       <div class="avatar-vorschau">${raumAvatar(room, "riesig")}</div>
       ${room.is_group ? `<div class="row schmal">
-        <button class="btn ghost" id="a-neu">Bild wählen</button>
-        ${room.avatar ? '<button class="btn ghost" id="a-weg">Bild entfernen</button>' : ""}
+        <button class="btn ghost" id="a-neu">${T("Bild wählen")}</button>
+        ${room.avatar ? `<button class="btn ghost" id="a-weg">${T("Bild entfernen")}</button>` : ""}
       </div>` : ""}
       <hr class="sep">
-      <h2>Töne</h2>
+      <h2>${T("Töne")}</h2>
       <p class="hint" id="stumm-stand"></p>
-      <button class="btn ghost" id="stumm-ok">Töne für diese Unterhaltung</button>
+      <button class="btn ghost" id="stumm-ok">${T("Töne für diese Unterhaltung")}</button>
       <hr class="sep">
       <h2>Hintergrundmuster</h2>
       <p class="hint">Gilt nur für dich – andere sehen ihr eigenes Muster.</p>
       <div class="musterwahl" id="hg-wahl"></div>
       <hr class="sep">
       <div class="row schmal">
-        <button class="btn ghost" id="r-leave">Chat löschen</button>
-        ${IS_ADMIN ? '<button class="btn ghost del" id="r-kill">Für alle löschen</button>' : ""}
+        <button class="btn ghost" id="r-leave">${T("Chat löschen")}</button>
+        ${IS_ADMIN ? `<button class="btn ghost del" id="r-kill">${T("Für alle löschen")}</button>` : ""}
       </div>
       <p class="hint">„Chat löschen" entfernt die Unterhaltung nur bei dir.
         ${IS_ADMIN ? "„Für alle löschen\" entfernt sie mitsamt Nachrichten und Anhängen bei allen." : ""}</p>
-      <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Schließen")}</button></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelector(".avatar-vorschau").addEventListener("click", () => {
       if (room.is_group) return bildGross("r", room.id, room.name, room.avatar);
@@ -4694,27 +4706,27 @@
     });
 
     root.querySelector("#r-leave").addEventListener("click", async () => {
-      if (!confirm(`Unterhaltung „${room.name}“ bei dir löschen?
+      if (!confirm(`${T("Unterhaltung")} „${room.name}“ ${T("bei dir löschen?")}
 
 `
-                   + "Die anderen behalten sie. Du siehst den Verlauf danach "
-                   + "nicht mehr.")) return;
+                   + T("Die anderen behalten sie. Du siehst den Verlauf danach "
+                       + "nicht mehr."))) return;
       const res = await api(`/api/rooms/${room.id}/leave`, {method: "POST"});
-      if (!res.ok) { toast("Das hat nicht geklappt."); return; }
-      toast("Unterhaltung gelöscht.");
+      if (!res.ok) { toast(T("Das hat nicht geklappt.")); return; }
+      toast(T("Unterhaltung gelöscht."));
       closeModal();
       raumVerlassen(room.id);
     });
     const kill = root.querySelector("#r-kill");
     if (kill) kill.addEventListener("click", async () => {
-      if (!confirm(`Unterhaltung „${room.name}“ für ALLE löschen?
+      if (!confirm(`${T("Unterhaltung")} „${room.name}“ ${T("für ALLE löschen?")}
 
 `
-                   + "Nachrichten und Anhänge werden endgültig entfernt. "
-                   + "Das lässt sich nicht rückgängig machen.")) return;
+                   + T("Nachrichten und Anhänge werden endgültig entfernt.")
+                   + " " + T("Das lässt sich nicht rückgängig machen."))) return;
       const res = await api(`/api/rooms/${room.id}`, {method: "DELETE"});
-      if (!res.ok) { toast("Das hat nicht geklappt."); return; }
-      toast("Unterhaltung für alle gelöscht.");
+      if (!res.ok) { toast(T("Das hat nicht geklappt.")); return; }
+      toast(T("Unterhaltung für alle gelöscht."));
       closeModal();
       raumVerlassen(room.id);
     });
@@ -4723,7 +4735,7 @@
     const stummZeigen = () => {
       const text = stummText(room.stumm_bis);
       stummStand.textContent = text
-        ? `Zurzeit ${text}.` : "Töne sind an.";
+        ? `Zurzeit ${text}.` : T("Töne sind an.");
     };
     stummZeigen();
     root.querySelector("#stumm-ok").addEventListener("click", () => {
@@ -4741,7 +4753,7 @@
     const weg = root.querySelector("#a-weg");
     if (weg) weg.addEventListener("click", async () => {
       const res = await api(`/api/rooms/${room.id}/avatar`, {method: "DELETE"});
-      if (!res.ok) { toast("Entfernen fehlgeschlagen."); return; }
+      if (!res.ok) { toast(T("Entfernen fehlgeschlagen.")); return; }
       toast("Gruppenbild entfernt.");
       closeModal();
       await loadState();
@@ -4760,7 +4772,7 @@
       $("chat-header").hidden = true;
       $("composer").hidden = true;
       $("messages").innerHTML =
-        '<div class="empty">Wähle links eine Unterhaltung.</div>';
+        `<div class="empty">${T("Wähle links eine Unterhaltung.")}</div>`;
     }
     renderRooms();
     loadState();
@@ -4795,13 +4807,13 @@
 
   $("btn-new").addEventListener("click", () => {
     const others = state.users.filter((u) => u.id !== ME && u.active !== false);
-    const root = modal(`<h2>Neue Unterhaltung</h2>
-      <div class="field"><label>Gruppenname (leer lassen für Einzelchat)</label>
+    const root = modal(`<h2>${T("Neue Unterhaltung")}</h2>
+      <div class="field"><label>${T("Gruppenname (leer lassen für Einzelchat)")}</label>
       <input id="m-name" placeholder="z. B. Familie"></div>
       <div id="m-users">${others.map((u) =>
         `<div class="pick" data-id="${u.id}"><span class="dot ${state.online.has(u.id) ? "on" : ""}"></span>${esc(u.display_name)}</div>`
-      ).join("") || '<p class="hint">Es gibt noch keine anderen Konten.</p>'}</div>
-      <div class="row"><button class="btn ghost" id="m-cancel">Abbrechen</button>
+      ).join("") || `<p class="hint">${T("Es gibt noch keine anderen Konten.")}</p>`}</div>
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Abbrechen")}</button>
       <button class="btn" id="m-ok">Anlegen</button></div>`);
     const sel = new Set();
     root.querySelectorAll(".pick").forEach((el) => el.addEventListener("click", () => {
@@ -4813,9 +4825,9 @@
     root.querySelector("#m-ok").addEventListener("click", async () => {
       const name = root.querySelector("#m-name").value.trim();
       const members = [...sel];
-      if (!members.length) return toast("Wähle mindestens eine Person aus.");
+      if (!members.length) return toast(T("Wähle mindestens eine Person aus."));
       const isGroup = !!name || members.length > 1;
-      if (isGroup && !name) return toast("Gruppen brauchen einen Namen.");
+      if (isGroup && !name) return toast(T("Gruppen brauchen einen Namen."));
       const res = await api("/api/rooms", {
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({name, members, is_group: isGroup}),
@@ -4834,8 +4846,8 @@
     const cands = state.users.filter((u) => !inRoom.has(u.id) && u.active !== false);
     const root = modal(`<h2>Person zu „${esc(room.name)}“ hinzufügen</h2>
       ${cands.map((u) => `<div class="pick" data-id="${u.id}">${esc(u.display_name)}</div>`).join("")
-        || '<p class="hint">Alle Konten sind schon in dieser Gruppe.</p>'}
-      <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
+        || `<p class="hint">${T("Alle Konten sind schon in dieser Gruppe.")}</p>`}
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Schließen")}</button></div>`);
     root.querySelectorAll(".pick").forEach((el) => el.addEventListener("click", async () => {
       await api(`/api/rooms/${currentRoom}/members`, {
         method: "POST", headers: {"Content-Type": "application/json"},
@@ -4843,101 +4855,93 @@
       });
       closeModal();
       await loadState();
-      toast("Person hinzugefügt.");
+      toast(T("Person hinzugefügt."));
     }));
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
   });
 
   $("btn-settings").addEventListener("click", () => {
     const meinBild = avatarHtml("u", ME, B.dataset.name, state.me && state.me.avatar, "riesig");
-    const root = modal(`<h2>Einstellungen</h2>
+    const root = modal(`<h2>${T("Einstellungen")}</h2>
       <div class="mein-bild">
         <div class="avatar-vorschau">${meinBild}</div>
-        <div class="row schmal"><button class="btn ghost" id="me-bild">Bild wählen</button>
+        <div class="row schmal"><button class="btn ghost" id="me-bild">${T("Bild wählen")}</button>
         ${state.me && state.me.avatar ? '<button class="btn ghost" id="me-bild-weg">Entfernen</button>' : ""}</div>
       </div>
       <div class="field"><label>Aktuelles Passwort</label><input id="p-old" type="password"></div>
-      <div class="field"><label>Neues Passwort</label><input id="p-new" type="password"></div>
-      <button class="btn" id="p-ok">Passwort ändern</button>
+      <div class="field"><label>${T("Neues Passwort")}</label><input id="p-new" type="password"></div>
+      <button class="btn" id="p-ok">${T("Passwort ändern")}</button>
       <hr class="sep">
-      <h2>Sprechblasen</h2>
-      <p class="hint">Die Farbe deiner eigenen Nachrichten – in allen
-        Unterhaltungen.</p>
+      <h2>${T("Sprechblasen")}</h2>
+      <p class="hint">${T("Die Farbe deiner eigenen Nachrichten – in allen Unterhaltungen.")}</p>
       <div class="farbwahl" id="blasen-wahl"></div>
       <hr class="sep">
-      <h2>Töne</h2>
-      <p class="hint">Gilt für alle deine Geräte. Einzelne Unterhaltungen
-        lassen sich zusätzlich stummschalten – über das Bild oben in der
-        Unterhaltung.</p>
+      <h2>${T("Töne")}</h2>
+      <p class="hint">${T("Gilt für alle deine Geräte. Einzelne Unterhaltungen lassen sich zusätzlich stummschalten – über das Bild oben in der Unterhaltung.")}</p>
       <div class="kf-zeile" id="ton-wahl"></div>
-      <p class="hint">Klingelton bei Anrufen. Ein Tipp spielt ihn vor.</p>
+      <p class="hint">${T("Klingelton bei Anrufen. Ein Tipp spielt ihn vor.")}</p>
       <div class="kf-zeile" id="klingel-wahl"></div>
       <hr class="sep">
-      <h2>Geburtstag</h2>
-      <p class="hint">Freiwillig. Wenn du ihn angibst, erscheint er bei den
-        Leuten aus deinem Kreis unter „Termine“.</p>
+      <h2>${T("Geburtstag")}</h2>
+      <p class="hint">${T("Freiwillig. Wenn du ihn angibst, erscheint er bei den Leuten aus deinem Kreis unter „Termine“.")}</p>
       <div class="field">
         <input id="me-geb" type="date"
                value="${state.me && state.me.geburtstag ? state.me.geburtstag : ""}">
       </div>
-      <button class="btn ghost" id="geb-ok">Geburtstag speichern</button>
+      <button class="btn ghost" id="geb-ok">${T("Geburtstag speichern")}</button>
       <label class="check"><input type="checkbox" id="geb-an"
         ${!state.me || state.me.geburtstage_an !== false ? "checked" : ""}>
-        Geburtstage anderer unter „Termine“ zeigen</label>
+        ${T("Geburtstage anderer unter „Termine“ zeigen")}</label>
       <hr class="sep">
-      <h2>Aussehen</h2>
+      <h2>${T("Aussehen")}</h2>
       <div class="kf-zeile" id="thema-wahl"></div>
+      <p class="hint">${T("Sprache")}</p>
+      <div class="kf-zeile" id="sprach-wahl"></div>
       <hr class="sep">
-      <h2>Karten</h2>
-      <p class="hint">Die Umrisskarte steckt im Add-on und fragt niemanden.
-        Für Straßen holt die Live- und Terminansicht Kacheln von
-        OpenStreetMap – das ist die einzige Stelle, an der dieser Chat etwas
-        von einem fremden Server lädt.</p>
+      <h2>${T("Karten")}</h2>
+      <p class="hint">${T("Die Umrisskarte steckt im Add-on und fragt niemanden. Für Straßen holt die Live- und Terminansicht Kacheln von OpenStreetMap – das ist die einzige Stelle, an der dieser Chat etwas von einem fremden Server lädt.")}</p>
       <label class="check"><input type="checkbox" id="k-kacheln"
-        ${kachelnErlaubt() ? "checked" : ""}> Straßenkarte verwenden</label>
-      <div class="field"><label for="k-app">„In Karten öffnen“ führt zu</label>
+        ${kachelnErlaubt() ? "checked" : ""}> ${T("Straßenkarte verwenden")}</label>
+      <div class="field"><label for="k-app">${T("„In Karten öffnen“ führt zu")}</label>
         <select id="k-app">${KARTEN_APPS.map(([wert, name]) =>
           `<option value="${wert}"${
             (state.me && state.me.karten_app || "geraet") === wert
               ? " selected" : ""}>${name}</option>`).join("")}</select></div>
       <hr class="sep">
-      <h2>Benachrichtigungen</h2>
-      <p class="hint" id="push-lage">Wird geprüft …</p>
-      <button class="btn ghost" id="push-an" hidden>Benachrichtigungen einschalten</button>
+      <h2>${T("Benachrichtigungen")}</h2>
+      <p class="hint" id="push-lage">${T("Wird geprüft …")}</p>
+      <button class="btn ghost" id="push-an" hidden>${T("Benachrichtigungen einschalten")}</button>
       ${IS_ADMIN ? `<hr class="sep">
         <h2>Name</h2>
-        <p class="hint">Wie die Oberfläche heißt – in der Seitenleiste, im
-          Fenstertitel und auf der Anmeldeseite. Gilt für alle. Das Add-on
-          selbst heißt weiterhin „Chat Server“.</p>
+        <p class="hint">${T("Wie die Oberfläche heißt – in der Seitenleiste, im Fenstertitel und auf der Anmeldeseite. Gilt für alle. Das Add-on selbst heißt weiterhin „Chat Server“.")}</p>
         <div class="field">
           <input id="an-name" autocomplete="off" maxlength="40"
                  value="${esc(state.anzeigename || "")}">
         </div>
-        <button class="btn ghost" id="an-ok">Namen speichern</button>
+        <button class="btn ghost" id="an-ok">${T("Namen speichern")}</button>
         <hr class="sep">
-        <h2>Benutzer verwalten</h2>
-        <div id="u-list" class="user-list"><p class="hint">Wird geladen …</p></div>
-        <button class="btn ghost" id="u-new">+ Neues Konto</button>
+        <h2>${T("Benutzer verwalten")}</h2>
+        <div id="u-list" class="user-list"><p class="hint">${T("Wird geladen …")}</p></div>
+        <button class="btn ghost" id="u-new">${T("+ Neues Konto")}</button>
         <hr class="sep">
         <h2>Home Assistant</h2>
-        <p class="hint">Mit diesem Token schickt eine Automation Nachrichten
-          in den Chat. Behandle es wie ein Passwort.</p>
+        <p class="hint">${T("Mit diesem Token schickt eine Automation Nachrichten in den Chat. Behandle es wie ein Passwort.")}</p>
         <div class="token-zeile">
-          <input id="ha-token" readonly value="wird geladen …">
-          <button class="btn ghost" id="ha-kopieren">Kopieren</button>
-          <button class="btn ghost del" id="ha-neu">Neu</button>
+          <input id="ha-token" readonly value=T("wird geladen …")>
+          <button class="btn ghost" id="ha-kopieren">${T("Kopieren")}</button>
+          <button class="btn ghost del" id="ha-neu">${T("Neu")}</button>
         </div>
         <p class="hint" id="ha-herkunft"></p>` : ""}
-      <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button>
-      <a class="btn ghost" style="text-align:center;text-decoration:none;line-height:2.2" href="${BASE}/logout">Abmelden</a></div>`);
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Schließen")}</button>
+      <a class="btn ghost" style="text-align:center;text-decoration:none;line-height:2.2" href="${BASE}/logout">${T("Abmelden")}</a></div>`);
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelector("#me-bild").addEventListener("click", () =>
       bildWaehlen("/api/me/avatar", () => { closeModal(); $("btn-settings").click(); }));
     const meinBildWeg = root.querySelector("#me-bild-weg");
     if (meinBildWeg) meinBildWeg.addEventListener("click", async () => {
       const res = await api("/api/me/avatar", {method: "DELETE"});
-      if (!res.ok) { toast("Entfernen fehlgeschlagen."); return; }
-      toast("Bild entfernt.");
+      if (!res.ok) { toast(T("Entfernen fehlgeschlagen.")); return; }
+      toast(T("Bild entfernt."));
       await loadState();
       closeModal();
       $("btn-settings").click();
@@ -4956,7 +4960,7 @@
             body: JSON.stringify({farbe: b.dataset.farbe}),
           });
           const daten = await res.json().catch(() => ({}));
-          if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+          if (!res.ok) { toast(daten.error || T("Das ging nicht.")); return; }
           if (state.me) state.me.blasenfarbe = daten.farbe;
           blasenfarbeAnwenden();
           blasenZeichnen();
@@ -4966,8 +4970,8 @@
     const tonFeld = root.querySelector("#ton-wahl");
     const tonZeichnen = () => {
       const jetzt = tonStufe();
-      tonFeld.innerHTML = [["alle", "Alle Töne"], ["nur_anrufe", "Nur Anrufe"],
-                           ["aus", "Stumm"]].map(([wert, text]) =>
+      tonFeld.innerHTML = [["alle", T("Alle Töne")], ["nur_anrufe", T("Nur Anrufe")],
+                           ["aus", T("Stumm")]].map(([wert, text]) =>
         `<button class="mini-btn ${jetzt === wert ? "an" : ""}"
                  data-ton="${wert}">${text}</button>`).join("");
       tonFeld.querySelectorAll("[data-ton]").forEach((b) =>
@@ -4976,7 +4980,7 @@
             method: "POST", headers: {"Content-Type": "application/json"},
             body: JSON.stringify({stufe: b.dataset.ton}),
           });
-          if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
+          if (!res.ok) { toast(T("Das ließ sich nicht speichern.")); return; }
           if (state.me) state.me.ton_stufe = b.dataset.ton;
           tonZeichnen();
           if (b.dataset.ton !== "aus") klangSpielen("nachricht");
@@ -4990,7 +4994,7 @@
         body: JSON.stringify({geburtstag: wert}),
       });
       const daten = await res.json().catch(() => ({}));
-      if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+      if (!res.ok) { toast(daten.error || T("Das ging nicht.")); return; }
       if (state.me) state.me.geburtstag = daten.geburtstag;
       toast(daten.geburtstag ? "Geburtstag gespeichert." : "Geburtstag entfernt.");
       geburtstageLaden();
@@ -5014,10 +5018,10 @@
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({kacheln: an}),
       });
-      if (!res.ok) { toast("Das ließ sich nicht speichern."); e.target.checked = !an; return; }
+      if (!res.ok) { toast(T("Das ließ sich nicht speichern.")); e.target.checked = !an; return; }
       if (state.me) state.me.kacheln = an;
-      toast(an ? "Straßenkarte eingeschaltet."
-               : "Es bleibt bei der Umrisskarte.");
+      toast(an ? T("Straßenkarte eingeschaltet.")
+               : T("Es bleibt bei der Umrisskarte."));
     });
     root.querySelector("#k-app").addEventListener("change", async (e) => {
       const wahl = e.target.value;
@@ -5025,9 +5029,9 @@
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({app: wahl}),
       });
-      if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
+      if (!res.ok) { toast(T("Das ließ sich nicht speichern.")); return; }
       if (state.me) state.me.karten_app = wahl;
-      toast("Gespeichert.");
+      toast(T("Gespeichert."));
     });
     const nameKnopf = root.querySelector("#an-ok");
     if (nameKnopf) nameKnopf.addEventListener("click", async () => {
@@ -5037,10 +5041,10 @@
         body: JSON.stringify({name: wunsch}),
       });
       const daten = await res.json().catch(() => ({}));
-      if (!res.ok) { toast(daten.error || "Das ging nicht."); return; }
+      if (!res.ok) { toast(daten.error || T("Das ging nicht.")); return; }
       namenSetzen(daten.name);
       root.querySelector("#an-name").value = daten.name;
-      toast(wunsch ? "Name gespeichert." : "Zurück zur Voreinstellung.");
+      toast(wunsch ? T("Name gespeichert.") : T("Zurück zur Voreinstellung."));
     });
     root.querySelector("#geb-an").addEventListener("change", async (e) => {
       const an = e.target.checked;
@@ -5048,11 +5052,33 @@
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({an}),
       });
-      if (!res.ok) { toast("Das ließ sich nicht speichern."); e.target.checked = !an; return; }
+      if (!res.ok) { toast(T("Das ließ sich nicht speichern.")); e.target.checked = !an; return; }
       if (state.me) state.me.geburtstage_an = an;
       await geburtstageLaden();
-      toast(an ? "Geburtstage werden gezeigt." : "Geburtstage bleiben aus.");
+      toast(an ? T("Geburtstage werden gezeigt.") : T("Geburtstage bleiben aus."));
     });
+    const sprachFeld = root.querySelector("#sprach-wahl");
+    const sprachZeichnen = () => {
+      sprachFeld.innerHTML = [["de", "Deutsch"], ["en", "English"]].map(
+        ([wert, name]) =>
+          `<button class="mini-btn ${SPRACHE === wert ? "an" : ""}"
+                   data-sprache="${wert}">${name}</button>`).join("");
+      sprachFeld.querySelectorAll("[data-sprache]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const wahl = b.dataset.sprache;
+          if (wahl === SPRACHE) return;
+          const res = await api("/api/me/sprache", {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({sprache: wahl}),
+          });
+          if (!res.ok) { toast(T("Das ließ sich nicht speichern.")); return; }
+          // Die Oberflaeche steht an vielen Stellen schon gezeichnet da - neu
+          // laden ist ehrlicher, als hundert Stellen nachzuziehen.
+          location.reload();
+        }));
+    };
+    sprachZeichnen();
+
     const klingelFeld = root.querySelector("#klingel-wahl");
     const klingelZeichnen = () => {
       const jetzt = klingeltonWahl();
@@ -5068,7 +5094,7 @@
             method: "POST", headers: {"Content-Type": "application/json"},
             body: JSON.stringify({ton}),
           });
-          if (!res.ok) { toast("Das ließ sich nicht speichern."); return; }
+          if (!res.ok) { toast(T("Das ließ sich nicht speichern.")); return; }
           if (state.me) state.me.klingelton = ton;
           klingelZeichnen();
         }));
@@ -5082,7 +5108,7 @@
                               new: root.querySelector("#p-new").value}),
       });
       const data = await res.json();
-      toast(res.ok ? "Passwort geändert." : data.error);
+      toast(res.ok ? T("Passwort geändert.") : data.error);
       if (res.ok) closeModal();
     });
     if (IS_ADMIN) {
@@ -5097,7 +5123,7 @@
     const res = await api(path, opt);
     let data = {};
     try { data = await res.json(); } catch (err) { /* 204 o. ae. */ }
-    toast(res.ok ? okText : (data.error || "Das hat nicht geklappt."));
+    toast(res.ok ? okText : (data.error || T("Das hat nicht geklappt.")));
     return res.ok;
   }
 
@@ -5105,7 +5131,7 @@
     const box = root.querySelector("#u-list");
     if (!box) return;
     const res = await api("/api/users");
-    if (!res.ok) { box.innerHTML = '<p class="hint">Liste nicht verfügbar.</p>'; return; }
+    if (!res.ok) { box.innerHTML = `<p class="hint">${T("Liste nicht verfügbar.")}</p>`; return; }
     const alle = await res.json();
     const antraege = alle.filter((u) => u.pending);
     const users = alle.filter((u) => !u.pending);
@@ -5125,8 +5151,8 @@
           <span class="utag">${esc(shortTime(b.at))}</span>
         </div>
         <div class="uacts">
-          <button class="act ok" data-act="pw">Neues Passwort</button>
-          <button class="act" data-act="bitte-weg">Erledigt</button>
+          <button class="act ok" data-act="pw">${T("Neues Passwort")}</button>
+          <button class="act" data-act="bitte-weg">${T("Erledigt")}</button>
         </div>
       </div>`).join("")}
     </div>` : "";
@@ -5141,8 +5167,8 @@
           ${u.note ? `<span class="begruendung">${esc(u.note)}</span>` : ""}
         </div>
         <div class="uacts">
-          <button class="act ok" data-act="approve">Freigeben</button>
-          <button class="act del" data-act="reject">Ablehnen</button>
+          <button class="act ok" data-act="approve">${T("Freigeben")}</button>
+          <button class="act del" data-act="reject">${T("Ablehnen")}</button>
         </div>
       </div>`).join("")}
     </div>` : "";
@@ -5155,20 +5181,20 @@
           <span class="uname">${esc(u.display_name)}</span>
           <span class="utag">@${esc(u.username)}</span>
           ${u.is_admin ? '<span class="chip admin">Admin</span>' : ""}
-          ${u.active ? "" : '<span class="chip off">gesperrt</span>'}
-          ${selbst ? '<span class="chip me">du</span>' : ""}
+          ${u.active ? "" : `<span class="chip off">${T("gesperrt")}</span>`}
+          ${selbst ? `<span class="chip me">${T("du")}</span>` : ""}
         </div>
         <div class="uacts">
-          <button class="act" data-act="pw" title="Passwort zurücksetzen">Passwort</button>
+          <button class="act" data-act="pw" title=T("Passwort zurücksetzen")>Passwort</button>
           ${schuetzen ? "" : `
-          <button class="act" data-act="admin" title="${u.is_admin ? "Administratorrecht entziehen" : "Zum Administrator machen"}">${u.is_admin ? "Kein Admin" : "Admin"}</button>
-          <button class="act" data-act="active" title="${u.active ? "Konto sperren" : "Konto entsperren"}">${u.active ? "Sperren" : "Entsperren"}</button>
-          <button class="act del" data-act="del" title="Konto endgültig löschen">Löschen</button>`}
+          <button class="act" data-act="admin" title="${u.is_admin ? "Administratorrecht entziehen" : "Zum Administrator machen"}">${u.is_admin ? T("Kein Admin") : "Admin"}</button>
+          <button class="act" data-act="active" title="${u.active ? "Konto sperren" : "Konto entsperren"}">${u.active ? T("Sperren") : T("Entsperren")}</button>
+          <button class="act del" data-act="del" title=T("Konto endgültig löschen")>${T("Löschen")}</button>`}
           ${!selbst && u.is_admin && letzterAdmin
-            ? '<span class="hint inline">letzter Administrator</span>' : ""}
+            ? `<span class="hint inline">${T("letzter Administrator")}</span>` : ""}
         </div>
       </div>`;
-    }).join("") || (antragsHtml ? "" : '<p class="hint">Es gibt noch keine weiteren Konten.</p>');
+    }).join("") || (antragsHtml ? "" : `<p class="hint">${T("Es gibt noch keine weiteren Konten.")}</p>`);
 
     box.querySelectorAll(".act").forEach((btn) => btn.addEventListener("click", async () => {
       const row = btn.closest(".urow");
@@ -5180,34 +5206,35 @@
       let ok = false;
       if (btn.dataset.act === "approve") {
         ok = await adminCall(`/api/users/${id}/approve`, {method: "POST"},
-                             "Zugang freigegeben.");
+                             T("Zugang freigegeben."));
       } else if (btn.dataset.act === "reject") {
         const antrag = alle.find((u) => u.id === id);
-        if (!confirm(`Antrag von „${antrag.display_name}“ ablehnen?
+        if (!confirm(`${T("Antrag von „")}${antrag.display_name}“ ablehnen?
 
 `
-                     + "Das Konto wird dabei entfernt."))
+                     + T("Das Konto wird dabei entfernt.")))
           return;
         ok = await adminCall(`/api/users/${id}`, {method: "DELETE"},
-                             "Antrag abgelehnt.");
+                             T("Antrag abgelehnt."));
       } else if (btn.dataset.act === "pw") {
         return passwordDialog(user, root);
       } else if (btn.dataset.act === "admin") {
         ok = await adminCall(`/api/users/${id}`, json({is_admin: !user.is_admin}),
-                             user.is_admin ? "Administratorrecht entzogen."
-                                           : "Konto ist jetzt Administrator.");
+                             user.is_admin ? T("Administratorrecht entzogen.")
+                                           : T("Konto ist jetzt Administrator."));
       } else if (btn.dataset.act === "active") {
         ok = await adminCall(`/api/users/${id}`, json({active: !user.active}),
-                             user.active ? "Konto gesperrt." : "Konto entsperrt.");
+                             user.active ? T("Konto gesperrt.") : T("Konto entsperrt."));
       } else if (btn.dataset.act === "bitte-weg") {
         ok = await adminCall(`/api/passwort-bitten/${id}`, {method: "DELETE"},
-                             "Abgehakt.");
+                             T("Abgehakt."));
       } else if (btn.dataset.act === "del") {
-        if (!confirm(`Konto „${user.display_name}“ endgültig löschen?\n\n`
-                     + "Die Nachrichten bleiben im Verlauf stehen, erscheinen aber "
-                     + "unter „Gelöschtes Konto“. Das lässt sich nicht rückgängig machen."))
+        if (!confirm(`${T("Konto")} „${user.display_name}“ `
+                     + `${T("endgültig löschen?")}\n\n`
+                     + T("Die Nachrichten bleiben im Verlauf stehen, erscheinen aber "
+                         + "unter „Gelöschtes Konto“. Das lässt sich nicht rückgängig machen.")))
           return;
-        ok = await adminCall(`/api/users/${id}`, {method: "DELETE"}, "Konto gelöscht.");
+        ok = await adminCall(`/api/users/${id}`, {method: "DELETE"}, T("Konto gelöscht."));
       }
       if (ok) { renderUserAdmin(root); loadState(); }
     }));
@@ -5217,23 +5244,23 @@
     const feld = root.querySelector("#ha-token");
     const herkunft = root.querySelector("#ha-herkunft");
     const res = await api("/api/token");
-    if (!res.ok) { feld.value = "nicht verfügbar"; return; }
+    if (!res.ok) { feld.value = T("nicht verfügbar"); return; }
     const daten = await res.json();
     feld.value = daten.token;
     herkunft.textContent = daten.aus_option
-      ? "Stammt aus der Add-on-Option api_token."
-      : "Wurde beim ersten Start erzeugt und liegt in /data/api_token.txt. "
-        + "Du kannst stattdessen die Add-on-Option api_token setzen.";
+      ? T("Stammt aus der Add-on-Option api_token.")
+      : T("Wurde beim ersten Start erzeugt und liegt in /data/api_token.txt. "
+          + "Du kannst stattdessen die Add-on-Option api_token setzen.");
     const neuKnopf = root.querySelector("#ha-neu");
     neuKnopf.hidden = !!daten.aus_option;
     neuKnopf.addEventListener("click", async () => {
-      if (!confirm("Ein neues Token erzeugen?" + "\n\n"
-            + "Das alte gilt danach nicht mehr. Jede Automation in Home "
-            + "Assistant, die es benutzt, schlägt fehl, bis du dort das neue "
-            + "einträgst.")) return;
+      if (!confirm(T("Ein neues Token erzeugen?") + "\n\n"
+            + T("Das alte gilt danach nicht mehr. Jede Automation in Home "
+                + "Assistant, die es benutzt, schlägt fehl, bis du dort das neue "
+                + "einträgst."))) return;
       const res2 = await api("/api/token/neu", {method: "POST"});
       const d2 = await res2.json().catch(() => ({}));
-      if (!res2.ok) { toast(d2.error || "Das ging nicht."); return; }
+      if (!res2.ok) { toast(d2.error || T("Das ging nicht.")); return; }
       feld.value = d2.token;
       toast("Neues Token erzeugt – jetzt in Home Assistant eintragen.");
     });
@@ -5243,28 +5270,27 @@
         // Nur über HTTPS verfügbar - unter Ingress läuft es über http,
         // dann bleibt der markierte Text zum Kopieren von Hand.
         await navigator.clipboard.writeText(feld.value);
-        toast("Token kopiert.");
+        toast(T("Token kopiert."));
       } catch (err) {
-        toast("Bitte von Hand kopieren – der Text ist markiert.");
+        toast(T("Bitte von Hand kopieren – der Text ist markiert."));
       }
     });
   }
 
   function passwordDialog(user, settingsRoot) {
-    const root = modal(`<h2>Passwort zurücksetzen</h2>
+    const root = modal(`<h2>${T("Passwort zurücksetzen")}</h2>
       <p class="hint">für <strong>${esc(user.display_name)}</strong> (@${esc(user.username)})</p>
       <div class="field"><label>Neues Passwort (min. 6 Zeichen)</label>
         <input id="r-pw" type="text" autocomplete="off"></div>
-      <p class="hint">Das Konto wird auf allen Geräten abgemeldet. Gib das Passwort
-        persönlich weiter und lass es danach selbst ändern.</p>
-      <div class="row"><button class="btn ghost" id="r-cancel">Abbrechen</button>
+      <p class="hint">${T("Das Konto wird auf allen Geräten abgemeldet. Gib das Passwort persönlich weiter und lass es danach selbst ändern.")}</p>
+      <div class="row"><button class="btn ghost" id="r-cancel">${T("Abbrechen")}</button>
       <button class="btn" id="r-ok">Zurücksetzen</button></div>`);
     root.querySelector("#r-cancel").addEventListener("click", closeModal);
     root.querySelector("#r-ok").addEventListener("click", async () => {
       const ok = await adminCall(`/api/users/${user.id}/password`, {
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({password: root.querySelector("#r-pw").value}),
-      }, "Passwort zurückgesetzt.");
+      }, T("Passwort zurückgesetzt."));
       if (ok) { closeModal(); $("btn-settings").click(); }
     });
     void settingsRoot;
@@ -5278,7 +5304,7 @@
       <div class="field"><label>Passwort (min. 6 Zeichen)</label>
         <input id="u-pw" type="text" autocomplete="off"></div>
       <label class="check"><input type="checkbox" id="u-admin"> Administrator</label>
-      <div class="row"><button class="btn ghost" id="n-cancel">Abbrechen</button>
+      <div class="row"><button class="btn ghost" id="n-cancel">${T("Abbrechen")}</button>
       <button class="btn" id="n-ok">Anlegen</button></div>`);
     root.querySelector("#n-cancel").addEventListener("click", closeModal);
     root.querySelector("#n-ok").addEventListener("click", async () => {
@@ -5305,7 +5331,7 @@
   // ein Chat offen ist - ohne den zweiten Knopf waere die Uebersicht dort
   // gar nicht erreichbar.
   // Der Medien-Knopf unten links ist entfallen. Der in der Kopfzeile oeffnet
-  // denselben Dialog, und dort steht "Alle Unterhaltungen" zur Auswahl.
+  // denselben Dialog, und dort steht T("Alle Unterhaltungen") zur Auswahl.
   $("btn-room-media").addEventListener("click", () => {
     medienRaum = currentRoom || 0;
     medienDialog();
@@ -5316,21 +5342,21 @@
       .map((r) => `<option value="${r.id}" ${r.id === medienRaum ? "selected" : ""}>${esc(r.name)}</option>`)
       .join("");
     const root = modal(`<div class="media-head">
-        <h2>Bilder und Dateien</h2>
+        <h2>${T("Bilder und Dateien")}</h2>
         <select id="md-room" class="media-filter">
-          <option value="0" ${medienRaum ? "" : "selected"}>Alle Unterhaltungen</option>
+          <option value="0" ${medienRaum ? "" : "selected"}>${T("Alle Unterhaltungen")}</option>
           ${optionen}
         </select>
       </div>
       <div class="media-leiste">
-        <button class="act" id="md-auswahl">Auswählen</button>
+        <button class="act" id="md-auswahl">${T("Auswählen")}</button>
         <span id="md-zahl" class="hint inline"></span>
         <span style="flex:1"></span>
         <button class="act" id="md-alle" hidden>Alle</button>
-        <button class="act del" id="md-weg" hidden>Löschen</button>
+        <button class="act del" id="md-weg" hidden>${T("Löschen")}</button>
       </div>
-      <div id="md-body" class="media-body"><p class="hint">Wird geladen …</p></div>
-      <div class="row"><button class="btn ghost" id="m-cancel">Schließen</button></div>`);
+      <div id="md-body" class="media-body"><p class="hint">${T("Wird geladen …")}</p></div>
+      <div class="row"><button class="btn ghost" id="m-cancel">${T("Schließen")}</button></div>`);
     root.querySelector(".modal").classList.add("wide");
     root.querySelector("#m-cancel").addEventListener("click", closeModal);
     root.querySelector("#md-room").addEventListener("change", (e) => {
@@ -5368,9 +5394,9 @@
         body: JSON.stringify({ids: [...auswahl]}),
       });
       const daten = await res.json().catch(() => ({}));
-      if (!res.ok) { toast(daten.error || "Löschen fehlgeschlagen."); return; }
+      if (!res.ok) { toast(daten.error || T("Löschen fehlgeschlagen.")); return; }
       toast(daten.abgelehnt
-        ? `${daten.geloescht} gelöscht, ${daten.abgelehnt} nicht erlaubt.`
+        ? `${daten.geloescht} gelöscht, ${daten.abgelehnt} ${T("nicht erlaubt.")}`
         : `${daten.geloescht} ${daten.geloescht === 1 ? "Datei" : "Dateien"} gelöscht.`);
       auswahl.clear();
       auswahlAnzeigen(root);
@@ -5384,7 +5410,7 @@
 
   function auswahlAnzeigen(root) {
     const knopf = root.querySelector("#md-auswahl");
-    knopf.textContent = auswahlModus ? "Fertig" : "Auswählen";
+    knopf.textContent = auswahlModus ? T("Fertig") : T("Auswählen");
     knopf.classList.toggle("ok", auswahlModus);
     root.querySelector("#md-alle").hidden = !auswahlModus;
     root.querySelector("#md-weg").hidden = !auswahlModus || !auswahl.size;
@@ -5396,10 +5422,10 @@
   async function ladeMedien(root) {
     const box = root.querySelector("#md-body");
     const res = await api("/api/media" + (medienRaum ? `?room=${medienRaum}` : ""));
-    if (!res.ok) { box.innerHTML = '<p class="hint">Konnte nicht geladen werden.</p>'; return; }
+    if (!res.ok) { box.innerHTML = `<p class="hint">${T("Konnte nicht geladen werden.")}</p>`; return; }
     const alle = await res.json();
     if (!alle.length) {
-      box.innerHTML = '<p class="hint">Hier wurde noch nichts geteilt.</p>';
+      box.innerHTML = `<p class="hint">${T("Hier wurde noch nichts geteilt.")}</p>`;
       return;
     }
     const istBild = (m) => (m.mime || "").startsWith("image/");
@@ -5423,7 +5449,7 @@
           ${m.mine ? `<button class="media-frei" data-frei="${m.id}"
              title="${FREI_TITEL[m.galerie || "aus"]}">${
              FREI_ZEICHEN[m.galerie || "aus"]}</button>` : ""}
-          ${m.can_delete ? '<button class="media-del" data-act="del" title="Löschen">✕</button>' : ""}
+          ${m.can_delete ? '<button class="media-del" data-act="del" title=T("Löschen")>✕</button>' : ""}
         </figure>`).join("")}</div>` : ""}
       ${dateien.length ? `<div class="media-files">${dateien.map((m) => `
         <div class="media-row ${auswahl.has(m.id) ? "gewaehlt" : ""}"
@@ -5431,7 +5457,7 @@
           <a class="file-link" href="${BASE}/files/${m.id}?dl=1">📄 <span>${esc(m.name)}</span>
             <span class="fsize">${fileSize(m.size)}</span></a>
           <span class="media-meta">${herkunft(m)}</span>
-          ${m.can_delete ? '<button class="act del" data-act="del">Löschen</button>' : ""}
+          ${m.can_delete ? `<button class="act del" data-act="del">${T("Löschen")}</button>` : ""}
         </div>`).join("")}</div>` : ""}`;
 
     // Im Auswahlmodus markiert ein Klick die Kachel, statt sie zu oeffnen.
@@ -5441,7 +5467,7 @@
         e.preventDefault();
         e.stopPropagation();
         if (kasten.dataset.loeschbar !== "1") {
-          toast("Fremde Dateien darf nur ein Administrator löschen.");
+          toast(T("Fremde Dateien darf nur ein Administrator löschen."));
           return;
         }
         const id = parseInt(kasten.dataset.id, 10);
@@ -5472,10 +5498,10 @@
         const res = await api(`/api/media/${eintrag.id}`, {method: "DELETE"});
         if (!res.ok) {
           const daten = await res.json().catch(() => ({}));
-          toast(daten.error || "Löschen fehlgeschlagen.");
+          toast(daten.error || T("Löschen fehlgeschlagen."));
           return;
         }
-        toast("Datei gelöscht.");
+        toast(T("Datei gelöscht."));
         ladeMedien(root);
         if (eintrag.room_id === currentRoom) openRoom(currentRoom);
       }));
@@ -5498,13 +5524,13 @@
     const teile = [];
     if (antraege) {
       teile.push(`${antraege} ${antraege === 1 ? "Zugangsantrag"
-                                              : "Zugangsanträge"}`);
+                                              : T("Zugangsanträge")}`);
     }
     if (bitten) {
       teile.push(`${bitten} mal Passwort vergessen`);
     }
     $("btn-settings").title = teile.length
-      ? `Einstellungen – ${teile.join(", ")}` : "Einstellungen";
+      ? `Einstellungen – ${teile.join(", ")}` : T("Einstellungen");
   }
 
   /** Den Namen der Oberfläche überall setzen, ohne Neuladen. */
@@ -5544,15 +5570,15 @@
   async function erlaubnisseHolen() {
     const schritte = [];
     if ("Notification" in window && Notification.permission === "default") {
-      schritte.push(["Benachrichtigungen", async () => {
+      schritte.push([T("Benachrichtigungen"), async () => {
         await pushEinschalten(false);
       }]);
     }
-    schritte.push(["Mikrofon", async () => {
+    schritte.push([T("Mikrofon"), async () => {
       const strom = await navigator.mediaDevices.getUserMedia({audio: true});
       strom.getTracks().forEach((s) => s.stop());
     }]);
-    schritte.push(["Kamera", async () => {
+    schritte.push([T("Kamera"), async () => {
       const strom = await navigator.mediaDevices.getUserMedia({video: true});
       strom.getTracks().forEach((s) => s.stop());
     }]);
@@ -5569,7 +5595,7 @@
         // Abgelehnt oder nicht vorhanden - das ist in Ordnung, weiter geht es
       }
     }
-    toast("Fertig. Ändern kannst du das jederzeit im Browser.");
+    toast(T("Fertig. Ändern kannst du das jederzeit im Browser."));
   }
 
   function erlaubnisStreifenZeigen() {
@@ -5580,8 +5606,8 @@
     streifen.innerHTML = `<span>Einmal alles freigeben – Benachrichtigungen,
       Mikrofon, Kamera und Standort? Ohne sie fehlen Anrufe, Sprachnachrichten
       und die Karte.</span>
-      <button class="btn" id="erl-ja">Freigeben</button>
-      <button class="icon-btn" id="erl-nein" title="Später">✕</button>`;
+      <button class="btn" id="erl-ja">${T("Erlauben")}</button>
+      <button class="icon-btn" id="erl-nein" title=T("Später")>✕</button>`;
     document.body.appendChild(streifen);
     const weg = () => {
       try { localStorage.setItem(ERLAUBT_GEFRAGT, "1"); } catch (err) { /* egal */ }
@@ -5632,14 +5658,14 @@
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify(sub),
     });
-    if (!res.ok) throw new Error("Der Server nahm die Anmeldung nicht an.");
+    if (!res.ok) throw new Error(T("Der Server nahm die Anmeldung nicht an."));
     return true;
   }
 
   /** Erlaubnis erfragen und anmelden. Braucht einen Tipp - siehe unten. */
   async function pushEinschalten(laut) {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      if (laut) toast("Dieser Browser kennt keine Benachrichtigungen.");
+      if (laut) toast(T("Dieser Browser kennt keine Benachrichtigungen."));
       return false;
     }
     if (!sichererKontext()) {
@@ -5648,12 +5674,12 @@
     }
     const perm = await Notification.requestPermission();
     if (perm !== "granted") {
-      if (laut) toast("Benachrichtigungen wurden abgelehnt.");
+      if (laut) toast(T("Benachrichtigungen wurden abgelehnt."));
       return false;
     }
     try {
       await pushAnmelden();
-      if (laut) toast("Benachrichtigungen sind aktiv.");
+      if (laut) toast(T("Benachrichtigungen sind aktiv."));
       return true;
     } catch (err) {
       if (laut) toast("Das ging nicht: " + err.message);
@@ -5688,10 +5714,9 @@
     const streifen = document.createElement("div");
     streifen.id = "push-streifen";
     streifen.className = "push-streifen";
-    streifen.innerHTML = `<span>Benachrichtigungen einschalten, damit du neue
-      Nachrichten mitbekommst?</span>
-      <button class="btn" id="push-ja">Ja</button>
-      <button class="icon-btn" id="push-nein" title="Nicht jetzt">✕</button>`;
+    streifen.innerHTML = `<span>${T("Benachrichtigungen einschalten, damit du neue Nachrichten mitbekommst?")}</span>
+      <button class="btn" id="push-ja">${T("Ja")}</button>
+      <button class="icon-btn" id="push-nein" title=T("Nicht jetzt")>✕</button>`;
     document.body.appendChild(streifen);
     const weg = (merken) => {
       if (merken) localStorage.setItem(PUSH_GEFRAGT, "1");
@@ -5712,7 +5737,7 @@
     const zeichnen = () => {
       if (!pushMoeglich()) {
         lage.textContent = sichererKontext()
-          ? "Dieser Browser kennt keine Benachrichtigungen."
+          ? T("Dieser Browser kennt keine Benachrichtigungen.")
           : "Dafür braucht es HTTPS – über die externe Adresse geht es.";
         knopf.hidden = true;
         return;
@@ -5722,11 +5747,11 @@
           + "auch wenn der Chat geschlossen ist.";
         knopf.hidden = true;
       } else if (Notification.permission === "denied") {
-        lage.textContent = "Vom Browser abgelehnt. Das lässt sich nur dort "
-          + "wieder ändern – beim Schloss neben der Adresse.";
+        lage.textContent = T("Vom Browser abgelehnt. Das lässt sich nur dort "
+            + "wieder ändern – beim Schloss neben der Adresse.");
         knopf.hidden = true;
       } else {
-        lage.textContent = "Noch nicht eingeschaltet.";
+        lage.textContent = T("Noch nicht eingeschaltet.");
         knopf.hidden = false;
       }
     };

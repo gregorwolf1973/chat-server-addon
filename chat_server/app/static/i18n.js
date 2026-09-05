@@ -1,0 +1,482 @@
+// Englische Fassung der Oberflaeche.
+//
+// Deutsch ist die Quelle: im Quelltext stehen die deutschen Saetze, und T()
+// schlaegt hier die englische Entsprechung nach. Fehlt eine, bleibt der
+// deutsche Satz stehen - eine Luecke faellt damit auf, bricht aber nichts.
+//
+// Der Schluessel ist der deutsche Satz selbst. Wer drueben etwas aendert,
+// muss den Schluessel hier mitaendern; dafuer braucht es keine erfundenen
+// Kennungen, und der Quelltext bleibt lesbar.
+window.WORTE_EN = {
+  // ---------- Seitenleiste, Reiter, Kopf ----------
+  "Unterhaltungen": "Conversations",
+  "Karten": "Maps",
+  "Stimmung": "Mood",
+  "Termine": "Events",
+  "Tipps": "Tips",
+  "+ Neu": "+ New",
+  "Freunde": "Friends",
+  "Galerie": "Gallery",
+  "Einstellungen": "Settings",
+  "Neue Unterhaltung": "New conversation",
+  "Bilder und Dateien dieser Unterhaltung": "Pictures and files in this conversation",
+  "Person hinzufügen": "Add person",
+  "+ Person": "+ Person",
+  "Medien": "Media",
+  "Anrufen": "Call",
+  "Videoanruf": "Video call",
+  "Im Verlauf suchen": "Search the history",
+  "Im Verlauf suchen …": "Search the history …",
+  "Alle Unterhaltungen": "All conversations",
+  "Suche schließen": "Close search",
+  "Zum vorigen Tag": "To the previous day",
+  "Ans Ende": "To the end",
+  "Angaben zur Unterhaltung": "About this conversation",
+  "Zur Unterhaltung": "To the conversation",
+  "die Unterhaltung": "the conversation",
+  "Wähle links eine Unterhaltung.": "Pick a conversation on the left.",
+  "Es gibt noch keine Unterhaltung.": "There are no conversations yet.",
+  "Es gibt keine andere Unterhaltung.": "There is no other conversation.",
+  "Öffne zuerst eine Unterhaltung.": "Open a conversation first.",
+  "Es gibt noch keine anderen Konten.": "There are no other accounts yet.",
+  "Es gibt noch keine weiteren Konten.": "There are no further accounts yet.",
+  "Alle Konten sind schon in dieser Gruppe.": "Every account is already in this group.",
+  "Gruppen brauchen einen Namen.": "Groups need a name.",
+  "Person hinzugefügt.": "Person added.",
+
+  // ---------- Nachrichten ----------
+  "Heute": "Today",
+  "Gestern": "Yesterday",
+  "Nachricht gelöscht": "Message deleted",
+  "Antwort verwerfen": "Discard reply",
+  "Antwort an": "Reply to",
+  "Die zitierte Nachricht liegt weiter oben im Verlauf.":
+    "The quoted message is further up the history.",
+  "Der Server hat nicht geantwortet – bitte noch einmal senden.":
+    "The server did not answer — please send again.",
+  "Keine Verbindung – die Nachricht wurde nicht gesendet.":
+    "No connection — the message was not sent.",
+  "Keine Verbindung zum Server – Nachrichten warten.":
+    "No connection to the server — messages are waiting.",
+  "Keine Verbindung.": "No connection.",
+  "Die Nachricht wurde nicht angenommen.": "The message was not accepted.",
+  "Weitergeleitet an": "Forwarded to",
+  "Endgültig löschen": "Delete for good",
+  "Für alle löschen": "Delete for everyone",
+  "Die anderen behalten sie. Du siehst den Verlauf danach nicht mehr.":
+    "The others keep it. You will no longer see the history.",
+
+  // ---------- Anhänge, Medien ----------
+  "Datei wählen": "Choose file",
+  "Bild wählen": "Choose picture",
+  "Bild entfernen": "Remove picture",
+  "Ein Bild ist hinterlegt.": "A picture is attached.",
+  "Kein Bild.": "No picture.",
+  "Datei wird hochgeladen …": "Uploading file …",
+  "Hochladen fehlgeschlagen.": "Upload failed.",
+  "Das Bild ging nicht durch.": "The picture did not go through.",
+  "Bild gespeichert.": "Picture saved.",
+  "Bild entfernt.": "Picture removed.",
+  "Entfernen fehlgeschlagen.": "Removing failed.",
+  "Das ist kein lesbares Bild.": "That is not a readable picture.",
+  "Bild fehlerhaft": "Picture is broken",
+  "Hier wurde noch nichts geteilt.": "Nothing has been shared here yet.",
+  "Konnte nicht geladen werden.": "Could not be loaded.",
+  "Bilder und Dateien": "Pictures and files",
+  "Auswählen": "Select",
+  "Alle": "All",
+  "Löschen": "Delete",
+  "Fertig": "Done",
+  "Löschen fehlgeschlagen.": "Deleting failed.",
+  "Datei gelöscht.": "File deleted.",
+  "Fremde Dateien darf nur ein Administrator löschen.":
+    "Only an administrator may delete other people's files.",
+  "Für diesen Eintrag gibt es kein Bild.": "There is no picture for this entry.",
+  "Es bleibt bei den Umrissen.": "The outline map stays.",
+
+  // ---------- Suche ----------
+  "mind. 2 Zeichen": "at least 2 characters",
+  "nichts gefunden": "nothing found",
+  "Treffer": "hits",
+  "Die Suche ging schief.": "The search went wrong.",
+  "Setz den Haken oben, um in allen": "Tick the box above to search all",
+  "Unterhaltungen zu suchen.": "conversations.",
+
+  // ---------- Töne, Anrufe ----------
+  "Töne": "Sounds",
+  "Alle Töne": "All sounds",
+  "Nur Anrufe": "Calls only",
+  "Stumm": "Silent",
+  "Ton an": "Sound on",
+  "Töne sind an.": "Sounds are on.",
+  "Töne für diese Unterhaltung": "Sounds for this conversation",
+  "Für immer": "Forever",
+  "stumm, noch": "silent, another",
+  "Annehmen": "Accept",
+  "Ablehnen": "Decline",
+  "Auflegen": "Hang up",
+  "Mikrofon": "Microphone",
+  "Kamera": "Camera",
+  "Anruf": "Call",
+  "Der Anruf kam nicht zustande.": "The call could not be established.",
+  "Dieser Browser kann keine Anrufe.": "This browser cannot make calls.",
+  "Du hast den Zugriff auf Mikrofon oder Kamera abgelehnt.":
+    "You denied access to the microphone or camera.",
+  "Mikrofon oder Kamera wurden nicht gefunden.":
+    "No microphone or camera was found.",
+  "Das Beenden ging schief.": "Hanging up went wrong.",
+  "hat abgelehnt.": "declined.",
+  "Klassisch": "Classic",
+  "Sanft": "Gentle",
+  "Perlen": "Beads",
+  "Tief": "Low",
+  "Kleine Folge": "Little tune",
+
+  // ---------- Sprachnachrichten ----------
+  "Zum Aufnehmen den Knopf gedrückt halten.":
+    "Hold the button down to record.",
+  "Dieser Browser kann keine Sprachnachrichten aufnehmen.":
+    "This browser cannot record voice messages.",
+  "Kein Mikrofon gefunden.": "No microphone found.",
+  "Du hast den Zugriff auf das Mikrofon abgelehnt.":
+    "You denied access to the microphone.",
+  "Die Sprachnachricht ließ sich nicht senden.":
+    "The voice message could not be sent.",
+  "Die Aufnahme ging nicht durch.": "The recording did not go through.",
+  "Die Aufnahme ließ sich nicht abspielen.": "The recording would not play.",
+  "Die Stimme ging nicht durch.": "The recording did not go through.",
+  "Aufnahme": "Recording",
+
+  // ---------- Standort und Karten ----------
+  "In Karten öffnen": "Open in maps",
+  "Standort teilen": "Share location",
+  "Standort wird bestimmt …": "Getting your location …",
+  "Standort wird geteilt.": "Location is being shared.",
+  "Standort wird nicht mehr geteilt.": "Location is no longer shared.",
+  "Der Standort ließ sich nicht bestimmen.":
+    "Your location could not be determined.",
+  "Der Standort ließ sich nicht senden.": "Your location could not be sent.",
+  "Du hast den Zugriff auf den Standort abgelehnt.":
+    "You denied access to your location.",
+  "Dieser Browser kennt keinen Standort.":
+    "This browser has no location support.",
+  "Auf der Karte wählen": "Pick on the map",
+  "Aktueller Ort": "Current location",
+  "Ort entfernen": "Remove location",
+  "Noch kein Punkt auf der Karte.": "No point on the map yet.",
+  "Tippe auf die Karte, um den Ort zu setzen.":
+    "Tap the map to set the place.",
+  "Ort gesetzt": "Place set",
+  "Die Kartenbibliothek ließ sich nicht laden.":
+    "The map library could not be loaded.",
+  "Straßenkarte einschalten": "Turn on the street map",
+  "Straßenkarte eingeschaltet.": "Street map turned on.",
+  "Es bleibt bei der Umrisskarte.": "The outline map stays.",
+  "Straßenkarte verwenden": "Use the street map",
+  "Standort neu bestimmen": "Determine location again",
+  "📍 In meiner Nähe": "📍 Near me",
+  "Überall": "Everywhere",
+  "Umkreis": "Radius",
+  "Wer teilt gerade": "Who is sharing right now",
+  "Einladungen": "Invitations",
+  "Empfehlungen": "Recommendations",
+  "Öffnen": "Open",
+  "Beenden": "Stop",
+  "Zu diesem Filter passt keine Einladung.":
+    "No invitation matches this filter.",
+  "Zu diesem Filter gibt es nichts.": "Nothing matches this filter.",
+  "Filter aufheben": "Clear filter",
+  "Standard-App des Geräts": "The device's own app",
+  "Kein Muster": "No pattern",
+  "← Zur Karte": "← Back to the map",
+
+  // ---------- Termine ----------
+  "Einladung": "Invitation",
+  "Einladung ändern": "Change invitation",
+  "Termin ohne Unterhaltung": "Event without a conversation",
+  "Was ist geplant?": "What is planned?",
+  "Wann": "When",
+  "Wo": "Where",
+  "Beschreibung": "Description",
+  "Was ist geboten?": "What is on offer?",
+  "Bild": "Picture",
+  "Einladen": "Invite",
+  "Änderungen speichern": "Save changes",
+  "Der Titel fehlt.": "The title is missing.",
+  "Einladung geändert.": "Invitation changed.",
+  "Termin absagen": "Cancel event",
+  "Den Termin für alle absagen?": "Cancel this event for everyone?",
+  "Das Absagen ging nicht.": "Cancelling did not work.",
+  "Der Termin ist nicht mehr da.": "This event is gone.",
+  "Nichts steht an. Mit ‚Einladung‘ im Chat legst du etwas an.":
+    "Nothing coming up. Use ‚Einladung‘ (invitation) in a chat to create something.",
+  "Noch nichts geplant.": "Nothing planned yet.",
+  "Wer soll es sehen?": "Who should see it?",
+  "Ausgewählte Freunde": "Selected friends",
+  "Alle im Umkreis": "Everyone within a radius",
+  "Wähle mindestens eine Person aus.": "Pick at least one person.",
+  "Der Termin braucht dafür einen Ort auf der Karte.":
+    "For that the event needs a place on the map.",
+  "Zusage": "acceptance",
+  "Zusagen": "acceptances",
+  "Wartet auf deine Antwort": "Waiting for your answer",
+  "Die Antwort ging nicht durch.": "The answer did not go through.",
+  "Absage zurücknehmen": "Undo the cancellation",
+  "Bearbeiten": "Edit",
+  "Eingeladen von": "Invited by",
+  "Heute!": "Today!",
+
+  // ---------- Abstimmung ----------
+  "Neue Abstimmung": "New poll",
+  "Frage": "Question",
+  "Die Frage fehlt.": "The question is missing.",
+  "· mehrere Antworten möglich": "· several answers allowed",
+  "Zwölf Antworten sind genug.": "Twelve answers are enough.",
+  "Mehrfachauswahl": "Multiple choice",
+
+  // ---------- Empfehlungen ----------
+  "Empfehlung schreiben": "Write a recommendation",
+  "Empfehlung ändern": "Change recommendation",
+  "Noch keine Empfehlung. Sag, was gut war.":
+    "No recommendations yet. Say what was good.",
+  "Diese Empfehlung ist nicht mehr da.": "This recommendation is gone.",
+  "Was sollte man wissen?": "What should people know?",
+  "Empfohlen von": "Recommended by",
+  "Nicht mehr merken": "Stop remembering",
+  "Gefällt mir": "Like",
+  "ohne Ortsangabe nicht berücksichtigt.": "without a place are not counted.",
+  "Empfehlungen haben": "recommendations have",
+  "keinen Ort und": "no place and are",
+  "deshalb nicht in dieser Liste.": "therefore not in this list.",
+
+  // ---------- Stimmung ----------
+  "Worauf hast du Lust?": "What do you feel like?",
+  "Stimmung setzen": "Set a mood",
+  "Kurz gesagt": "In short",
+  "Gilt für": "Lasts",
+  "Meinen Standort dazu": "Include my location",
+  "Meldung löschen": "Delete note",
+  "Setzen": "Set",
+  "Ich mach mit": "I'm in",
+  "Schreib kurz, worauf du Lust hast.":
+    "Say briefly what you feel like doing.",
+  "Sag, worauf du Lust hast.": "Say what you feel like doing.",
+  "Sichtbar für alle, mit denen du eine Unterhaltung teilst.":
+    "Visible to everyone you share a conversation with.",
+  "Alle Zeichen": "All characters",
+  "Die Meldung geht ohne Ort raus.": "The note goes out without a place.",
+
+  // ---------- Freunde ----------
+  "Jemand möchte sich mit dir befreunden.":
+    "Someone would like to be your friend.",
+  "Noch niemand. Frag unten jemanden an.":
+    "Nobody yet. Ask someone below.",
+  "Du hast noch keine": "You do not have any",
+  "bestätigten Freunde. Über „Freunde“ unten links geht das.":
+    "confirmed friends yet. Use „Freunde“ (friends) at the bottom left.",
+  "Anfragen": "Request",
+  "Lösen": "Unfriend",
+
+  // ---------- Galerie ----------
+  "Bilder von": "Pictures by",
+  "Deine Galerie": "Your gallery",
+  "＋ Bild hinzufügen": "＋ Add picture",
+  "Bild oder Film hinzufügen": "Add a picture or film",
+  "Wer darf das sehen?": "Who may see this?",
+  "Wer darf es sehen?": "Who may see it?",
+  "Bildunterschrift (freiwillig)": "Caption (optional)",
+  "Meine Freunde": "My friends",
+  "Niemand": "Nobody",
+  "Für deine Freunde freigegeben": "Released to your friends",
+  "Für deine Freunde freigegeben.": "Released to your friends.",
+  "Für alle freigegeben": "Released to everyone",
+  "Für alle freigegeben.": "Released to everyone.",
+  "Freigabe zurückgenommen.": "Release withdrawn.",
+  "Nicht freigegeben – nur in der Unterhaltung sichtbar":
+    "Not released — visible only inside the conversation",
+  "– zum Ändern tippen": "— tap to change",
+  "Hier ist noch nichts freigegeben.": "Nothing has been released here yet.",
+  "Diese Galerie ließ sich nicht öffnen.": "This gallery could not be opened.",
+  "Kommentare": "Comments",
+  "Hierzu hat noch niemand etwas geschrieben.":
+    "Nobody has written anything about this yet.",
+  "Noch nichts geschrieben.": "Nothing written yet.",
+  "Etwas dazu schreiben …": "Write something about it …",
+  "Senden": "Send",
+  "Nur du und": "Only you and",
+  "Die Kommentare ließen sich nicht laden.":
+    "The comments could not be loaded.",
+  "Bild gelöscht.": "Picture deleted.",
+  "Film gelöscht.": "Film deleted.",
+  "Wähle zuerst ein Bild oder einen Film.":
+    "Choose a picture or a film first.",
+  "Es landet nur in deiner Galerie – in keiner Unterhaltung.":
+    "It only goes into your gallery — into no conversation.",
+
+  // ---------- Geburtstage ----------
+  "Geburtstag": "Birthday",
+  "Geburtstag speichern": "Save birthday",
+  "Geburtstage werden gezeigt.": "Birthdays are shown.",
+  "Geburtstage bleiben aus.": "Birthdays stay hidden.",
+  "wird": "turns",
+
+  // ---------- Einstellungen ----------
+  "Aussehen": "Appearance",
+  "Hell": "Light",
+  "Dunkel": "Dark",
+  "Wie das Gerät": "Follow the device",
+  "Sprechblasen": "Bubbles",
+  "Hintergrund": "Background",
+  "Name": "Name",
+  "Namen speichern": "Save name",
+  "Name gespeichert.": "Name saved.",
+  "Zurück zur Voreinstellung.": "Back to the default.",
+  "Passwort ändern": "Change password",
+  "Passwort geändert.": "Password changed.",
+  "Passwort zurücksetzen": "Reset password",
+  "Passwort zurückgesetzt.": "Password reset.",
+  "Das Konto wird auf allen Geräten abgemeldet. Gib das Passwort persönlich weiter und lass es danach selbst ändern.":
+    "The account is signed out on every device. Hand the password over in person and have it changed afterwards.",
+  "Abmelden": "Sign out",
+  "Schließen": "Close",
+  "Abbrechen": "Cancel",
+  "Speichern": "Save",
+  "Das ging nicht.": "That did not work.",
+  "Das ging nicht:": "That did not work:",
+  "Das hat nicht geklappt.": "That did not work.",
+  "Das ließ sich nicht speichern.": "That could not be saved.",
+  "Gespeichert.": "Saved.",
+  "Wird geladen …": "Loading …",
+  "wird geladen …": "loading …",
+  "Wird geprüft …": "Checking …",
+  "Liste nicht verfügbar.": "List not available.",
+  "nicht verfügbar": "not available",
+  "Sprache": "Language",
+  "Deutsch": "German",
+  "Englisch": "English",
+
+  // ---------- Benutzerverwaltung ----------
+  "Benutzer verwalten": "Manage users",
+  "+ Neues Konto": "+ New account",
+  "Zugangsanträge": "Access requests",
+  "Passwort vergessen": "Forgotten password",
+  "Neues Passwort": "New password",
+  "Erledigt": "Done",
+  "Abgehakt.": "Ticked off.",
+  "Freigeben": "Approve",
+  "Zugang freigegeben.": "Access approved.",
+  "Antrag abgelehnt.": "Request declined.",
+  "Konto gesperrt.": "Account locked.",
+  "Konto entsperrt.": "Account unlocked.",
+  "Konto gelöscht.": "Account deleted.",
+  "Konto ist jetzt Administrator.": "Account is now an administrator.",
+  "Administratorrecht entzogen.": "Administrator rights revoked.",
+  "Kein Admin": "Not admin",
+  "Sperren": "Lock",
+  "Entsperren": "Unlock",
+  "letzter Administrator": "last administrator",
+  "gesperrt": "locked",
+  "du": "you",
+  "Konto endgültig löschen": "Delete the account for good",
+  "Die Nachrichten bleiben im Verlauf stehen, erscheinen aber unter „Gelöschtes Konto“. Das lässt sich nicht rückgängig machen.":
+    "The messages stay in the history but appear under „Gelöschtes Konto“ (deleted account). This cannot be undone.",
+  "Das Konto wird dabei entfernt.": "The account is removed in the process.",
+  "Neuer Zugangsantrag von": "New access request from",
+  "Antrag von „": "Request from „",
+  "Nachricht aus Home Assistant": "Message from Home Assistant",
+
+  // ---------- Benachrichtigungen und Erlaubnisse ----------
+  "Benachrichtigungen": "Notifications",
+  "Benachrichtigungen einschalten": "Turn on notifications",
+  "Benachrichtigungen sind aktiv.": "Notifications are on.",
+  "Benachrichtigungen wurden abgelehnt.": "Notifications were declined.",
+  "Noch nicht eingeschaltet.": "Not switched on yet.",
+  "Dieser Browser kennt keine Benachrichtigungen.":
+    "This browser has no notifications.",
+  "Der Server nahm die Anmeldung nicht an.":
+    "The server did not accept the subscription.",
+  "Benachrichtigungen einschalten, damit du neue Nachrichten mitbekommst?":
+    "Turn on notifications so you hear about new messages?",
+  "Ja": "Yes",
+  "Nicht jetzt": "Not now",
+  "Erlauben": "Allow",
+  "Später": "Later",
+  "Fertig. Ändern kannst du das jederzeit im Browser.":
+    "Done. You can change this in the browser at any time.",
+
+  // ---------- Home Assistant ----------
+  "Kopieren": "Copy",
+  "Neu": "New",
+  "Token kopiert.": "Token copied.",
+  "Bitte von Hand kopieren – der Text ist markiert.":
+    "Please copy it by hand — the text is selected.",
+  "Ein neues Token erzeugen?": "Generate a new token?",
+  "Stammt aus der Add-on-Option api_token.":
+    "Comes from the add-on option api_token.",
+
+  // ---------- Hinweise in den Dialogen ----------
+  "Wurde beim ersten Start erzeugt und liegt in /data/api_token.txt. Du kannst stattdessen die Add-on-Option api_token setzen.":
+    "Generated on the first start and kept in /data/api_token.txt. You can set the add-on option api_token instead.",
+  "Vom Browser abgelehnt. Das lässt sich nur dort wieder ändern – beim Schloss neben der Adresse.":
+    "Refused by the browser. That can only be changed there — at the padlock next to the address.",
+  "Die Farbe deiner eigenen Nachrichten – in allen Unterhaltungen.":
+    "The colour of your own messages — in every conversation.",
+  "Die Umrisskarte steckt im Add-on und fragt niemanden. Für Straßen holt die Live- und Terminansicht Kacheln von OpenStreetMap – das ist die einzige Stelle, an der dieser Chat etwas von einem fremden Server lädt.":
+    "The outline map ships inside the add-on and asks nobody. For streets, the live and event views fetch tiles from OpenStreetMap — the one place where this chat loads anything from a third party.",
+  "Er hängt an keiner Unterhaltung – du bestimmst unten selbst, wer ihn sieht.":
+    "It belongs to no conversation — you decide below who sees it.",
+  "Freiwillig. Wenn du ihn angibst, erscheint er bei den Leuten aus deinem Kreis unter „Termine“.":
+    "Optional. If you give it, it shows up for people in your circle under „Termine“ (events).",
+  "Gilt für alle deine Geräte. Einzelne Unterhaltungen lassen sich zusätzlich stummschalten – über das Bild oben in der Unterhaltung.":
+    "Applies to all your devices. Individual conversations can be muted on top of this — through the picture at the top of the conversation.",
+  "Gruppenname (leer lassen für Einzelchat)":
+    "Group name (leave empty for a direct chat)",
+  "Klingelton bei Anrufen. Ein Tipp spielt ihn vor.":
+    "Ringtone for calls. A tap plays it.",
+  "Mit diesem Token schickt eine Automation Nachrichten in den Chat. Behandle es wie ein Passwort.":
+    "An automation uses this token to post messages into the chat. Treat it like a password.",
+  "Wie die Oberfläche heißt – in der Seitenleiste, im Fenstertitel und auf der Anmeldeseite. Gilt für alle. Das Add-on selbst heißt weiterhin „Chat Server“.":
+    "What the interface is called — in the sidebar, the window title and on the sign-in page. Applies to everyone. The add-on itself is still called „Chat Server“.",
+  "Noch keine Unterhaltung. Leg mit „+ Neu“ los.":
+    "No conversations yet. Start one with „+ Neu“ (new).",
+  "Geburtstage anderer unter „Termine“ zeigen":
+    "Show other people's birthdays under „Termine“ (events)",
+  "Straßenkarte verwenden": "Use the street map",
+  "„In Karten öffnen“ führt zu": "„In Karten öffnen“ (open in maps) leads to",
+
+  // ---------- Rueckfragen vor dem Loeschen ----------
+  "Unterhaltung": "Conversation",
+  "Konto": "Account",
+  "bei dir löschen?": "delete for yourself?",
+  "für ALLE löschen?": "delete for EVERYONE?",
+  "endgültig löschen?": "delete for good?",
+  "Diese Empfehlung löschen?": "Delete this recommendation?",
+  "Dieses Bild endgültig löschen?": "Delete this picture for good?",
+  "Diesen Film endgültig löschen?": "Delete this film for good?",
+  "Die Einladung verschwindet danach aus der Unterhaltung und aus allen Terminlisten. Zurücknehmen geht dann nicht mehr – du müsstest neu einladen.":
+    "The invitation then disappears from the conversation and from every event list. Undoing it is no longer possible — you would have to invite again.",
+  "Es verschwindet aus der Galerie und vom Server – und damit auch aus jeder Unterhaltung, in der es steht. Herzen und Kommentare gehen mit.":
+    "It disappears from the gallery and from the server — and therefore from every conversation it appears in. Hearts and comments go with it.",
+  "Das alte gilt danach nicht mehr. Jede Automation in Home Assistant, die es benutzt, schlägt fehl, bis du dort das neue einträgst.":
+    "The old one stops working immediately. Every Home Assistant automation using it will fail until you enter the new one there.",
+
+  // ---------- Sonstiges ----------
+  "Ja, löschen": "Yes, delete",
+  "Nein": "No",
+  "Vielleicht": "Maybe",
+  "Chat löschen": "Delete chat",
+  "Unterhaltung gelöscht.": "Conversation deleted.",
+  "Unterhaltung für alle gelöscht.": "Conversation deleted for everyone.",
+  "Das lässt sich nicht rückgängig machen.": "This cannot be undone.",
+  "Nachrichten und Anhänge werden endgültig entfernt.":
+    "Messages and attachments are removed for good.",
+  "nicht erlaubt.": "not allowed.",
+  "gelöscht,": "deleted,",
+  "Anruf-Signal nicht verwertbar:": "Call signal unusable:",
+  "Hier ist gerade nichts los – niemand": "Nothing going on right now — nobody",
+  "teilt seinen Standort, und keine Einladung hat einen Ort.":
+    "is sharing a location, and no invitation has a place.",
+  "Sobald jemand seinen Standort teilt oder eine Einladung einen Ort":
+    "As soon as someone shares a location or an invitation gets a place,",
+  "bekommt, erscheint sie hier.": "it will show up here.",
+};
