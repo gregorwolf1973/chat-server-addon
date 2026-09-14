@@ -124,7 +124,6 @@ Damit niemand die falsche Erwartung mitbringt:
   die Nachrichten — das bist bei dir zu Hause du
 * Kein Verzeichnis, keine Telefonnummern, keine Verknüpfung mit anderen
   Diensten
-* Keine Übersetzung, die Oberfläche ist deutsch
 * Gelöschte Nachrichten bleiben als Datensatz stehen, Text und Anhang werden
   geleert
 

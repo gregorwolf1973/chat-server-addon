@@ -1,5 +1,7 @@
 # Chat Server – Handbuch
 
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/gregorwolf1973)
+
 Selbstgehosteter Messenger für Familie, WG oder Verein. Direktchats und
 Gruppen, Bilder und Dateien, Sprachnachrichten, Anrufe und Videoanrufe,
 Einladungen mit Ort, eine Karte, eine persönliche Galerie und
