@@ -43,7 +43,10 @@ Raspberry Pi is enough.
 * **Impostor**: invite friends, everyone gets the same word — except the
   impostor, who only gets a hint. The clock runs, the chat draws roles and
   turn order
-* About 150 (German) words in ten categories, add your own, retire used ones
+* **Codenames**: two teams, 25 cards, only the spymasters know the key. Enter
+  the clue, tap the cards, the chat keeps track of the turns
+* Word lists for both games (about 150 and 500 German words), add your own,
+  retire used ones
 
 **Showing what is going on**
 * A live map with shared locations, invitations and recommendations

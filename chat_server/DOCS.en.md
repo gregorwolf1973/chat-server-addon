@@ -30,6 +30,7 @@ original and always the more detailed one.
 [Location and maps](#location-and-maps) ·
 [Recommendations and moods](#recommendations-and-moods) ·
 [Games: Impostor](#games-impostor) ·
+[Games: Codenames](#games-codenames) ·
 [Gallery](#gallery) ·
 [On a phone](#on-a-phone) ·
 [Appearance](#appearance) ·
@@ -294,6 +295,32 @@ receives the word, and the roles appear only in the result.
 with a hint for the impostor. Anyone can retire a word or add their own, and
 the change applies to everyone. Retired words stay listed and can be allowed
 again. The words themselves are German.
+
+## Games: Codenames
+
+Two teams, **Red** and **Blue**, and a board of 25 word cards. Each team has a
+**spymaster**, and only the spymasters see the key: which cards belong to Red,
+which to Blue, which are neutral — and where the **assassin** hides.
+
+1. **Invite** at least three people (four including you).
+2. **Pick the teams.** The chat draws two teams with a spymaster each (★).
+   Move people with ⇄, make someone else spymaster with ★, or draw again.
+   Anyone who accepts now joins the smaller team.
+3. **Let's go.** A starting team is drawn; it has nine cards to find, the
+   other eight, plus seven neutral cards and one assassin.
+4. **Clue.** The spymaster whose team is up enters **one word and a
+   number**. A word lying face up on the board is not allowed.
+5. **Uncover.** Every operative of that team may tap cards; a tap uncovers
+   the card at once, so agree first. The team gets **number plus one**
+   guesses. Its own colour lets it carry on, neutral or the other colour ends
+   the turn, and **the assassin loses the game on the spot**. After at least
+   one card the team may **End the turn**.
+6. The first team to uncover all its cards wins.
+
+In a **new round** the teams stay together and the spymaster role moves on to
+the next person in each team. The colours of face-down cards are sent to the
+spymasters only. The word list has a **Codenames** tab with about 500 German
+nouns, many with two meanings; tap a word to retire it or bring it back.
 
 ## Gallery
 

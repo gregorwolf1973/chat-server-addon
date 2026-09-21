@@ -199,6 +199,55 @@ WORTE = [
 ]
 
 
+# ---------- Codenames ----------
+# Einzelne Hauptwoerter, moeglichst mit mehr als einer Bedeutung (Bank,
+# Schloss, Kiefer) - davon lebt das Spiel: ein guter Hinweis verbindet
+# Karten ueber eine Bedeutung, an die der Gegner nicht denkt.
+CODENAMES = """
+Abzug Adler Afrika Agent Akte Alarm Alpen Amerika Angel Anker Antenne Anzug
+Apfel Arm Atlantis Auge Ausweis Australien Auto Bahn Ball Band Bank Bär Bart
+Batterie Bauer Baum Becher Bein Berg Berlin Besen Biene Bier Birke Birne
+Blase Blatt Blitz Block Bock Boden Bogen Bohne Bohrer Bombe Boot Bote Brand
+Brief Brille Brücke Brunnen Buch Bühne Burg Bus Butter Chef China Computer
+Dach Dame Dampf Decke Diamant Dieb Dinosaurier Doktor Dorn Dose Drache Draht
+Duft Dusche Echo Ei Eimer Eis Engel England Ente Erde Esel Fackel Faden
+Fahne Fall Fallschirm Fass Feder Fee Feige Feld Fenster Fessel Feuer Figur
+Film Finger Fisch Flasche Fleck Fliege Flosse Flöte Flügel Flugzeug Fluss
+Frankreich Frosch Fuchs Funke Fuß Gabel Galgen Gans Garten Geist Geld
+Gericht Geschenk Gift Gips Gipfel Gitter Glas Glocke Glück Gold Golf Gras
+Grube Gummi Gurke Gürtel Hahn Hai Hals Hammer Hand Harfe Hase Haube Haus Haut
+Held Helm Hemd Hering Herz Hexe Himmel Hirsch Hof Höhle Holz Honig Horn Hose
+Hotel Hund Hut Igel Indien Insel Jacke Jäger Japan Kabel Käfer Kaiser Kamera
+Kamm Kanal Kaninchen Kanone Kapelle Kappe Karte Käse Kater Katze Kegel Keks
+Keller Kerze Kette Kiefer Kind Kino Kirche Kiste Kiwi Klammer Klavier Klee
+Klinge Knopf Knoten Koch Koffer Kohle Komet Kompass König Kopf Korb Korken
+Kraft Kran Kranz Krebs Kreide Kreis Kreuz Krieg Krokodil Krone Krug Küche
+Kuchen Kugel Kuh Kupfer Kuss Labor Lachs Lack Lager Lampe Land Lanze Laster
+Laterne Lauf Laus Leben Leder Leiter Licht Linie Linse Löffel Löwe Luft
+Magnet Mähne Mandel Mantel Mark Markt Mars Maske Mast Matte Mauer Maus Meer
+Messe Messer Mexiko Milch Mine Mixer Mond Moor Mops Motor Mühle Mund Musik
+Mutter Nacht Nadel Nagel Nase Nebel Nest Netz Note Nuss Oase Ofen Ohr
+Oktopus Olive Oper Orange Orden Orgel Paket Palast Palme Papier Paprika Park
+Pass Pate Pech Pfanne Pfeffer Pfeife Pfeil Pferd Pflanze Pflaster Pfote
+Pilot Pilz Pinguin Pinsel Pirat Pizza Planet Platte Polizei Post Prinzessin
+Punkt Puppe Pyramide Quark Quelle Rabe Rad Rahmen Rakete Rasen Ratte Raupe
+Reifen Riegel Riese Rinde Ring Ritter Roboter Rock Rom Rose Rost Rücken
+Russland Saft Säge Salz Sand Sattel Satz Säule Schach Schal Schale Schatten
+Schatz Schaum Scheibe Schere Schiff Schild Schimmel Schirm Schlag Schlange
+Schloss Schlüssel Schnabel Schnee Schokolade Schrank Schraube Schuh Schule
+Schuppen Schwamm Schwan Schwein Schwert See Seele Seide Seife Seil Seite
+Sessel Sieb Silber Sirene Socke Sonne Spiegel Spinne Spion Spritze Spur Staat
+Stab Stadion Stahl Stamm Star Stempel Stern Steuer Stiefel Stier Stift Stock
+Stoff Strand Strauß Strom Stuhl Sturm Tafel Takt Tanne Tante Tasche Taste
+Tau Taube Teich Teller Tempel Teppich Theater Tiger Tinte Tisch Titel Toast
+Tod Toilette Ton Topf Tor Torte Traktor Traum Treppe Tresor Trichter Trommel
+Tropfen Tuch Turm Uhr Umzug Vampir Vase Vogel Vulkan Waage Wagen Wal Wald
+Wand Wanze Wappen Wasser Watt Weide Wein Welle Welt Wespe Wind Wolf Wolke
+Wurf Wurm Wurst Wüste Zahn Zange Zauberer Zebra Zelle Zelt Zeitung Ziege
+Ziegel Zirkus Zitrone Zucker Zug Zunge Zwerg Zwiebel Zylinder
+""".split()
+
+
 def kategorie_name(schluessel, englisch=False):
     """Anzeigename einer Kategorie; unbekannte Schluessel bleiben, wie sie sind."""
     eintrag = KATEGORIEN.get(schluessel)

@@ -1795,6 +1795,11 @@
       const ich = (s.spieler || []).find((p) => p.id === ME);
       if (!ich) return false;
       if (s.status === "einladung") return !ich.antwort;
+      if (s.art === "codenames") {
+        // Wartet auf mich: den Start (Gastgeber) oder meinen Teil des Zugs
+        if (s.status === "teams") return s.bin_gastgeber;
+        return s.status === "laeuft" && (s.darf_hinweisen || s.darf_tippen);
+      }
       if (s.status === "zeigen") return ich.dabei && !ich.bereit;
       return s.status === "laeuft" && ich.dabei;
     }).length);
@@ -3123,8 +3128,20 @@
     if (offenesSpiel) spielZeichnen();
   }
 
+  const SPIEL_INFO = {
+    impostor: {name: "Impostor", symbol: "🕵️"},
+    codenames: {name: "Codenames", symbol: "🗝️"},
+  };
+  const spielInfo = (spiel) => SPIEL_INFO[spiel.art] || SPIEL_INFO.impostor;
+  const cnTeamName = (team) => team === "rot" ? T("Team Rot") : T("Team Blau");
+
   function spielStatusText(spiel) {
     if (spiel.status === "einladung") return T("Einladung läuft");
+    if (spiel.art === "codenames") {
+      if (spiel.status === "teams") return T("Teams werden aufgestellt");
+      if (spiel.status === "laeuft") return `${cnTeamName(spiel.am_zug)} ${T("ist dran")}`;
+      return `${cnTeamName(spiel.gewinner)} ${T("hat gewonnen")}`;
+    }
     if (spiel.status === "zeigen") return T("Alle lesen ihr Wort");
     if (spiel.status === "laeuft") return T("Läuft gerade");
     if (spiel.ergebnis === "erraten") return T("Der Impostor hat gewonnen");
@@ -3156,8 +3173,8 @@
       const mich = s.spieler.find((p) => p.id === ME);
       const frage = s.status === "einladung" && mich && !mich.antwort;
       return `<div class="spiel-eintrag${frage ? " neu" : ""}" data-spiel="${s.id}">
-          <span class="spiel-symbol">🕵️</span>
-          <div><div class="ke-name">${T("Impostor")}${
+          <span class="spiel-symbol">${spielInfo(s).symbol}</span>
+          <div><div class="ke-name">${spielInfo(s).name}${
             s.bin_gastgeber ? "" : ` · ${esc(s.gastgeber.name)}`}</div>
             <div class="ke-sub">${esc(zweite)}</div></div>
         </div>`;
@@ -3230,7 +3247,17 @@
       return;
     }
 
-    const kopf = `<h2>${T("Impostor")}${spiel.runde
+    // Das Codenames-Feld braucht Platz; die Einladung nicht
+    const rahmen = feld.closest(".modal");
+    if (rahmen) {
+      rahmen.classList.toggle("wide", spiel.art === "codenames" && spiel.status !== "einladung");
+    }
+    if (spiel.art === "codenames" && spiel.status !== "einladung") {
+      cnZeichnen(feld, spiel);
+      return;
+    }
+
+    const kopf = `<h2>${spielInfo(spiel).name}${spiel.runde
       ? ` · ${T("Runde")} ${spiel.runde}` : ""}</h2>`;
     let inhalt = "";
 
@@ -3259,7 +3286,8 @@
       knoepfe.push(`<button class="btn" id="sp-neu">${T("Neue Runde")}</button>`);
     }
     if (spiel.bin_gastgeber && spiel.status === "einladung") {
-      knoepfe.push(`<button class="btn" id="sp-start">${T("Spiel starten")}</button>`);
+      knoepfe.push(`<button class="btn" id="sp-start">${spiel.art === "codenames"
+        ? T("Teams aufstellen") : T("Spiel starten")}</button>`);
     }
     if (spiel.bin_gastgeber) {
       knoepfe.push(`<button class="btn ghost" id="sp-ende">${T("Spiel beenden")}</button>`);
@@ -3271,8 +3299,16 @@
   }
 
   function spielEinladungHtml(spiel) {
+    return `<p class="hint">${T("Einladung von")} ${esc(spiel.gastgeber.name)}.${
+        spiel.art === "codenames" ? ` ${T("Zwei Teams, ab vier Leuten.")}` : ""}</p>`
+      + spielLeuteHtml(spiel) + spielAntwortHtml(spiel)
+      + (spiel.art === "impostor" ? spielEinstellungenHtml(spiel) : "");
+  }
+
+  /** Zu- oder absagen - und die Antwort wieder aendern. */
+  function spielAntwortHtml(spiel) {
     const mich = spiel.spieler.find((p) => p.id === ME);
-    const frage = mich && !mich.antwort
+    return mich && !mich.antwort
       ? `<div class="row"><button class="btn" id="sp-ja">${T("Ich bin dabei")}</button>
          <button class="btn ghost" id="sp-nein">${T("Diesmal nicht")}</button></div>`
       : mich && mich.antwort === "ja"
@@ -3280,9 +3316,6 @@
             id="sp-nein">${T("Doch nicht")}</a></p>`
         : `<p class="hint">${T("Du hast abgesagt.")} <a href="#" class="spiel-link"
             id="sp-ja">${T("Doch dabei")}</a></p>`;
-    return `<p class="hint">${esc(spiel.gastgeber.name)} ${
-        T("lädt zum Impostor ein.")}</p>`
-      + spielLeuteHtml(spiel) + frage + spielEinstellungenHtml(spiel);
   }
 
   function spielEinstellungenHtml(spiel) {
@@ -3335,21 +3368,24 @@
           T("Dieses Wort nicht mehr verwenden")}</a></p>`;
   }
 
+  /** Eine Spielaktion schicken; danach den Stand neu holen. */
+  async function spielSenden(spielId, pfad, koerper) {
+    const res = await api(`/api/spiele/${spielId}${pfad}`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(koerper || {}),
+    });
+    const daten = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(daten.error || T("Das hat nicht geklappt.")); return null; }
+    await spieleLaden();
+    return daten;
+  }
+
   function spielKnoepfe(feld, spiel) {
     const klick = (id, fn) => {
       const el = feld.querySelector(id);
       if (el) el.addEventListener("click", (e) => { e.preventDefault(); fn(); });
     };
-    const senden = async (pfad, koerper) => {
-      const res = await api(`/api/spiele/${spiel.id}${pfad}`, {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(koerper || {}),
-      });
-      const daten = await res.json().catch(() => ({}));
-      if (!res.ok) { toast(daten.error || T("Das hat nicht geklappt.")); return null; }
-      await spieleLaden();
-      return daten;
-    };
+    const senden = (pfad, koerper) => spielSenden(spiel.id, pfad, koerper);
 
     klick("#sp-zu", spielSchliessen);
     klick("#sp-ja", () => senden("/antwort", {antwort: "ja"}));
@@ -3415,6 +3451,149 @@
     spielUhr = setInterval(anzeigen, 1000);
   }
 
+  // ---------- Codenames ----------
+  // Zwei Teams, 25 Karten. Die Farben verdeckter Karten schickt der Server
+  // nur den Chefs - alle anderen bekommen sie gar nicht erst.
+  function cnZeichnen(feld, spiel) {
+    if (spielUhr) { clearInterval(spielUhr); spielUhr = null; }
+    const kopf = `<h2>Codenames · ${T("Runde")} ${spiel.runde}</h2>`;
+    const inhalt = spiel.status === "teams" ? cnTeamsHtml(spiel) : cnFeldHtml(spiel);
+
+    const knoepfe = [];
+    if (spiel.bin_gastgeber && spiel.status === "teams") {
+      knoepfe.push(`<button class="btn" id="cn-los">${T("Los geht's")}</button>`,
+                   `<button class="btn ghost" id="cn-losen">${T("Neu losen")}</button>`);
+    }
+    if (spiel.bin_gastgeber && spiel.status === "vorbei") {
+      knoepfe.push(`<button class="btn" id="sp-neu">${T("Neue Runde")}</button>`);
+    }
+    if (spiel.bin_gastgeber) {
+      knoepfe.push(`<button class="btn ghost" id="sp-ende">${T("Spiel beenden")}</button>`);
+    }
+    knoepfe.push(`<button class="btn ghost" id="sp-zu">${T("Schließen")}</button>`);
+    feld.innerHTML = kopf + inhalt + `<div class="row">${knoepfe.join("")}</div>`;
+    spielKnoepfe(feld, spiel);
+    cnKnoepfe(feld, spiel);
+  }
+
+  function cnTeamsHtml(spiel) {
+    const team = (t) => spiel.spieler.filter((p) => p.team === t).map((p) =>
+      `<div class="cn-mitglied">
+         <span class="cn-stern">${p.chef ? "★" : ""}</span>
+         <span class="cn-name">${esc(p.name)}${p.id === ME ? ` (${T("du")})` : ""}</span>
+         ${spiel.bin_gastgeber ? `
+           ${p.chef ? "" : `<button type="button" class="mini-btn" data-chef="${p.id}"
+              title="${T("Zum Chef machen")}">★</button>`}
+           <button type="button" class="mini-btn" data-tausch="${p.id}"
+              title="${T("Ins andere Team")}">⇄</button>` : ""}
+       </div>`).join("");
+    const mich = spiel.spieler.find((p) => p.id === ME);
+    const offen = spiel.spieler.filter((p) => !p.antwort).map((p) => esc(p.name));
+    return `<div class="cn-teams">
+        <div class="cn-team rot"><div class="cn-team-kopf">${T("Team Rot")}</div>${team("rot")}</div>
+        <div class="cn-team blau"><div class="cn-team-kopf">${T("Team Blau")}</div>${team("blau")}</div>
+      </div>
+      <p class="hint">★ ${T("Chef: sieht, welche Karte zu wem gehört, und gibt die Hinweise.")}</p>
+      ${offen.length ? `<p class="hint klein">${T("Noch ohne Antwort")}: ${offen.join(", ")}</p>` : ""}
+      ${mich && !mich.dabei ? spielAntwortHtml(spiel) : ""}
+      ${spiel.bin_gastgeber ? "" : `<p class="hint">${T("Gleich geht es los …")}</p>`}`;
+  }
+
+  function cnFeldHtml(spiel) {
+    const vorbei = spiel.status === "vorbei";
+    const offen = spiel.offen || {rot: 0, blau: 0};
+    const stand = `<div class="cn-stand">
+        <span class="cn-zahl rot">${T("Rot")} ${offen.rot}</span>
+        <span class="cn-zahl blau">${T("Blau")} ${offen.blau}</span></div>`;
+
+    let lage;
+    if (vorbei) {
+      lage = `<div class="spiel-ende cn-sieg ${spiel.gewinner}">${cnTeamName(spiel.gewinner)} ${
+        T("gewinnt!")}${spiel.ergebnis === "attentaeter"
+          ? ` ${T("Der Attentäter wurde aufgedeckt.")}` : ""}</div>`;
+    } else {
+      const hinweis = spiel.hinweis
+        ? `<div class="cn-hinweis">${T("Hinweis")}: <b>${esc(spiel.hinweis.wort)}</b> · ${
+            spiel.hinweis.zahl} <span class="klein">(${T("noch")} ${spiel.rest_versuche} ${
+            spiel.rest_versuche === 1 ? T("Versuch") : T("Versuche")})</span></div>`
+        : `<div class="cn-hinweis wartet">${T("Warten auf den Hinweis …")}</div>`;
+      lage = `<div class="cn-status"><span class="cn-dran ${spiel.am_zug}">${
+        cnTeamName(spiel.am_zug)}</span> ${T("ist dran")}</div>` + hinweis;
+    }
+
+    const rolle = !spiel.mein_team ? T("Du schaust zu.")
+      : spiel.bin_chef ? `${T("Du bist Chef von")} ${cnTeamName(spiel.mein_team)}.`
+        : `${T("Du ermittelst für")} ${cnTeamName(spiel.mein_team)}.`;
+
+    const eingabe = spiel.darf_hinweisen
+      ? `<div class="cn-eingabe">
+           <input id="cn-wort" autocomplete="off" placeholder="${T("Ein Wort")}">
+           <select id="cn-zahl" aria-label="${T("Anzahl")}">${
+             [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<option>${n}</option>`).join("")}</select>
+           <button type="button" class="btn klein" id="cn-hinweis-ok">${T("Hinweis geben")}</button>
+         </div>` : "";
+
+    const karten = spiel.karten.map((k) => {
+      const klassen = ["cn-karte"];
+      if (k.aufgedeckt) klassen.push("auf", k.farbe);
+      else if (k.farbe) klassen.push("plan", k.farbe);
+      const tippbar = spiel.darf_tippen && !k.aufgedeckt;
+      return `<button type="button" class="${klassen.join(" ")}" data-karte="${k.pos}"${
+        tippbar ? "" : " disabled"}>${esc(k.wort)}</button>`;
+    }).join("");
+
+    const verlauf = spiel.hinweise.length
+      ? `<details class="cn-verlauf"><summary>${T("Bisherige Hinweise")}</summary>${
+          spiel.hinweise.map((h) => `<span class="cn-alt ${h.team}">${
+            esc(h.wort)} · ${h.zahl}</span>`).join("")}</details>` : "";
+    const mich = spiel.spieler.find((p) => p.id === ME);
+
+    return stand + lage + `<p class="hint">${rolle}</p>` + eingabe
+      + `<div class="cn-feld${spiel.darf_tippen ? " tippbar" : ""}">${karten}</div>`
+      + (spiel.darf_passen ? `<div class="row"><button class="btn ghost" id="cn-passen">${
+          T("Zug beenden")}</button></div>` : "")
+      + verlauf
+      + (mich && !mich.dabei && !mich.antwort ? spielAntwortHtml(spiel) : "");
+  }
+
+  function cnKnoepfe(feld, spiel) {
+    const senden = (pfad, koerper) => spielSenden(spiel.id, pfad, koerper);
+    const klick = (id, fn) => {
+      const el = feld.querySelector(id);
+      if (el) el.addEventListener("click", (e) => { e.preventDefault(); fn(); });
+    };
+    klick("#cn-los", () => senden("/los"));
+    klick("#cn-losen", () => senden("/teams", {aktion: "losen"}));
+    klick("#cn-passen", () => senden("/passen"));
+    feld.querySelectorAll("[data-tausch]").forEach((b) => b.addEventListener("click", () =>
+      senden("/teams", {aktion: "tauschen", user_id: parseInt(b.dataset.tausch, 10)})));
+    feld.querySelectorAll("[data-chef]").forEach((b) => b.addEventListener("click", () =>
+      senden("/teams", {aktion: "chef", user_id: parseInt(b.dataset.chef, 10)})));
+
+    const hinweisGeben = () => {
+      const wort = (feld.querySelector("#cn-wort").value || "").trim();
+      if (!wort) return toast(T("Schreibe ein Wort."));
+      senden("/hinweis", {wort, zahl: parseInt(feld.querySelector("#cn-zahl").value, 10)});
+    };
+    klick("#cn-hinweis-ok", hinweisGeben);
+    const eingabe = feld.querySelector("#cn-wort");
+    if (eingabe) {
+      eingabe.focus();
+      eingabe.addEventListener("keydown", (e) => { if (e.key === "Enter") hinweisGeben(); });
+    }
+
+    feld.querySelectorAll(".cn-feld.tippbar .cn-karte:not([disabled])").forEach((b) =>
+      b.addEventListener("click", async () => {
+        // Kein zweiter Tipp, solange der erste unterwegs ist
+        feld.querySelectorAll(".cn-karte").forEach((k) => { k.disabled = true; });
+        const daten = await senden("/karte", {pos: parseInt(b.dataset.karte, 10)});
+        if (!daten || !daten.aufgedeckt) { spielZeichnen(); return; }
+        const farbe = daten.aufgedeckt.farbe;
+        klangSpielen(farbe === "attentaeter" ? "alarm"
+          : farbe === spiel.mein_team ? "fertig" : "ereignis");
+      }));
+  }
+
   // ---------- Spiel einladen ----------
   let spielKategorien = [];   // aus /api/spiel-worte, fuer Namen und Auswahl
 
@@ -3437,11 +3616,17 @@
     if (andere.length < 2) {
       return toast(T("Für ein Spiel braucht es mindestens drei Leute."));
     }
-    const wurzel = modal(`<h2>${T("Zum Impostor einladen")}</h2>
-      <p class="hint">${T("Wer zusagt, ist beim Start dabei.")}</p>
+    let art = "impostor";
+    const wurzel = modal(`<h2>${T("Zum Spiel einladen")}</h2>
+      <div class="spiel-wahl" id="sp-art">${Object.entries(SPIEL_INFO).map(([schluessel, info]) =>
+        `<button type="button" class="spiel-wahl-knopf${schluessel === art ? " an" : ""}"
+                 data-art="${schluessel}"><span>${info.symbol}</span> ${info.name}</button>`).join("")}
+      </div>
+      <p class="hint" id="sp-art-text"></p>
       <div id="sp-leute">${andere.map((u) =>
         `<div class="pick" data-id="${u.id}">${avatarHtml("u", u.id, u.display_name, u.avatar, "klein")} ${
           esc(u.display_name)}</div>`).join("")}</div>
+      <div id="sp-impostor">
       <div class="field"><label>${T("Wortschatz")}</label>
         <div class="kf-zeile" id="sp-kat">${spielKategorien.map((k) =>
           `<button type="button" class="mini-btn an" data-kat="${k.schluessel}">${
@@ -3457,8 +3642,23 @@
       <div class="field"><label>${T("Rateversuche für den Impostor")}</label>
         <select id="sp-versuche">${[1, 2, 3, 5].map((n) =>
           `<option value="${n}">${n}</option>`).join("")}</select></div>
+      </div>
       <div class="row"><button class="btn ghost" id="sp-ab">${T("Abbrechen")}</button>
         <button class="btn" id="sp-ok">${T("Einladen")}</button></div>`);
+
+    // Die Spiele brauchen unterschiedlich viele Leute und Einstellungen
+    const MINDESTENS = {impostor: 2, codenames: 3};
+    const artZeigen = () => {
+      wurzel.querySelectorAll(".spiel-wahl-knopf").forEach((b) =>
+        b.classList.toggle("an", b.dataset.art === art));
+      wurzel.querySelector("#sp-impostor").hidden = art !== "impostor";
+      wurzel.querySelector("#sp-art-text").textContent = art === "codenames"
+        ? T("Zwei Teams finden ihre Wörter auf einem Feld aus 25 Karten. Ab vier Leuten.")
+        : T("Alle bekommen dasselbe Wort, einer nur einen Tipp. Ab drei Leuten.");
+    };
+    wurzel.querySelectorAll(".spiel-wahl-knopf").forEach((b) =>
+      b.addEventListener("click", () => { art = b.dataset.art; artZeigen(); }));
+    artZeigen();
 
     const gewaehlt = new Set();
     wurzel.querySelectorAll("#sp-leute .pick").forEach((el) =>
@@ -3472,23 +3672,27 @@
     wurzel.querySelector("#sp-ab").addEventListener("click", closeModal);
     wurzel.querySelector("#sp-ok").addEventListener("click", async (e) => {
       const knopf = e.currentTarget;
-      if (gewaehlt.size < 2) return toast(T("Lade mindestens zwei Personen ein."));
+      if (gewaehlt.size < MINDESTENS[art]) {
+        return toast(art === "codenames" ? T("Lade mindestens drei Personen ein.")
+          : T("Lade mindestens zwei Personen ein."));
+      }
       const kategorien = [...wurzel.querySelectorAll("#sp-kat .mini-btn.an")]
         .map((b) => b.dataset.kat);
       // Alle an heisst dasselbe wie keine Auswahl - dann bleibt die Liste offen
       const alle = kategorien.length === spielKategorien.length;
+      const koerper = art === "codenames" ? {art, gaeste: [...gewaehlt]} : {
+        art,
+        gaeste: [...gewaehlt],
+        kategorien: alle ? [] : kategorien,
+        impostoren: parseInt(wurzel.querySelector("#sp-imp").value, 10),
+        dauer_s: parseInt(wurzel.querySelector("#sp-dauer").value, 10),
+        versuche: parseInt(wurzel.querySelector("#sp-versuche").value, 10),
+      };
       knopf.disabled = true;
       try {
         const res = await api("/api/spiele", {
           method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({
-            art: "impostor",
-            gaeste: [...gewaehlt],
-            kategorien: alle ? [] : kategorien,
-            impostoren: parseInt(wurzel.querySelector("#sp-imp").value, 10),
-            dauer_s: parseInt(wurzel.querySelector("#sp-dauer").value, 10),
-            versuche: parseInt(wurzel.querySelector("#sp-versuche").value, 10),
-          }),
+          body: JSON.stringify(koerper),
         });
         const daten = await res.json().catch(() => ({}));
         if (!res.ok) return toast(daten.error || T("Das hat nicht geklappt."));
@@ -3505,11 +3709,26 @@
   // Sie gehoert allen: wer ein Wort herausnimmt, nimmt es fuer die ganze
   // Runde heraus. Gesperrte Woerter bleiben sichtbar und lassen sich
   // zurueckholen - geloescht wird nichts.
+  /** Oben in der Wortliste: zwischen den Spielen umschalten. */
+  const wortlisteWahl = (aktiv) => `<div class="spiel-wahl">${
+    Object.entries(SPIEL_INFO).map(([schluessel, info]) =>
+      `<button type="button" class="spiel-wahl-knopf${schluessel === aktiv ? " an" : ""}"
+               data-wl="${schluessel}"><span>${info.symbol}</span> ${info.name}</button>`).join("")}
+    </div>`;
+
+  function wortlisteWahlBinden(wurzel, aktiv) {
+    wurzel.querySelectorAll("[data-wl]").forEach((b) => b.addEventListener("click", () => {
+      if (b.dataset.wl === aktiv) return;
+      if (b.dataset.wl === "codenames") cnWortliste();
+      else wortlisteDialog();
+    }));
+  }
+
   async function wortlisteDialog() {
     const daten = await spielWorteLaden();
     let kategorie = spielKategorien.length ? spielKategorien[0].schluessel : "";
 
-    const wurzel = modal(`<h2>${T("Wortliste")}</h2>
+    const wurzel = modal(`<h2>${T("Wortliste")}</h2>${wortlisteWahl("impostor")}
       <div class="kf-zeile" id="wl-kat"></div>
       <div class="wortliste" id="wl-liste"></div>
       <details class="wl-neu"><summary>${T("Eigenes Wort hinzufügen")}</summary>
@@ -3551,6 +3770,7 @@
     };
     zeichnen();
 
+    wortlisteWahlBinden(wurzel, "impostor");
     wurzel.querySelector("#wl-zu").addEventListener("click", closeModal);
     wurzel.querySelector("#wl-ok").addEventListener("click", async () => {
       const wort = wurzel.querySelector("#wl-wort").value.trim();
@@ -3566,6 +3786,68 @@
       Object.assign(daten, await spielWorteLaden());
       zeichnen();
       toast(T("Wort hinzugefügt."));
+    });
+  }
+
+  // Codenames-Woerter haben keinen Tipp und keine Kategorie - darum eine
+  // kompakte Wolke zum Antippen statt der Liste mit Zeilen.
+  async function cnWortliste() {
+    const res = await api("/api/codenames-worte");
+    if (!res.ok) return toast(T("Das hat nicht geklappt."));
+    const worte = ((await res.json()).worte || [])
+      .sort((a, b) => a.wort.localeCompare(b.wort, LOCALE));
+    let suche = "";
+
+    const wurzel = modal(`<h2>${T("Wortliste")}</h2>${wortlisteWahl("codenames")}
+      <p class="hint klein" id="cw-stand"></p>
+      <input id="cw-suche" type="search" autocomplete="off" placeholder="${T("Suchen …")}">
+      <p class="hint klein">${T("Tippe ein Wort an, um es aus dem Spiel zu nehmen oder zurückzuholen.")}</p>
+      <div class="wortliste cw-wolke" id="cw-liste"></div>
+      <details class="wl-neu"><summary>${T("Eigenes Wort hinzufügen")}</summary>
+        <div class="field"><input id="cw-wort" autocomplete="off"
+             placeholder="${T("Ein Wort, am besten mit zwei Bedeutungen")}"></div>
+        <div class="row"><button class="btn" id="cw-ok">${T("Hinzufügen")}</button></div>
+      </details>
+      <div class="row"><button class="btn ghost" id="wl-zu">${T("Schließen")}</button></div>`);
+
+    const zeichnen = () => {
+      const frei = worte.filter((w) => !w.gesperrt).length;
+      wurzel.querySelector("#cw-stand").textContent =
+        `${frei} ${T("von")} ${worte.length} ${T("Wörtern kommen aufs Spielfeld.")}`;
+      const gezeigt = suche
+        ? worte.filter((w) => w.wort.toLowerCase().includes(suche)) : worte;
+      wurzel.querySelector("#cw-liste").innerHTML = gezeigt.map((w) =>
+        `<button type="button" class="cw-wort${w.gesperrt ? " aus" : ""}" data-id="${w.id}">${
+          esc(w.wort)}</button>`).join("") || `<p class="hint">${T("Nichts gefunden.")}</p>`;
+      wurzel.querySelectorAll(".cw-wort").forEach((b) => b.addEventListener("click", async () => {
+        const wort = worte.find((w) => w.id === parseInt(b.dataset.id, 10));
+        const antwort = await api(`/api/codenames-worte/${wort.id}/sperren`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({gesperrt: !wort.gesperrt}),
+        });
+        if (!antwort.ok) return toast(T("Das hat nicht geklappt."));
+        wort.gesperrt = !wort.gesperrt;
+        zeichnen();
+      }));
+    };
+    zeichnen();
+
+    wortlisteWahlBinden(wurzel, "codenames");
+    wurzel.querySelector("#cw-suche").addEventListener("input", (e) => {
+      suche = e.target.value.trim().toLowerCase();
+      zeichnen();
+    });
+    wurzel.querySelector("#wl-zu").addEventListener("click", closeModal);
+    wurzel.querySelector("#cw-ok").addEventListener("click", async () => {
+      const feld = wurzel.querySelector("#cw-wort");
+      const antwort = await api("/api/codenames-worte", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({wort: feld.value.trim()}),
+      });
+      const daten = await antwort.json().catch(() => ({}));
+      if (!antwort.ok) return toast(daten.error || T("Das hat nicht geklappt."));
+      toast(T("Wort hinzugefügt."));
+      cnWortliste();
     });
   }
 

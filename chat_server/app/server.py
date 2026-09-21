@@ -377,9 +377,17 @@ CREATE TABLE IF NOT EXISTS spiele (
     wort_id INTEGER,
     beginn_at INTEGER,
     ende_at INTEGER,
-    -- erraten | zeit_um | verraten (alle Versuche verbraucht)
+    -- Impostor: erraten | zeit_um | verraten (alle Versuche verbraucht)
+    -- Codenames: alle (alle Karten gefunden) | attentaeter
     ergebnis TEXT,
     geraten TEXT,
+    -- Nur Codenames: wer dran ist, der laufende Hinweis, wer gewonnen hat
+    am_zug TEXT,
+    hinweis TEXT,
+    hinweis_zahl INTEGER,
+    rest_versuche INTEGER,
+    getippt INTEGER NOT NULL DEFAULT 0,
+    gewinner TEXT,
     created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS spiel_spieler (
@@ -393,8 +401,35 @@ CREATE TABLE IF NOT EXISTS spiel_spieler (
     platz INTEGER,
     bereit INTEGER NOT NULL DEFAULT 0,
     versuche INTEGER NOT NULL DEFAULT 0,
+    -- Nur Codenames: rot | blau, und ob man Geheimdienstchef ist
+    team TEXT,
+    chef INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     PRIMARY KEY (spiel_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS cn_karten (
+    spiel_id INTEGER NOT NULL,
+    pos INTEGER NOT NULL,
+    wort TEXT NOT NULL,
+    -- rot | blau | neutral | attentaeter
+    farbe TEXT NOT NULL,
+    aufgedeckt INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (spiel_id, pos)
+);
+CREATE TABLE IF NOT EXISTS cn_hinweise (
+    id INTEGER PRIMARY KEY,
+    spiel_id INTEGER NOT NULL,
+    team TEXT NOT NULL,
+    wort TEXT NOT NULL,
+    zahl INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cn_worte (
+    id INTEGER PRIMARY KEY,
+    wort TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    gesperrt INTEGER NOT NULL DEFAULT 0,
+    user_id INTEGER,
+    created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS spiel_worte (
     id INTEGER PRIMARY KEY,
@@ -510,6 +545,18 @@ def migrate(conn):
         conn.execute("ALTER TABLE events ADD COLUMN sicht TEXT")
     if cols and "umkreis_km" not in cols:
         conn.execute("ALTER TABLE events ADD COLUMN umkreis_km INTEGER")
+    # Codenames kam nach Impostor: die Spalten dafuer nachziehen
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(spiele)")}
+    for spalte, art in (("am_zug", "TEXT"), ("hinweis", "TEXT"),
+                        ("hinweis_zahl", "INTEGER"), ("rest_versuche", "INTEGER"),
+                        ("getippt", "INTEGER NOT NULL DEFAULT 0"), ("gewinner", "TEXT")):
+        if cols and spalte not in cols:
+            conn.execute(f"ALTER TABLE spiele ADD COLUMN {spalte} {art}")
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(spiel_spieler)")}
+    if cols and "team" not in cols:
+        conn.execute("ALTER TABLE spiel_spieler ADD COLUMN team TEXT")
+    if cols and "chef" not in cols:
+        conn.execute("ALTER TABLE spiel_spieler ADD COLUMN chef INTEGER NOT NULL DEFAULT 0")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(rooms)")}
     if "avatar" not in cols:
         conn.execute("ALTER TABLE rooms ADD COLUMN avatar TEXT")
@@ -560,6 +607,9 @@ def worte_einspielen(conn):
         "INSERT OR IGNORE INTO spiel_worte (kategorie, wort, tipp, created_at)"
         " VALUES (?,?,?,?)",
         [(kat, wort, tipp, now) for kat, wort, tipp in spielworte.WORTE])
+    conn.executemany(
+        "INSERT OR IGNORE INTO cn_worte (wort, created_at) VALUES (?,?)",
+        [(wort, now) for wort in spielworte.CODENAMES])
     conn.commit()
 
 
@@ -4679,8 +4729,10 @@ def api_notify():
 # wird fuer den Fragenden gebaut: der Impostor bekommt das Wort nie zu sehen,
 # und wer Impostor ist, steht erst in der Auswertung drin.
 
-SPIEL_ARTEN = ("impostor",)
+SPIEL_ARTEN = ("impostor", "codenames")
 SPIEL_MIN_SPIELER = 3
+# Codenames braucht je Team einen Chef und mindestens einen Ermittler
+SPIEL_MIN_JE_ART = {"impostor": 3, "codenames": 4}
 SPIEL_MAX_DAUER_S = 3600
 SPIEL_MAX_VERSUCHE = 10
 _ZUFALL = secrets.SystemRandom()
@@ -4819,6 +4871,9 @@ def spiel_payload(spiel_id, uid, conn=None):
         "platz": r["platz"],
         # Wer Impostor ist, steht erst in der Auswertung drin
         "impostor": bool(r["impostor"]) if vorbei else None,
+        # Codenames: Teams und Chefs sind kein Geheimnis
+        "team": r["team"] if r["dabei"] else None,
+        "chef": bool(r["chef"]) and bool(r["dabei"]),
     } for r in leute]
 
     wort = conn.execute("SELECT * FROM spiel_worte WHERE id=?",
@@ -4864,6 +4919,8 @@ def spiel_payload(spiel_id, uid, conn=None):
         daten["wort"] = wort["wort"]
         daten["tipp"] = wort["tipp"]
         daten["wort_id"] = wort["id"]
+    if spiel["art"] == "codenames":
+        daten.update(_cn_payload(conn, spiel, ich))
     return daten
 
 
@@ -4916,9 +4973,9 @@ def api_spiel_anlegen():
                 "SELECT 1 FROM users WHERE id=? AND active=1 AND pending=0",
                 (g_id,)).fetchone():
             gaeste.add(g_id)
-    if len(gaeste) < SPIEL_MIN_SPIELER - 1:
-        return jsonify({"error": f"Lade mindestens {SPIEL_MIN_SPIELER - 1} "
-                                 f"Personen ein."}), 400
+    mindestens = SPIEL_MIN_JE_ART[art] - 1
+    if len(gaeste) < mindestens:
+        return jsonify({"error": f"Lade mindestens {mindestens} Personen ein."}), 400
 
     bekannt = {k for k in spielworte.KATEGORIEN}
     kategorien = sorted({str(k).strip().lower()
@@ -4978,6 +5035,10 @@ def api_spiel_antwort(spiel_id):
     conn.execute("UPDATE spiel_spieler SET antwort=? WHERE spiel_id=? AND user_id=?",
                  (antwort, spiel_id, uid))
     conn.commit()
+    spiel = conn.execute("SELECT art, status FROM spiele WHERE id=?",
+                         (spiel_id,)).fetchone()
+    if spiel["art"] == "codenames" and spiel["status"] == "teams":
+        _cn_antwort_beim_aufstellen(conn, spiel_id, uid, antwort)
     spiel_mitteilen(spiel_id, conn)
     return jsonify(spiel_payload(spiel_id, uid, conn))
 
@@ -4991,9 +5052,13 @@ def api_spiel_start(spiel_id):
     spiel = conn.execute("SELECT * FROM spiele WHERE id=?", (spiel_id,)).fetchone()
     if spiel is None or spiel["user_id"] != uid:
         abort(403)
-    if spiel["status"] in ("zeigen", "laeuft"):
+    if spiel["status"] in ("zeigen", "teams", "laeuft"):
         return jsonify({"error": "Die Runde läuft schon."}), 400
-    fehler = _runde_starten(conn, spiel)
+    if spiel["art"] == "codenames":
+        # Erst die Teams - aufs Feld geht es mit /los
+        fehler = _cn_teams_bilden(conn, spiel, behalten=spiel["status"] == "vorbei")
+    else:
+        fehler = _runde_starten(conn, spiel)
     if fehler:
         return jsonify({"error": fehler}), 400
     spiel_mitteilen(spiel_id, conn)
@@ -5036,6 +5101,8 @@ def api_spiel_raten(spiel_id):
     spiel = conn.execute("SELECT * FROM spiele WHERE id=?", (spiel_id,)).fetchone()
     if spiel is None:
         abort(403)
+    if spiel["art"] != "impostor":
+        return jsonify({"error": "In diesem Spiel wird nicht geraten."}), 400
     ich = conn.execute(
         "SELECT * FROM spiel_spieler WHERE spiel_id=? AND user_id=?",
         (spiel_id, uid)).fetchone()
@@ -5086,6 +5153,8 @@ def api_spiel_beenden(spiel_id):
         abort(403)
     beteiligte = _spiel_teilnehmer(conn, spiel_id)
     conn.execute("DELETE FROM spiel_spieler WHERE spiel_id=?", (spiel_id,))
+    conn.execute("DELETE FROM cn_karten WHERE spiel_id=?", (spiel_id,))
+    conn.execute("DELETE FROM cn_hinweise WHERE spiel_id=?", (spiel_id,))
     conn.execute("DELETE FROM spiele WHERE id=?", (spiel_id,))
     conn.commit()
     for teilnehmer in beteiligte:
@@ -5152,6 +5221,462 @@ def api_spiel_wort_sperren(wort_id):
         abort(404)
     gesperrt = 1 if request.get_json(force=True).get("gesperrt", True) else 0
     conn.execute("UPDATE spiel_worte SET gesperrt=? WHERE id=?", (gesperrt, wort_id))
+    conn.commit()
+    socketio.emit("spielworte_geaendert", {})
+    return jsonify({"ok": True, "gesperrt": bool(gesperrt)})
+
+
+# --------------------------------------------------------------------------
+# Codenames
+# --------------------------------------------------------------------------
+# Zwei Teams, 25 Karten. Nur die Geheimdienstchefs sehen, welche Karte zu
+# welchem Team gehoert. Der Chef gibt einen Hinweis aus einem Wort und einer
+# Zahl, sein Team deckt Karten auf - hoechstens Zahl plus eins. Wer zuerst
+# alle eigenen Karten findet, gewinnt; wer den Attentaeter erwischt, verliert.
+#
+# Der Lageplan verlaesst den Server nur fuer die Chefs. Alle anderen sehen
+# eine Farbe erst, wenn die Karte aufgedeckt ist.
+
+CN_TEAMS = ("rot", "blau")
+CN_NAMEN = {"rot": "Rot", "blau": "Blau"}
+CN_KARTEN = 25
+CN_MAX_ZAHL = 9
+# Zwei Ermittler koennen gleichzeitig tippen. Aufdecken, Zaehlen und
+# Zugwechsel muessen am Stueck passieren, sonst zaehlt ein Versuch doppelt.
+CN_LOCK = threading.Lock()
+
+
+def _cn_gegner(team):
+    return "blau" if team == "rot" else "rot"
+
+
+def _cn_offen(conn, spiel_id):
+    """Wie viele Karten jedes Team noch finden muss - das darf jeder wissen."""
+    zahlen = {t: 0 for t in CN_TEAMS}
+    for r in conn.execute(
+            "SELECT farbe, COUNT(*) AS n FROM cn_karten WHERE spiel_id=?"
+            " AND aufgedeckt=0 GROUP BY farbe", (spiel_id,)).fetchall():
+        if r["farbe"] in zahlen:
+            zahlen[r["farbe"]] = r["n"]
+    return zahlen
+
+
+def _cn_payload(conn, spiel, ich):
+    """Der Codenames-Teil der Antwort. Farben verdeckter Karten nur fuer Chefs."""
+    vorbei = spiel["status"] == "vorbei"
+    laeuft = spiel["status"] == "laeuft"
+    dabei = bool(ich["dabei"])
+    mein_team = ich["team"] if dabei else None
+    bin_chef = dabei and bool(ich["chef"])
+    karten = [{
+        "pos": k["pos"],
+        "wort": k["wort"],
+        "aufgedeckt": bool(k["aufgedeckt"]),
+        "farbe": k["farbe"] if (k["aufgedeckt"] or bin_chef or vorbei) else None,
+    } for k in conn.execute("SELECT * FROM cn_karten WHERE spiel_id=? ORDER BY pos",
+                            (spiel["id"],)).fetchall()]
+    hinweis = ({"wort": spiel["hinweis"], "zahl": spiel["hinweis_zahl"]}
+               if laeuft and spiel["hinweis"] else None)
+    mein_zug = laeuft and mein_team == spiel["am_zug"]
+    darf_tippen = mein_zug and not bin_chef and hinweis is not None
+    return {
+        "karten": karten,
+        "offen": _cn_offen(conn, spiel["id"]) if karten else None,
+        "am_zug": spiel["am_zug"] if laeuft else None,
+        "hinweis": hinweis,
+        "rest_versuche": spiel["rest_versuche"] if hinweis else None,
+        "getippt": spiel["getippt"],
+        "gewinner": spiel["gewinner"],
+        "hinweise": [dict(r) for r in conn.execute(
+            "SELECT team, wort, zahl FROM cn_hinweise WHERE spiel_id=? ORDER BY id",
+            (spiel["id"],)).fetchall()],
+        "mein_team": mein_team,
+        "bin_chef": bin_chef,
+        "darf_hinweisen": mein_zug and bin_chef and hinweis is None,
+        "darf_tippen": darf_tippen,
+        "darf_passen": darf_tippen and spiel["getippt"] > 0,
+    }
+
+
+def _cn_losen(ids):
+    """Frisch gelost: abwechselnd in die Teams, der Erste wird Chef."""
+    ids = list(ids)
+    _ZUFALL.shuffle(ids)
+    teams = {"rot": ids[0::2], "blau": ids[1::2]}
+    return teams, {t: teams[t][0] for t in CN_TEAMS if teams[t]}
+
+
+def _cn_teams_schreiben(conn, spiel_id, teams, chefs):
+    conn.execute("UPDATE spiel_spieler SET dabei=0, team=NULL, chef=0 WHERE spiel_id=?",
+                 (spiel_id,))
+    for team, mitglieder in teams.items():
+        for uid in mitglieder:
+            conn.execute(
+                "UPDATE spiel_spieler SET dabei=1, team=?, chef=?"
+                " WHERE spiel_id=? AND user_id=?",
+                (team, 1 if chefs.get(team) == uid else 0, spiel_id, uid))
+
+
+def _cn_neuer_chef(conn, spiel_id, team):
+    """Hat ein Team keinen Chef mehr, uebernimmt der Erste darin."""
+    if conn.execute("SELECT 1 FROM spiel_spieler WHERE spiel_id=? AND dabei=1"
+                    " AND team=? AND chef=1", (spiel_id, team)).fetchone():
+        return
+    erster = conn.execute("SELECT user_id FROM spiel_spieler WHERE spiel_id=?"
+                          " AND dabei=1 AND team=? ORDER BY user_id LIMIT 1",
+                          (spiel_id, team)).fetchone()
+    if erster:
+        conn.execute("UPDATE spiel_spieler SET chef=1 WHERE spiel_id=? AND user_id=?",
+                     (spiel_id, erster["user_id"]))
+
+
+def _cn_teams_bilden(conn, spiel, behalten=False):
+    """Teams und Chefs fuer die naechste Partie.
+
+    Beim ersten Mal wird gelost. Danach bleiben die Teams beisammen: wer neu
+    zugesagt hat, kommt ins kleinere, und der Chef wandert in jedem Team
+    weiter - so ist jeder mal dran. Der Gastgeber kann danach noch tauschen.
+    """
+    reihen = conn.execute(
+        "SELECT user_id, team, chef, dabei FROM spiel_spieler"
+        " WHERE spiel_id=? AND antwort='ja' ORDER BY user_id", (spiel["id"],)).fetchall()
+    mindestens = SPIEL_MIN_JE_ART["codenames"]
+    if len(reihen) < mindestens:
+        return f"Für Codenames braucht es mindestens {mindestens} Zusagen."
+
+    teams, chefs = {t: [] for t in CN_TEAMS}, {}
+    if behalten:
+        neue = []
+        for r in reihen:
+            if r["dabei"] and r["team"] in teams:
+                teams[r["team"]].append(r["user_id"])
+                if r["chef"]:
+                    chefs[r["team"]] = r["user_id"]
+            else:
+                neue.append(r["user_id"])
+        _ZUFALL.shuffle(neue)
+        for uid in neue:
+            teams[min(CN_TEAMS, key=lambda t: len(teams[t]))].append(uid)
+        for t in CN_TEAMS:
+            mitglieder = teams[t]
+            alt = chefs.get(t)
+            if alt in mitglieder:
+                chefs[t] = mitglieder[(mitglieder.index(alt) + 1) % len(mitglieder)]
+            elif mitglieder:
+                chefs[t] = mitglieder[0]
+    if not behalten or any(len(teams[t]) < 2 for t in CN_TEAMS):
+        # Erste Partie - oder so viele sind gegangen, dass ein Team zu klein ist
+        teams, chefs = _cn_losen([r["user_id"] for r in reihen])
+
+    _cn_teams_schreiben(conn, spiel["id"], teams, chefs)
+    conn.execute("DELETE FROM cn_karten WHERE spiel_id=?", (spiel["id"],))
+    conn.execute("DELETE FROM cn_hinweise WHERE spiel_id=?", (spiel["id"],))
+    conn.execute(
+        "UPDATE spiele SET status='teams', runde=runde+1, am_zug=NULL, hinweis=NULL,"
+        " hinweis_zahl=NULL, rest_versuche=NULL, getippt=0, gewinner=NULL,"
+        " ergebnis=NULL WHERE id=?", (spiel["id"],))
+    conn.commit()
+    return None
+
+
+def _cn_antwort_beim_aufstellen(conn, spiel_id, uid, antwort):
+    """Solange die Teams noch aufgestellt werden, zaehlt eine Antwort sofort:
+    eine Zusage kommt ins kleinere Team, eine Absage raus."""
+    zeile = conn.execute("SELECT * FROM spiel_spieler WHERE spiel_id=? AND user_id=?",
+                         (spiel_id, uid)).fetchone()
+    if antwort == "ja" and not zeile["dabei"]:
+        groesse = {t: conn.execute(
+            "SELECT COUNT(*) AS n FROM spiel_spieler WHERE spiel_id=? AND dabei=1"
+            " AND team=?", (spiel_id, t)).fetchone()["n"] for t in CN_TEAMS}
+        team = min(CN_TEAMS, key=groesse.get)
+        conn.execute("UPDATE spiel_spieler SET dabei=1, team=?, chef=0"
+                     " WHERE spiel_id=? AND user_id=?", (team, spiel_id, uid))
+        _cn_neuer_chef(conn, spiel_id, team)
+    elif antwort == "nein" and zeile["dabei"]:
+        conn.execute("UPDATE spiel_spieler SET dabei=0, team=NULL, chef=0"
+                     " WHERE spiel_id=? AND user_id=?", (spiel_id, uid))
+        _cn_neuer_chef(conn, spiel_id, zeile["team"])
+    conn.commit()
+
+
+def _cn_zugwechsel(conn, spiel_id, team):
+    conn.execute("UPDATE spiele SET am_zug=?, hinweis=NULL, hinweis_zahl=NULL,"
+                 " rest_versuche=NULL, getippt=0 WHERE id=?", (team, spiel_id))
+
+
+def _cn_ende(conn, spiel_id, gewinner, grund):
+    conn.execute("UPDATE spiele SET status='vorbei', gewinner=?, ergebnis=?,"
+                 " hinweis=NULL, hinweis_zahl=NULL, rest_versuche=NULL WHERE id=?",
+                 (gewinner, grund, spiel_id))
+
+
+def _cn_gastgeber_spiel(conn, spiel_id, uid, status):
+    """Das Codenames-Spiel, wenn uid Gastgeber ist und es im erwarteten Stand
+    steht - sonst eine fertige Fehlerantwort."""
+    spiel = conn.execute("SELECT * FROM spiele WHERE id=?", (spiel_id,)).fetchone()
+    if spiel is None or spiel["user_id"] != uid or spiel["art"] != "codenames":
+        abort(403)
+    if spiel["status"] != status:
+        return None, (jsonify({"error": "Das geht in diesem Stand des Spiels nicht."}), 400)
+    return spiel, None
+
+
+@app.post("/api/spiele/<int:spiel_id>/teams")
+@login_required
+def api_cn_teams(spiel_id):
+    """Vor dem Start: neu losen, jemanden ins andere Team schicken oder zum Chef machen."""
+    uid = session["uid"]
+    conn = db()
+    spiel, fehler = _cn_gastgeber_spiel(conn, spiel_id, uid, "teams")
+    if fehler:
+        return fehler
+    data = request.get_json(force=True)
+    aktion = (data.get("aktion") or "").strip()
+    if aktion == "losen":
+        ids = [r["user_id"] for r in conn.execute(
+            "SELECT user_id FROM spiel_spieler WHERE spiel_id=? AND antwort='ja'",
+            (spiel_id,)).fetchall()]
+        _cn_teams_schreiben(conn, spiel_id, *_cn_losen(ids))
+    elif aktion in ("tauschen", "chef"):
+        try:
+            ziel = int(data.get("user_id"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Wen meinst du?"}), 400
+        zeile = conn.execute("SELECT * FROM spiel_spieler WHERE spiel_id=?"
+                             " AND user_id=? AND dabei=1", (spiel_id, ziel)).fetchone()
+        if zeile is None:
+            return jsonify({"error": "Diese Person spielt nicht mit."}), 400
+        if aktion == "tauschen":
+            neu = _cn_gegner(zeile["team"])
+            conn.execute("UPDATE spiel_spieler SET team=?, chef=0"
+                         " WHERE spiel_id=? AND user_id=?", (neu, spiel_id, ziel))
+            _cn_neuer_chef(conn, spiel_id, zeile["team"])
+            _cn_neuer_chef(conn, spiel_id, neu)
+        else:
+            conn.execute("UPDATE spiel_spieler SET chef=0 WHERE spiel_id=? AND team=?",
+                         (spiel_id, zeile["team"]))
+            conn.execute("UPDATE spiel_spieler SET chef=1 WHERE spiel_id=? AND user_id=?",
+                         (spiel_id, ziel))
+    else:
+        return jsonify({"error": "Das kenne ich nicht."}), 400
+    conn.commit()
+    spiel_mitteilen(spiel_id, conn)
+    return jsonify(spiel_payload(spiel_id, uid, conn))
+
+
+@app.post("/api/spiele/<int:spiel_id>/los")
+@login_required
+def api_cn_los(spiel_id):
+    """Teams stehen - Karten austeilen, das Startteam losen."""
+    uid = session["uid"]
+    conn = db()
+    spiel, fehler = _cn_gastgeber_spiel(conn, spiel_id, uid, "teams")
+    if fehler:
+        return fehler
+    for team in CN_TEAMS:
+        zeilen = conn.execute("SELECT chef FROM spiel_spieler WHERE spiel_id=?"
+                              " AND dabei=1 AND team=?", (spiel_id, team)).fetchall()
+        if len(zeilen) < 2:
+            return jsonify({"error": f"Team {CN_NAMEN[team]} braucht mindestens "
+                                     f"zwei Leute."}), 400
+        if sum(z["chef"] for z in zeilen) != 1:
+            return jsonify({"error": f"Team {CN_NAMEN[team]} braucht genau "
+                                     f"einen Chef."}), 400
+    worte = [r["wort"] for r in conn.execute(
+        "SELECT wort FROM cn_worte WHERE gesperrt=0").fetchall()]
+    if len(worte) < CN_KARTEN:
+        return jsonify({"error": "Es sind zu wenige Wörter frei. Lass in der "
+                                 "Wortliste welche wieder zu."}), 400
+
+    # Das Startteam hat eine Karte mehr - es hat ja auch einen Zug mehr
+    start = _ZUFALL.choice(CN_TEAMS)
+    farben = ([start] * 9 + [_cn_gegner(start)] * 8
+              + ["neutral"] * 7 + ["attentaeter"])
+    _ZUFALL.shuffle(farben)
+    conn.execute("DELETE FROM cn_karten WHERE spiel_id=?", (spiel_id,))
+    conn.execute("DELETE FROM cn_hinweise WHERE spiel_id=?", (spiel_id,))
+    conn.executemany(
+        "INSERT INTO cn_karten (spiel_id, pos, wort, farbe) VALUES (?,?,?,?)",
+        [(spiel_id, pos, wort, farbe) for pos, (wort, farbe)
+         in enumerate(zip(_ZUFALL.sample(worte, CN_KARTEN), farben))])
+    conn.execute(
+        "UPDATE spiele SET status='laeuft', am_zug=?, hinweis=NULL, hinweis_zahl=NULL,"
+        " rest_versuche=NULL, getippt=0, gewinner=NULL, ergebnis=NULL, beginn_at=?"
+        " WHERE id=?", (start, int(time.time()), spiel_id))
+    conn.commit()
+    spiel_mitteilen(spiel_id, conn)
+    return jsonify(spiel_payload(spiel_id, uid, conn))
+
+
+@app.post("/api/spiele/<int:spiel_id>/hinweis")
+@login_required
+def api_cn_hinweis(spiel_id):
+    """Der Chef des Teams am Zug nennt ein Wort und eine Zahl."""
+    uid = session["uid"]
+    conn = db()
+    spiel = conn.execute("SELECT * FROM spiele WHERE id=?", (spiel_id,)).fetchone()
+    ich = conn.execute("SELECT * FROM spiel_spieler WHERE spiel_id=? AND user_id=?",
+                       (spiel_id, uid)).fetchone()
+    if spiel is None or ich is None or spiel["art"] != "codenames":
+        abort(403)
+    if spiel["status"] != "laeuft":
+        return jsonify({"error": "Gerade läuft keine Partie."}), 400
+    if not (ich["dabei"] and ich["chef"] and ich["team"] == spiel["am_zug"]):
+        return jsonify({"error": "Den Hinweis gibt der Chef des Teams, "
+                                 "das dran ist."}), 403
+    if spiel["hinweis"]:
+        return jsonify({"error": "Der Hinweis steht schon."}), 400
+
+    data = request.get_json(force=True)
+    wort = (data.get("wort") or "").strip()
+    if not wort:
+        return jsonify({"error": "Der Hinweis fehlt."}), 400
+    if any(z.isspace() for z in wort) or len(wort) > 40:
+        return jsonify({"error": "Ein Hinweis ist ein einzelnes Wort."}), 400
+    try:
+        zahl = int(data.get("zahl"))
+    except (TypeError, ValueError):
+        zahl = 0
+    if not 1 <= zahl <= CN_MAX_ZAHL:
+        return jsonify({"error": f"Die Zahl muss zwischen 1 und {CN_MAX_ZAHL} "
+                                 f"liegen."}), 400
+    auf_dem_feld = {r["wort"].casefold() for r in conn.execute(
+        "SELECT wort FROM cn_karten WHERE spiel_id=? AND aufgedeckt=0",
+        (spiel_id,)).fetchall()}
+    if wort.casefold() in auf_dem_feld:
+        return jsonify({"error": "Ein Wort, das offen auf dem Feld liegt, "
+                                 "ist als Hinweis nicht erlaubt."}), 400
+
+    conn.execute("INSERT INTO cn_hinweise (spiel_id, team, wort, zahl, created_at)"
+                 " VALUES (?,?,?,?,?)",
+                 (spiel_id, ich["team"], wort, zahl, int(time.time())))
+    conn.execute("UPDATE spiele SET hinweis=?, hinweis_zahl=?, rest_versuche=?,"
+                 " getippt=0 WHERE id=?", (wort, zahl, zahl + 1, spiel_id))
+    conn.commit()
+    spiel_mitteilen(spiel_id, conn)
+    return jsonify(spiel_payload(spiel_id, uid, conn))
+
+
+def _cn_zug_pruefen(conn, spiel_id, uid):
+    """Darf diese Person gerade Karten aufdecken? (spiel, None) oder (None, Fehler)."""
+    spiel = conn.execute("SELECT * FROM spiele WHERE id=?", (spiel_id,)).fetchone()
+    ich = conn.execute("SELECT * FROM spiel_spieler WHERE spiel_id=? AND user_id=?",
+                       (spiel_id, uid)).fetchone()
+    if spiel is None or ich is None or spiel["art"] != "codenames":
+        return None, ("Dieses Spiel gibt es nicht.", 403)
+    if spiel["status"] != "laeuft":
+        return None, ("Gerade läuft keine Partie.", 400)
+    if not ich["dabei"] or ich["team"] != spiel["am_zug"]:
+        return None, ("Dein Team ist gerade nicht dran.", 403)
+    if ich["chef"]:
+        return None, ("Der Chef deckt nichts auf – er gibt die Hinweise.", 403)
+    if not spiel["hinweis"]:
+        return None, ("Warte auf den Hinweis.", 400)
+    return spiel, None
+
+
+@app.post("/api/spiele/<int:spiel_id>/karte")
+@login_required
+def api_cn_karte(spiel_id):
+    """Eine Karte aufdecken. Danach entscheidet ihre Farbe, wie es weitergeht."""
+    uid = session["uid"]
+    try:
+        pos = int(request.get_json(force=True).get("pos"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Welche Karte?"}), 400
+    conn = db()
+    with CN_LOCK:
+        spiel, fehler = _cn_zug_pruefen(conn, spiel_id, uid)
+        if fehler:
+            return jsonify({"error": fehler[0]}), fehler[1]
+        karte = conn.execute("SELECT * FROM cn_karten WHERE spiel_id=? AND pos=?",
+                             (spiel_id, pos)).fetchone()
+        if karte is None:
+            return jsonify({"error": "Diese Karte gibt es nicht."}), 400
+        if karte["aufgedeckt"]:
+            return jsonify({"error": "Die Karte ist schon aufgedeckt."}), 400
+        conn.execute("UPDATE cn_karten SET aufgedeckt=1 WHERE spiel_id=? AND pos=?",
+                     (spiel_id, pos))
+
+        team, farbe = spiel["am_zug"], karte["farbe"]
+        gegner = _cn_gegner(team)
+        offen = _cn_offen(conn, spiel_id)
+        if farbe == "attentaeter":
+            _cn_ende(conn, spiel_id, gegner, "attentaeter")
+        elif offen[team] == 0:
+            _cn_ende(conn, spiel_id, team, "alle")
+        elif offen[gegner] == 0:
+            # Die letzte Karte der anderen aufgedeckt - dann haben die gewonnen
+            _cn_ende(conn, spiel_id, gegner, "alle")
+        elif farbe == team and spiel["rest_versuche"] > 1:
+            conn.execute("UPDATE spiele SET rest_versuche=rest_versuche-1,"
+                         " getippt=getippt+1 WHERE id=?", (spiel_id,))
+        else:
+            # Daneben, oder der letzte erlaubte Versuch war ein Treffer
+            _cn_zugwechsel(conn, spiel_id, gegner)
+        conn.commit()
+    spiel_mitteilen(spiel_id, conn)
+    daten = spiel_payload(spiel_id, uid, conn)
+    daten["aufgedeckt"] = {"pos": pos, "farbe": farbe}
+    return jsonify(daten)
+
+
+@app.post("/api/spiele/<int:spiel_id>/passen")
+@login_required
+def api_cn_passen(spiel_id):
+    """Zug beenden - erst nachdem das Team mindestens eine Karte aufgedeckt hat."""
+    uid = session["uid"]
+    conn = db()
+    with CN_LOCK:
+        spiel, fehler = _cn_zug_pruefen(conn, spiel_id, uid)
+        if fehler:
+            return jsonify({"error": fehler[0]}), fehler[1]
+        if not spiel["getippt"]:
+            return jsonify({"error": "Deckt zuerst mindestens eine Karte auf."}), 400
+        _cn_zugwechsel(conn, spiel_id, _cn_gegner(spiel["am_zug"]))
+        conn.commit()
+    spiel_mitteilen(spiel_id, conn)
+    return jsonify(spiel_payload(spiel_id, uid, conn))
+
+
+@app.get("/api/codenames-worte")
+@login_required
+def api_cn_worte():
+    reihen = db().execute(
+        "SELECT id, wort, gesperrt, user_id FROM cn_worte ORDER BY wort").fetchall()
+    return jsonify({"worte": [{"id": r["id"], "wort": r["wort"],
+                               "gesperrt": bool(r["gesperrt"]),
+                               "eigenes": r["user_id"] is not None} for r in reihen]})
+
+
+@app.post("/api/codenames-worte")
+@login_required
+def api_cn_wort_anlegen():
+    """Ein eigenes Wort fuers Spielfeld. Es gilt fuer alle."""
+    wort = (request.get_json(force=True).get("wort") or "").strip()
+    if not wort:
+        return jsonify({"error": "Das Wort fehlt."}), 400
+    if any(z.isspace() for z in wort) or len(wort) > 30:
+        return jsonify({"error": "Aufs Spielfeld kommt ein einzelnes Wort."}), 400
+    conn = db()
+    try:
+        conn.execute("INSERT INTO cn_worte (wort, user_id, created_at) VALUES (?,?,?)",
+                     (wort, session["uid"], int(time.time())))
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Dieses Wort steht schon in der Liste."}), 400
+    conn.commit()
+    socketio.emit("spielworte_geaendert", {})
+    return jsonify({"ok": True})
+
+
+@app.post("/api/codenames-worte/<int:wort_id>/sperren")
+@login_required
+def api_cn_wort_sperren(wort_id):
+    conn = db()
+    if conn.execute("SELECT 1 FROM cn_worte WHERE id=?", (wort_id,)).fetchone() is None:
+        abort(404)
+    gesperrt = 1 if request.get_json(force=True).get("gesperrt", True) else 0
+    conn.execute("UPDATE cn_worte SET gesperrt=? WHERE id=?", (gesperrt, wort_id))
     conn.commit()
     socketio.emit("spielworte_geaendert", {})
     return jsonify({"ok": True, "gesperrt": bool(gesperrt)})

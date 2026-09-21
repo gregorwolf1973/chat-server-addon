@@ -56,6 +56,7 @@ die ersten beiden Abschnitte.
 
 **Spielen**
 [Impostor](#spiele-impostor) ·
+[Codenames](#codenames) ·
 [Wortliste](#die-wortliste)
 
 **Aussehen und Bedienung**
@@ -701,7 +702,8 @@ WhatsApp. Sichtbar ist immer genau einer:
 
 Der Reiter **Spiele** zählt anders als die übrigen: Dort steht nicht, was neu
 ist, sondern **was auf dich wartet** – eine unbeantwortete Einladung, ein
-Wort, das du noch nicht gelesen hast, oder eine Runde, die gerade läuft.
+Wort, das du noch nicht gelesen hast, eine laufende Impostor-Runde oder bei
+Codenames dein Hinweis oder dein Zug.
 
 Die Zahl an einem Reiter zeigt, **was seit deinem letzten Blick dazugekommen
 ist** – nicht, wie viel es insgesamt gibt. Eine „12", die sich nie ändert,
@@ -928,9 +930,57 @@ Seite, und wer Impostor ist, steht erst in der Auswertung drin. Die Uhr läuft
 auf dem Server: Wer das Handy weglegt, verpasst nichts, und ein Neustart des
 Add-ons hält sie nicht an.
 
+## Codenames
+
+Zwei Teams, **Rot** und **Blau**, und ein Feld aus 25 Wortkarten. Jedes Team
+hat einen **Geheimdienstchef**. Nur die Chefs sehen den Lageplan: welche
+Karten Rot gehören, welche Blau, welche neutral sind – und wo der
+**Attentäter** liegt. Die übrigen im Team sind **Ermittler** und sehen nur die
+Wörter.
+
+**So läuft eine Partie:**
+
+1. **Einladen.** *Zum Spiel einladen* → *Codenames*, mindestens drei Personen
+   (also vier mit dir).
+2. **Teams aufstellen.** Sobald genug zugesagt haben, lost *Teams aufstellen*
+   zwei Teams mit je einem Chef (★). Du kannst mit ⇄ jemanden ins andere Team
+   schicken, mit ★ einen anderen zum Chef machen oder *Neu losen*. Wer jetzt
+   noch zusagt, kommt gleich ins kleinere Team.
+3. **Los geht's.** Das Feld wird ausgeteilt, und ein Startteam wird gelost. Es
+   hat **neun** Karten zu finden, das andere acht; dazu kommen sieben neutrale
+   und ein Attentäter.
+4. **Hinweis.** Der Chef des Teams, das dran ist, gibt **ein Wort und eine
+   Zahl** ein – etwa *Küche 2*, wenn *Milch* und *Mixer* gemeint sind. Ein Wort,
+   das offen auf dem Feld liegt, ist als Hinweis nicht erlaubt.
+5. **Aufdecken.** Jeder Ermittler des Teams darf Karten antippen; die Karte ist
+   sofort aufgedeckt, also einigt euch vorher. Das Team darf **Zahl plus eins**
+   Karten aufdecken.
+   * Eigene Farbe: weiter, solange Versuche übrig sind.
+   * Neutral oder die Farbe der anderen: Der Zug ist vorbei.
+   * **Attentäter: Das Team hat sofort verloren.**
+   * Nach mindestens einer Karte darf das Team mit *Zug beenden* aufhören.
+6. **Ende.** Wer zuerst alle eigenen Karten aufgedeckt hat, gewinnt – auch
+   wenn die andere Seite die letzte davon versehentlich umdreht. Danach sehen
+   alle den vollständigen Lageplan.
+
+**Neue Runde.** Die Teams bleiben zusammen, und in jedem Team wird der Nächste
+Chef – so ist jeder mal dran. Wer inzwischen zugesagt hat, kommt ins kleinere
+Team. Vor dem Start kannst du wieder tauschen.
+
+**Was der Server verrät.** Die Farben verdeckter Karten schickt der Server nur
+den Chefs. Ermittler bekommen sie gar nicht erst aufs Gerät, auch nicht im
+Seitenquelltext. Die bisherigen Hinweise stehen unter *Bisherige Hinweise*.
+
 ## Die Wortliste
 
-Der Chat bringt rund 150 Wörter in zehn Kategorien mit: Sport, Musik,
+Die **Wortliste** hat oben zwei Reiter: **Impostor** und **Codenames**.
+
+**Codenames** bringt rund 500 einzelne Hauptwörter mit, viele davon mit zwei
+Bedeutungen – *Bank*, *Schloss*, *Kiefer*, *Star*. Davon lebt das Spiel. Tippe
+ein Wort an, um es aus dem Spiel zu nehmen oder zurückzuholen; das Suchfeld
+hilft bei der langen Liste. Eigene Wörter dürfen nur aus einem Wort bestehen.
+
+**Impostor** bringt rund 150 Wörter in zehn Kategorien mit: Sport, Musik,
 Weltgeschichte, Essen und Trinken, Tiere, Film und Fernsehen, Technik, Alltag,
 Berufe und Reisen. Jedes Wort hat einen Tipp für den Impostor – er nennt die
 Richtung, nie das Wort selbst.
@@ -942,12 +992,13 @@ Richtung, nie das Wort selbst.
   einer Runde geht das auch direkt über *Dieses Wort nicht mehr verwenden*.
 * **Eigene Wörter hinzufügen** – mit Tipp, sonst hat der Impostor keine Chance.
 
-Die Wortliste gehört **allen**: Wer ein Wort sperrt oder hinzufügt, ändert es
+Beide Listen gehören **allen**: Wer ein Wort sperrt oder hinzufügt, ändert es
 für jede Runde im Chat. Ein Wort, das einmal verbraucht ist, ist es für alle.
 
-Beim Einladen wählst du die Kategorien für diese Runde. Nichts gewählt heißt:
-alle Wörter. Wird die Auswahl leer, weil alles gesperrt ist, sagt der Chat das
-beim Start und bittet um eine weitere Kategorie.
+Beim Impostor wählst du beim Einladen die Kategorien für diese Runde. Nichts
+gewählt heißt: alle Wörter. Wird die Auswahl leer, weil alles gesperrt ist,
+sagt der Chat das beim Start und bittet um eine weitere Kategorie. Codenames
+braucht mindestens 25 freie Wörter.
 
 ## Am Telefon
 

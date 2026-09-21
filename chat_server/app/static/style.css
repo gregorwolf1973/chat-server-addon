@@ -2638,3 +2638,144 @@ a.btn {
 .hint.klein, span.klein { font-size: 11px; opacity: 0.8; }
 .spiel-link { color: var(--accent); text-decoration: none; }
 .spiel-link:hover { text-decoration: underline; }
+
+/* ---------- Spielauswahl ---------- */
+.spiel-wahl { display: flex; gap: 8px; margin: 0 0 12px; }
+.spiel-wahl-knopf {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+.spiel-wahl-knopf span { font-size: 16px; }
+.spiel-wahl-knopf.an { color: var(--text); border-color: var(--accent); }
+
+/* ---------- Codenames ---------- */
+/* Die Kartenfarben sind in beiden Themen gleich: sie tragen die Spielregel,
+   nicht die Gestaltung, und muessen auf einen Blick unterscheidbar sein. */
+:root {
+  --cn-rot: #c0453e;
+  --cn-blau: #3a6fb0;
+  --cn-neutral: #cdbf98;
+  --cn-schwarz: #151515;
+}
+
+.cn-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cn-team {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 90px;
+}
+.cn-team.rot { border-top: 4px solid var(--cn-rot); }
+.cn-team.blau { border-top: 4px solid var(--cn-blau); }
+.cn-team-kopf { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.cn-mitglied { display: flex; align-items: center; gap: 5px; margin: 5px 0; font-size: 13px; }
+.cn-stern { width: 14px; color: var(--accent); }
+.cn-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cn-stand { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+.cn-zahl {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+.cn-zahl.rot { background: var(--cn-rot); }
+.cn-zahl.blau { background: var(--cn-blau); }
+.cn-status { text-align: center; font-size: 14px; }
+.cn-dran { font-weight: 700; }
+.cn-dran.rot { color: var(--cn-rot); }
+.cn-dran.blau { color: var(--cn-blau); }
+.cn-hinweis { text-align: center; font-size: 16px; margin: 4px 0; }
+.cn-hinweis.wartet { font-size: 13px; color: var(--muted); }
+.cn-eingabe { display: flex; gap: 6px; margin: 8px 0; }
+.cn-eingabe input { flex: 1; min-width: 0; }
+.cn-eingabe select { width: 64px; }
+.cn-eingabe .btn { flex: none; }
+
+.cn-feld {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.cn-karte {
+  min-height: 54px;
+  padding: 4px 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 600 13px var(--sans);
+  line-height: 1.2;
+  word-break: break-word;
+  hyphens: auto;
+  cursor: default;
+}
+.cn-karte:disabled { opacity: 1; color: var(--text); }
+.cn-feld.tippbar .cn-karte:not(:disabled) { cursor: pointer; }
+.cn-feld.tippbar .cn-karte:not(:disabled):hover { border-color: var(--accent); }
+/* Aufgedeckt: volle Farbe, das Wort tritt zurueck */
+.cn-karte.auf { border-color: transparent; font-weight: 500; }
+.cn-karte.auf.rot { background: var(--cn-rot); color: #fff; }
+.cn-karte.auf.blau { background: var(--cn-blau); color: #fff; }
+.cn-karte.auf.neutral { background: var(--cn-neutral); color: #3a3222; }
+.cn-karte.auf.attentaeter { background: var(--cn-schwarz); color: #fff; }
+/* Lageplan fuer den Chef: getoent, aber klar von aufgedeckten zu unterscheiden */
+.cn-karte.plan.rot { background: color-mix(in srgb, var(--cn-rot) 24%, var(--surface-2));
+  box-shadow: inset 0 -4px 0 var(--cn-rot); }
+.cn-karte.plan.blau { background: color-mix(in srgb, var(--cn-blau) 24%, var(--surface-2));
+  box-shadow: inset 0 -4px 0 var(--cn-blau); }
+.cn-karte.plan.neutral { box-shadow: inset 0 -4px 0 var(--cn-neutral); }
+.cn-karte.plan.attentaeter { background: color-mix(in srgb, var(--cn-schwarz) 55%, var(--surface-2));
+  color: #fff; box-shadow: inset 0 -4px 0 var(--cn-schwarz); }
+
+.cn-sieg.rot { background: var(--cn-rot); color: #fff; }
+.cn-sieg.blau { background: var(--cn-blau); color: #fff; }
+.cn-verlauf { margin-top: 10px; }
+.cn-verlauf summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+.cn-alt {
+  display: inline-block;
+  font-size: 12px;
+  margin: 6px 6px 0 0;
+  padding: 2px 8px;
+  border-left: 3px solid var(--line);
+  background: var(--surface-2);
+  border-radius: 4px;
+}
+.cn-alt.rot { border-left-color: var(--cn-rot); }
+.cn-alt.blau { border-left-color: var(--cn-blau); }
+
+/* Wortliste Codenames: eine Wolke zum Antippen */
+.cw-wolke { display: flex; flex-wrap: wrap; gap: 5px; align-content: flex-start; }
+.cw-wolke .cw-wort {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+.cw-wolke .cw-wort:hover { border-color: var(--accent); }
+.cw-wolke .cw-wort.aus { text-decoration: line-through; color: var(--muted); opacity: 0.6; }
+#cw-suche { width: 100%; margin: 4px 0 2px; }
+
+@media (max-width: 560px) {
+  .cn-feld { gap: 4px; }
+  .cn-karte { min-height: 46px; font-size: 11px; padding: 2px; border-radius: 6px; }
+  .cn-teams { grid-template-columns: 1fr; }
+}
+/* Der Attentaeter darf dem Chef in keinem Thema entgehen: Schwarz allein
+   verschwindet auf dunklem Grund, darum Rahmen und Zeichen. */
+.cn-karte.plan.attentaeter,
+.cn-karte.auf.attentaeter { border: 2px solid var(--danger); }
+.cn-karte.plan.attentaeter::before,
+.cn-karte.auf.attentaeter::before { content: "☠ "; }

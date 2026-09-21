@@ -28,7 +28,7 @@ kill %1
 
 Danach dasselbe für `tests/test_users.py`, `tests/test_media.py`,
 `tests/test_register.py`, `tests/test_avatars.py`, `tests/test_notify.py`,
-`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py`, `tests/test_anrufe.py`, `tests/test_freunde.py`, `tests/test_tipps.py`, `tests/test_geburtstage.py`, `tests/test_spiele.py` und
+`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py`, `tests/test_anrufe.py`, `tests/test_freunde.py`, `tests/test_tipps.py`, `tests/test_geburtstage.py`, `tests/test_spiele.py`, `tests/test_codenames.py` und
 `tests/test_toene.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
@@ -113,6 +113,22 @@ das durch Altbestände fehl.
 * Nach Ablauf der Zeit ist die Runde vorbei – festgestellt beim Nachsehen,
   ohne Wecker im Server.
 * Die Wortliste: sperren gilt für alle, eigene Wörter brauchen einen Tipp.
+
+`test_codenames.py` (59 Prüfungen)
+
+* Einladen braucht vier Leute; Teams und Chefs werden gelost, der Gastgeber
+  kann tauschen, einen Chef bestimmen und neu losen – Mitspieler nicht.
+* Wer beim Aufstellen zusagt, kommt gleich ins Team; ein Team mit einer
+  Person startet nicht.
+* 25 Karten: neun fürs Startteam, acht für das andere, sieben neutral, ein
+  Attentäter. Die Farben verdeckter Karten sehen nur die Chefs.
+* Hinweise nur vom Chef am Zug, ein einzelnes Wort, höchstens neun, und kein
+  Wort, das offen auf dem Feld liegt.
+* Aufdecken nur durch Ermittler am Zug; Treffer, Fehlgriff, Passen, Sieg
+  über alle Karten und sofortige Niederlage durch den Attentäter.
+* Nächste Runde: Teams bleiben, der Chef wechselt.
+* Wortliste: sperren gilt für alle, Doppelte auch in anderer Schreibweise
+  werden abgewiesen.
 
 `test_toene.py` (49 Prüfungen)
 

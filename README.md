@@ -41,7 +41,10 @@ Raspberry Pi.
 * **Impostor**: Freunde einladen, jeder bekommt dasselbe Wort – bis auf den
   Impostor, der nur einen Tipp hat. Die Uhr läuft, der Chat lost Rollen und
   Reihenfolge
-* Rund 150 Wörter in zehn Kategorien, eigene dazu, verbrauchte sperren
+* **Codenames**: zwei Teams, 25 Karten, nur die Chefs kennen den Lageplan.
+  Hinweis eingeben, Karten antippen, der Chat zählt die Züge
+* Eigene Wortlisten für beide Spiele (rund 150 und 500 Wörter), eigene dazu,
+  verbrauchte sperren
 
 **Zeigen, wo etwas los ist**
 * Live-Karte mit Standortfreigaben, Einladungen und Empfehlungen

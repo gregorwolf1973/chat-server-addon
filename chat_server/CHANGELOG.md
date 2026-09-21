@@ -1,5 +1,24 @@
 # Änderungsverlauf
 
+## 0.48.0
+
+- **Zweites Spiel: Codenames.** Zwei Teams, 25 Karten, je ein
+  Geheimdienstchef, der als Einziger den Lageplan sieht. Der Chef gibt Wort und
+  Zahl ein, die Ermittler decken bis zu Zahl + 1 Karten auf. Wer den
+  Attentäter erwischt, verliert sofort
+- **Teams aufstellen**: Der Chat lost Teams und Chefs; der Gastgeber kann vor
+  dem Start tauschen, einen anderen Chef bestimmen oder neu losen. Wer in
+  dieser Phase zusagt, kommt gleich ins kleinere Team
+- In der **nächsten Runde** bleiben die Teams, der Chef wechselt reihum
+- Hinweise, die ein offen liegendes Wort sind, werden abgewiesen;
+  „Zug beenden“ geht erst nach einer aufgedeckten Karte
+- **Wortliste** mit Reitern für beide Spiele; Codenames bringt rund 500
+  Wörter mit, viele mit Doppelbedeutung
+- Die Farben verdeckter Karten gehen nur an die Chefs. Der Attentäter ist im
+  Lageplan mit ☠ und Rahmen markiert, damit er auch im dunklen Aussehen
+  auffällt
+- Im Einladungsdialog wählst du zuerst das Spiel
+
 ## 0.47.0
 
 - **Neuer Reiter „Spiele" mit dem ersten Spiel: Impostor.** Du lädst Freunde
