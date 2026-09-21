@@ -2533,3 +2533,108 @@ a.btn {
 .sprachwahl a:hover { color: var(--text); }
 .sprachwahl a.jetzt { color: var(--text); font-weight: 600; }
 .sprachwahl span { opacity: 0.5; }
+
+/* ---------- Spiele ---------- */
+.spiel-eintrag {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 16px;
+  cursor: pointer;
+}
+.spiel-eintrag:hover { background: var(--surface-2); }
+.spiel-eintrag.neu .ke-name::after {
+  content: "•";
+  color: var(--accent);
+  margin-left: 6px;
+}
+.spiel-symbol { font-size: 19px; width: 28px; text-align: center; }
+
+/* Die Karte mit dem eigenen Wort. Sie ist der Kern des Spiels und darf
+   deshalb der auffaelligste Teil des Dialogs sein. */
+.wortkarte {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  padding: 18px 14px;
+  margin: 14px 0;
+  text-align: center;
+}
+.wortkarte.impostor { border-color: var(--accent); background: var(--akzent-schwach); }
+.wortkarte.wartet { color: var(--muted); font-size: 13px; padding: 12px; }
+.wortkarte.aufloesung { background: var(--surface); }
+.wk-oben {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.wk-wort { font-size: 26px; font-weight: 700; margin: 8px 0 4px; word-break: break-word; }
+.wk-tipp { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+.spiel-uhr {
+  font-family: var(--mono);
+  font-size: 34px;
+  text-align: center;
+  margin: 6px 0 2px;
+}
+.spiel-uhr.knapp { color: var(--danger); }
+
+.spiel-folge { margin: 12px 0 4px; }
+.sf-titel {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.sf-name {
+  display: inline-block;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 9px;
+  margin: 0 5px 5px 0;
+  color: var(--muted);
+}
+.sf-name.ich { color: var(--text); border-color: var(--accent); }
+.sf-name.war-impostor { color: var(--accent); }
+
+.spiel-leute { margin: 10px 0 4px; }
+.sl-name {
+  display: inline-block;
+  font-size: 12px;
+  margin: 0 10px 5px 0;
+}
+.sl-name.ab { color: var(--muted); text-decoration: line-through; }
+
+.spiel-ende {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 4px;
+}
+.spiel-ende.gewonnen { background: var(--akzent-schwach); color: var(--accent); }
+.spiel-ende.verloren { background: var(--warnung-grund); color: var(--warnung-text); }
+
+/* ---------- Wortliste ---------- */
+.wortliste { max-height: 46vh; overflow-y: auto; margin: 10px 0; }
+.wl-zeile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.wl-zeile > div { flex: 1; min-width: 0; }
+.wl-zeile.aus .wl-wort { text-decoration: line-through; color: var(--muted); }
+.wl-wort { font-size: 13px; font-weight: 600; }
+.wl-tipp { font-size: 11px; color: var(--muted); }
+.wl-neu { margin-top: 12px; }
+.wl-neu summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+.wl-neu summary:hover { color: var(--text); }
+.hint.klein, span.klein { font-size: 11px; opacity: 0.8; }
+.spiel-link { color: var(--accent); text-decoration: none; }
+.spiel-link:hover { text-decoration: underline; }

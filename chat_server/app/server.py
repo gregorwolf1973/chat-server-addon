@@ -15,6 +15,7 @@ import threading
 import time
 from functools import wraps
 
+import spielworte
 import texte
 from flask import (Flask, abort, g, jsonify, redirect, render_template,
                    request, send_file, session, url_for)
@@ -153,6 +154,7 @@ CREATE TABLE IF NOT EXISTS users (
     gesehen_stimmung INTEGER,
     gesehen_termine INTEGER,
     gesehen_tipps INTEGER,
+    gesehen_spiele INTEGER,
     created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS rooms (
@@ -360,6 +362,50 @@ CREATE TABLE IF NOT EXISTS push_subs (
     auth TEXT NOT NULL,
     created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS spiele (
+    id INTEGER PRIMARY KEY,
+    art TEXT NOT NULL DEFAULT 'impostor',
+    user_id INTEGER NOT NULL,
+    -- einladung: es wird noch zugesagt | zeigen: jeder liest sein Wort
+    -- laeuft: die Uhr zaehlt | vorbei: die Runde ist entschieden
+    status TEXT NOT NULL DEFAULT 'einladung',
+    kategorien TEXT,
+    impostoren INTEGER NOT NULL DEFAULT 1,
+    dauer_s INTEGER NOT NULL DEFAULT 180,
+    versuche INTEGER NOT NULL DEFAULT 1,
+    runde INTEGER NOT NULL DEFAULT 0,
+    wort_id INTEGER,
+    beginn_at INTEGER,
+    ende_at INTEGER,
+    -- erraten | zeit_um | verraten (alle Versuche verbraucht)
+    ergebnis TEXT,
+    geraten TEXT,
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS spiel_spieler (
+    spiel_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    -- NULL heisst: hat noch nicht geantwortet
+    antwort TEXT,
+    -- dabei gilt fuer die laufende Runde. Wer spaeter zusagt, wartet auf die naechste.
+    dabei INTEGER NOT NULL DEFAULT 0,
+    impostor INTEGER NOT NULL DEFAULT 0,
+    platz INTEGER,
+    bereit INTEGER NOT NULL DEFAULT 0,
+    versuche INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (spiel_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS spiel_worte (
+    id INTEGER PRIMARY KEY,
+    kategorie TEXT NOT NULL,
+    wort TEXT NOT NULL,
+    tipp TEXT NOT NULL,
+    gesperrt INTEGER NOT NULL DEFAULT 0,
+    user_id INTEGER,
+    created_at INTEGER NOT NULL,
+    UNIQUE (kategorie, wort)
+);
 """
 
 
@@ -446,7 +492,7 @@ def migrate(conn):
     if "geburtstage_an" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN geburtstage_an"
                      " INTEGER NOT NULL DEFAULT 1")
-    for bereich in ("karten", "stimmung", "termine", "tipps"):
+    for bereich in ("karten", "stimmung", "termine", "tipps", "spiele"):
         if f"gesehen_{bereich}" not in cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN gesehen_{bereich} INTEGER")
     if "karten_kacheln" not in cols:
@@ -503,6 +549,20 @@ def load_api_token():
     return token
 
 
+def worte_einspielen(conn):
+    """Den mitgelieferten Wortvorrat ergaenzen.
+
+    Nur was fehlt, kommt dazu: gesperrte Woerter bleiben gesperrt, und ein
+    Wort, das jemand von Hand geaendert hat, wird nicht zurueckgesetzt.
+    """
+    now = int(time.time())
+    conn.executemany(
+        "INSERT OR IGNORE INTO spiel_worte (kategorie, wort, tipp, created_at)"
+        " VALUES (?,?,?,?)",
+        [(kat, wort, tipp, now) for kat, wort, tipp in spielworte.WORTE])
+    conn.commit()
+
+
 def init_db():
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     os.makedirs(AVATAR_DIR, exist_ok=True)
@@ -510,6 +570,7 @@ def init_db():
     conn.executescript(SCHEMA)
     conn.commit()
     migrate(conn)
+    worte_einspielen(conn)
 
     # Bot-Konto fuer Nachrichten aus Home Assistant (kein Login moeglich)
     if conn.execute("SELECT id FROM users WHERE username=?",
@@ -1637,6 +1698,7 @@ def api_state():
         "freund_anfragen": offene_anfragen(uid, conn),
         "live": live_sichtbar(uid, conn),
         "stimmung": stimmungen_sichtbar(uid, conn),
+        "spiele": meine_spiele(uid, conn),
     })
 
 
@@ -2769,7 +2831,7 @@ def api_aufbewahrung_jetzt():
 # Die Zahlen an den Reitern sollen zeigen, was seit dem letzten Blick
 # dazugekommen ist - nicht, wie viel es insgesamt gibt. Eine "12" an den
 # Tipps, die sich nie aendert, sagt naemlich gar nichts.
-BEREICHE = ("karten", "stimmung", "termine", "tipps")
+BEREICHE = ("karten", "stimmung", "termine", "tipps", "spiele")
 
 # Sprechblasenfarben: eine feste Liste. Freie Farbwahl fuehrt schnell zu
 # Toenen, auf denen die eigene Schrift nicht mehr zu lesen ist.
@@ -4604,6 +4666,495 @@ def api_notify():
              target, len(empfaenger))
     return jsonify({"ok": True, "room_id": room["id"],
                     "message_id": payload["id"], "pushed": len(empfaenger)})
+
+
+# --------------------------------------------------------------------------
+# Spiele
+# --------------------------------------------------------------------------
+# Bisher gibt es ein Spiel: Impostor. Alle bekommen dasselbe Wort, nur einer
+# (oder zwei) nicht - der bekommt einen Tipp und muss mitreden, ohne
+# aufzufallen. Erraet er das Wort, bevor die Uhr klingelt, gewinnt er.
+#
+# Der Server ist der Einzige, der das Wort und die Rollen kennt. Jede Antwort
+# wird fuer den Fragenden gebaut: der Impostor bekommt das Wort nie zu sehen,
+# und wer Impostor ist, steht erst in der Auswertung drin.
+
+SPIEL_ARTEN = ("impostor",)
+SPIEL_MIN_SPIELER = 3
+SPIEL_MAX_DAUER_S = 3600
+SPIEL_MAX_VERSUCHE = 10
+_ZUFALL = secrets.SystemRandom()
+
+
+def _spiel_teilnehmer(conn, spiel_id):
+    return [r["user_id"] for r in conn.execute(
+        "SELECT user_id FROM spiel_spieler WHERE spiel_id=?", (spiel_id,)).fetchall()]
+
+
+def spiel_mitteilen(spiel_id, conn=None):
+    """Alle Beteiligten holen sich das Spiel neu - was sie sehen duerfen,
+    entscheidet ohnehin der Server."""
+    eigen = conn is None
+    conn = conn or raw_db()
+    try:
+        for uid in _spiel_teilnehmer(conn, spiel_id):
+            socketio.emit("spiel_geaendert", {"spiel_id": spiel_id}, to=f"user:{uid}")
+    finally:
+        if eigen:
+            conn.close()
+
+
+def _wort_ziehen(conn, kategorien, ausser_id=None):
+    """Ein nicht gesperrtes Wort aus den gewaehlten Kategorien."""
+    sql = "SELECT id, wort, tipp FROM spiel_worte WHERE gesperrt=0"
+    args = []
+    if kategorien:
+        sql += f" AND kategorie IN ({','.join('?' * len(kategorien))})"
+        args += list(kategorien)
+    if ausser_id:
+        # In der naechsten Runde nicht dasselbe Wort - ausser es ist das letzte
+        sql += " AND id<>?"
+        args.append(ausser_id)
+    reihe = conn.execute(sql, args).fetchall()
+    if not reihe and ausser_id:
+        return _wort_ziehen(conn, kategorien)
+    return _ZUFALL.choice(reihe) if reihe else None
+
+
+def _reihenfolge(dabei, impostoren):
+    """Wer wann dran ist. Die Impostoren landen im hinteren Teil - spaet genug,
+    um von den anderen zu lernen, aber nicht berechenbar auf dem letzten Platz."""
+    anzahl = len(dabei)
+    imps = list(impostoren)
+    _ZUFALL.shuffle(imps)
+    # Hintere Haelfte, und immer genug Plaetze fuer alle Impostoren
+    ab = min(anzahl // 2, anzahl - len(imps))
+    moeglich = list(range(ab, anzahl))
+    _ZUFALL.shuffle(moeglich)
+    belegt = dict(zip(sorted(moeglich[:len(imps)]), imps))
+    andere = [u for u in dabei if u not in impostoren]
+    _ZUFALL.shuffle(andere)
+    return [belegt[platz] if platz in belegt else andere.pop()
+            for platz in range(anzahl)]
+
+
+def _runde_starten(conn, spiel):
+    """Rollen und Wort fuer eine neue Runde auslosen.
+
+    Dabei ist, wer bis jetzt zugesagt hat. Wer waehrend der letzten Runde
+    zugesagt hat, kommt also genau hier dazu.
+    """
+    zusagen = [r["user_id"] for r in conn.execute(
+        "SELECT user_id FROM spiel_spieler WHERE spiel_id=? AND antwort='ja'"
+        " ORDER BY user_id", (spiel["id"],)).fetchall()]
+    if len(zusagen) < SPIEL_MIN_SPIELER:
+        return f"Für eine Runde braucht es mindestens {SPIEL_MIN_SPIELER} Zusagen."
+    kategorien = [k for k in (spiel["kategorien"] or "").split(",") if k]
+    wort = _wort_ziehen(conn, kategorien, spiel["wort_id"])
+    if wort is None:
+        return "Für diese Auswahl gibt es kein Wort mehr. Nimm eine Kategorie dazu."
+
+    # Nie mehr Impostoren als Mitspieler, die sie suchen koennen
+    anzahl = max(1, min(spiel["impostoren"], (len(zusagen) - 1) // 2))
+    impostoren = set(_ZUFALL.sample(zusagen, anzahl))
+    folge = _reihenfolge(zusagen, impostoren)
+
+    conn.execute(
+        "UPDATE spiel_spieler SET dabei=0, impostor=0, platz=NULL, bereit=0,"
+        " versuche=0 WHERE spiel_id=?", (spiel["id"],))
+    for platz, uid in enumerate(folge, start=1):
+        conn.execute(
+            "UPDATE spiel_spieler SET dabei=1, impostor=?, platz=?"
+            " WHERE spiel_id=? AND user_id=?",
+            (1 if uid in impostoren else 0, platz, spiel["id"], uid))
+    conn.execute(
+        "UPDATE spiele SET status='zeigen', runde=runde+1, wort_id=?,"
+        " beginn_at=NULL, ende_at=NULL, ergebnis=NULL, geraten=NULL WHERE id=?",
+        (wort["id"], spiel["id"]))
+    conn.commit()
+    return None
+
+
+def _spiel_nachfuehren(conn, spiel):
+    """Was von selbst passiert: die Uhr laeuft ab.
+
+    Das wird beim Nachsehen entschieden, nicht von einem Wecker im Server -
+    so ueberlebt es einen Neustart, und niemand muss online sein.
+    """
+    if spiel["status"] == "laeuft" and spiel["ende_at"] \
+            and int(time.time()) >= spiel["ende_at"]:
+        conn.execute("UPDATE spiele SET status='vorbei', ergebnis='zeit_um'"
+                     " WHERE id=? AND status='laeuft'", (spiel["id"],))
+        conn.commit()
+        return conn.execute("SELECT * FROM spiele WHERE id=?",
+                            (spiel["id"],)).fetchone()
+    return spiel
+
+
+def spiel_payload(spiel_id, uid, conn=None):
+    """Das Spiel aus Sicht einer Person - ohne das, was sie nicht wissen darf."""
+    conn = conn or db()
+    spiel = conn.execute("SELECT * FROM spiele WHERE id=?", (spiel_id,)).fetchone()
+    if spiel is None:
+        return None
+    spiel = _spiel_nachfuehren(conn, spiel)
+    vorbei = spiel["status"] == "vorbei"
+    ich = conn.execute(
+        "SELECT * FROM spiel_spieler WHERE spiel_id=? AND user_id=?",
+        (spiel_id, uid)).fetchone()
+    if ich is None:
+        return None
+
+    leute = conn.execute(
+        "SELECT s.*, u.display_name, u.avatar FROM spiel_spieler s"
+        " JOIN users u ON u.id=s.user_id WHERE s.spiel_id=?"
+        " ORDER BY s.platz IS NULL, s.platz, u.display_name", (spiel_id,)).fetchall()
+    spieler = [{
+        "id": r["user_id"],
+        "name": r["display_name"],
+        "avatar": r["avatar"],
+        "antwort": r["antwort"],
+        "dabei": bool(r["dabei"]),
+        "bereit": bool(r["bereit"]),
+        "platz": r["platz"],
+        # Wer Impostor ist, steht erst in der Auswertung drin
+        "impostor": bool(r["impostor"]) if vorbei else None,
+    } for r in leute]
+
+    wort = conn.execute("SELECT * FROM spiel_worte WHERE id=?",
+                        (spiel["wort_id"],)).fetchone() if spiel["wort_id"] else None
+    gastgeber = conn.execute("SELECT display_name FROM users WHERE id=?",
+                             (spiel["user_id"],)).fetchone()
+    bin_impostor = bool(ich["impostor"]) and bool(ich["dabei"])
+    laeuft_noch = spiel["status"] in ("zeigen", "laeuft")
+
+    daten = {
+        "id": spiel["id"],
+        "art": spiel["art"],
+        "status": spiel["status"],
+        "runde": spiel["runde"],
+        "gastgeber": {"id": spiel["user_id"],
+                      "name": gastgeber["display_name"] if gastgeber else "?"},
+        "bin_gastgeber": spiel["user_id"] == uid,
+        "spieler": spieler,
+        "kategorien": [k for k in (spiel["kategorien"] or "").split(",") if k],
+        "impostoren": spiel["impostoren"],
+        "dauer_s": spiel["dauer_s"],
+        "versuche": spiel["versuche"],
+        "meine_versuche": ich["versuche"],
+        "ich_dabei": bool(ich["dabei"]),
+        "ich_bereit": bool(ich["bereit"]),
+        "meine_antwort": ich["antwort"],
+        "mein_platz": ich["platz"],
+        "bin_impostor": bin_impostor if laeuft_noch or vorbei else False,
+        "ende_at": spiel["ende_at"],
+        "rest_s": max(0, spiel["ende_at"] - int(time.time()))
+                  if spiel["ende_at"] and spiel["status"] == "laeuft" else None,
+        "ergebnis": spiel["ergebnis"],
+        "geraten": spiel["geraten"],
+        "created_at": spiel["created_at"],
+    }
+    if wort is not None and ich["dabei"]:
+        if bin_impostor and not vorbei:
+            # Der Impostor bekommt nur den Tipp - das Wort nie
+            daten["mein_tipp"] = wort["tipp"]
+        elif not bin_impostor:
+            daten["mein_wort"] = wort["wort"]
+    if vorbei and wort is not None:
+        daten["wort"] = wort["wort"]
+        daten["tipp"] = wort["tipp"]
+        daten["wort_id"] = wort["id"]
+    return daten
+
+
+def meine_spiele(uid, conn=None):
+    conn = conn or db()
+    ids = [r["spiel_id"] for r in conn.execute(
+        "SELECT s.spiel_id FROM spiel_spieler s JOIN spiele g ON g.id=s.spiel_id"
+        " WHERE s.user_id=? ORDER BY g.created_at DESC", (uid,)).fetchall()]
+    return [p for p in (spiel_payload(i, uid, conn) for i in ids) if p]
+
+
+@app.get("/api/spiele")
+@login_required
+def api_spiele():
+    return jsonify({"spiele": meine_spiele(session["uid"])})
+
+
+@app.get("/api/spiele/<int:spiel_id>")
+@login_required
+def api_spiel(spiel_id):
+    daten = spiel_payload(spiel_id, session["uid"])
+    if daten is None:
+        abort(403)
+    return jsonify(daten)
+
+
+@app.post("/api/spiele")
+@login_required
+def api_spiel_anlegen():
+    """Eine Einladung zum Spiel. Wer zusagt, ist ab der naechsten Runde dabei."""
+    uid = session["uid"]
+    data = request.get_json(force=True)
+    art = (data.get("art") or "impostor").strip().lower()
+    if art not in SPIEL_ARTEN:
+        return jsonify({"error": "Dieses Spiel gibt es nicht."}), 400
+
+    conn = db()
+    if conn.execute("SELECT 1 FROM spiele WHERE user_id=? AND status<>'vorbei'",
+                    (uid,)).fetchone():
+        return jsonify({"error": "Du hast schon ein Spiel laufen. "
+                                 "Beende es zuerst."}), 400
+
+    gaeste = set()
+    for wert in (data.get("gaeste") or []):
+        try:
+            g_id = int(wert)
+        except (TypeError, ValueError):
+            continue
+        if g_id != uid and conn.execute(
+                "SELECT 1 FROM users WHERE id=? AND active=1 AND pending=0",
+                (g_id,)).fetchone():
+            gaeste.add(g_id)
+    if len(gaeste) < SPIEL_MIN_SPIELER - 1:
+        return jsonify({"error": f"Lade mindestens {SPIEL_MIN_SPIELER - 1} "
+                                 f"Personen ein."}), 400
+
+    bekannt = {k for k in spielworte.KATEGORIEN}
+    kategorien = sorted({str(k).strip().lower()
+                         for k in (data.get("kategorien") or [])} & bekannt)
+    try:
+        impostoren = max(1, min(3, int(data.get("impostoren") or 1)))
+    except (TypeError, ValueError):
+        impostoren = 1
+    try:
+        dauer = int(data.get("dauer_s") or 180)
+    except (TypeError, ValueError):
+        dauer = 180
+    dauer = max(30, min(SPIEL_MAX_DAUER_S, dauer))
+    try:
+        versuche = int(data.get("versuche") or 1)
+    except (TypeError, ValueError):
+        versuche = 1
+    versuche = max(1, min(SPIEL_MAX_VERSUCHE, versuche))
+
+    now = int(time.time())
+    cur = conn.execute(
+        "INSERT INTO spiele (art, user_id, status, kategorien, impostoren,"
+        " dauer_s, versuche, created_at) VALUES (?,?,'einladung',?,?,?,?,?)",
+        (art, uid, ",".join(kategorien), impostoren, dauer, versuche, now))
+    spiel_id = cur.lastrowid
+    conn.execute(
+        "INSERT INTO spiel_spieler (spiel_id, user_id, antwort, created_at)"
+        " VALUES (?,?,'ja',?)", (spiel_id, uid, now))
+    conn.executemany(
+        "INSERT INTO spiel_spieler (spiel_id, user_id, created_at) VALUES (?,?,?)",
+        [(spiel_id, g_id, now) for g_id in sorted(gaeste)])
+    conn.commit()
+
+    with ONLINE_LOCK:
+        abwesend = [g_id for g_id in gaeste if g_id not in ONLINE]
+    wer = conn.execute("SELECT display_name FROM users WHERE id=?", (uid,)).fetchone()
+    ziel = f"{EXTERNAL_URL}/" if EXTERNAL_URL else "?"
+    push_to_users(abwesend, "Spiel",
+                  f"{wer['display_name'] if wer else 'Jemand'} lädt dich ein", ziel)
+    spiel_mitteilen(spiel_id, conn)
+    return jsonify(spiel_payload(spiel_id, uid, conn))
+
+
+@app.post("/api/spiele/<int:spiel_id>/antwort")
+@login_required
+def api_spiel_antwort(spiel_id):
+    """Zusagen oder absagen. Waehrend einer Runde aendert das nichts mehr -
+    wer jetzt zusagt, ist ab der naechsten Runde dabei."""
+    uid = session["uid"]
+    conn = db()
+    if conn.execute("SELECT 1 FROM spiel_spieler WHERE spiel_id=? AND user_id=?",
+                    (spiel_id, uid)).fetchone() is None:
+        abort(403)
+    antwort = (request.get_json(force=True).get("antwort") or "").strip().lower()
+    if antwort not in ("ja", "nein"):
+        return jsonify({"error": "Sage zu oder ab."}), 400
+    conn.execute("UPDATE spiel_spieler SET antwort=? WHERE spiel_id=? AND user_id=?",
+                 (antwort, spiel_id, uid))
+    conn.commit()
+    spiel_mitteilen(spiel_id, conn)
+    return jsonify(spiel_payload(spiel_id, uid, conn))
+
+
+@app.post("/api/spiele/<int:spiel_id>/start")
+@login_required
+def api_spiel_start(spiel_id):
+    """Runde starten - die erste oder die naechste. Nur der Gastgeber."""
+    uid = session["uid"]
+    conn = db()
+    spiel = conn.execute("SELECT * FROM spiele WHERE id=?", (spiel_id,)).fetchone()
+    if spiel is None or spiel["user_id"] != uid:
+        abort(403)
+    if spiel["status"] in ("zeigen", "laeuft"):
+        return jsonify({"error": "Die Runde läuft schon."}), 400
+    fehler = _runde_starten(conn, spiel)
+    if fehler:
+        return jsonify({"error": fehler}), 400
+    spiel_mitteilen(spiel_id, conn)
+    return jsonify(spiel_payload(spiel_id, uid, conn))
+
+
+@app.post("/api/spiele/<int:spiel_id>/bereit")
+@login_required
+def api_spiel_bereit(spiel_id):
+    """Wort gelesen. Sobald alle so weit sind, laeuft die Uhr."""
+    uid = session["uid"]
+    conn = db()
+    spiel = conn.execute("SELECT * FROM spiele WHERE id=?", (spiel_id,)).fetchone()
+    if spiel is None or conn.execute(
+            "SELECT 1 FROM spiel_spieler WHERE spiel_id=? AND user_id=? AND dabei=1",
+            (spiel_id, uid)).fetchone() is None:
+        abort(403)
+    if spiel["status"] != "zeigen":
+        return jsonify({"error": "Gerade ist nichts zu bestätigen."}), 400
+    conn.execute("UPDATE spiel_spieler SET bereit=1 WHERE spiel_id=? AND user_id=?",
+                 (spiel_id, uid))
+    offen = conn.execute(
+        "SELECT COUNT(*) AS n FROM spiel_spieler"
+        " WHERE spiel_id=? AND dabei=1 AND bereit=0", (spiel_id,)).fetchone()["n"]
+    if not offen:
+        now = int(time.time())
+        conn.execute("UPDATE spiele SET status='laeuft', beginn_at=?, ende_at=?"
+                     " WHERE id=?", (now, now + spiel["dauer_s"], spiel_id))
+    conn.commit()
+    spiel_mitteilen(spiel_id, conn)
+    return jsonify(spiel_payload(spiel_id, uid, conn))
+
+
+@app.post("/api/spiele/<int:spiel_id>/raten")
+@login_required
+def api_spiel_raten(spiel_id):
+    """Der Impostor nennt das Wort. Gross- und Kleinschreibung sind egal."""
+    uid = session["uid"]
+    conn = db()
+    spiel = conn.execute("SELECT * FROM spiele WHERE id=?", (spiel_id,)).fetchone()
+    if spiel is None:
+        abort(403)
+    ich = conn.execute(
+        "SELECT * FROM spiel_spieler WHERE spiel_id=? AND user_id=?",
+        (spiel_id, uid)).fetchone()
+    if ich is None:
+        abort(403)
+    spiel = _spiel_nachfuehren(conn, spiel)
+    if spiel["status"] != "laeuft":
+        return jsonify({"error": "Gerade läuft keine Runde."}), 400
+    if not (ich["dabei"] and ich["impostor"]):
+        return jsonify({"error": "Nur der Impostor rät."}), 403
+    if ich["versuche"] >= spiel["versuche"]:
+        return jsonify({"error": "Du hast keinen Versuch mehr."}), 400
+
+    geraten = (request.get_json(force=True).get("wort") or "").strip()
+    if not geraten:
+        return jsonify({"error": "Schreibe ein Wort."}), 400
+    wort = conn.execute("SELECT wort FROM spiel_worte WHERE id=?",
+                        (spiel["wort_id"],)).fetchone()
+    treffer = wort is not None and geraten.casefold() == wort["wort"].casefold()
+    conn.execute("UPDATE spiel_spieler SET versuche=versuche+1"
+                 " WHERE spiel_id=? AND user_id=?", (spiel_id, uid))
+    if treffer:
+        conn.execute("UPDATE spiele SET status='vorbei', ergebnis='erraten',"
+                     " geraten=? WHERE id=?", (geraten[:100], spiel_id))
+    else:
+        # Erst wenn kein Impostor mehr einen Versuch hat, ist die Runde gelaufen
+        uebrig = conn.execute(
+            "SELECT COUNT(*) AS n FROM spiel_spieler WHERE spiel_id=? AND dabei=1"
+            " AND impostor=1 AND versuche < ?", (spiel_id, spiel["versuche"])).fetchone()["n"]
+        if not uebrig:
+            conn.execute("UPDATE spiele SET status='vorbei', ergebnis='verraten',"
+                         " geraten=? WHERE id=?", (geraten[:100], spiel_id))
+    conn.commit()
+    spiel_mitteilen(spiel_id, conn)
+    daten = spiel_payload(spiel_id, uid, conn)
+    daten["treffer"] = treffer
+    return jsonify(daten)
+
+
+@app.delete("/api/spiele/<int:spiel_id>")
+@login_required
+def api_spiel_beenden(spiel_id):
+    """Spiel beenden - Einladung und Zusagen verschwinden. Nur der Gastgeber."""
+    uid = session["uid"]
+    conn = db()
+    spiel = conn.execute("SELECT * FROM spiele WHERE id=?", (spiel_id,)).fetchone()
+    if spiel is None or spiel["user_id"] != uid:
+        abort(403)
+    beteiligte = _spiel_teilnehmer(conn, spiel_id)
+    conn.execute("DELETE FROM spiel_spieler WHERE spiel_id=?", (spiel_id,))
+    conn.execute("DELETE FROM spiele WHERE id=?", (spiel_id,))
+    conn.commit()
+    for teilnehmer in beteiligte:
+        socketio.emit("spiel_geaendert", {"spiel_id": spiel_id, "weg": True},
+                      to=f"user:{teilnehmer}")
+    return jsonify({"ok": True})
+
+
+@app.get("/api/spiel-worte")
+@login_required
+def api_spiel_worte():
+    """Der ganze Wortvorrat mit Kategorien - fuer die Wortliste im Spiel."""
+    conn = db()
+    reihen = conn.execute(
+        "SELECT id, kategorie, wort, tipp, gesperrt, user_id FROM spiel_worte"
+        " ORDER BY kategorie, wort").fetchall()
+    englisch = (current_user()["sprache"] or browsersprache()) == "en"
+    kategorien = [{"schluessel": k,
+                   "name": spielworte.kategorie_name(k, englisch),
+                   "anzahl": sum(1 for r in reihen
+                                 if r["kategorie"] == k and not r["gesperrt"])}
+                  for k in spielworte.KATEGORIEN]
+    return jsonify({
+        "kategorien": kategorien,
+        "worte": [{"id": r["id"], "kategorie": r["kategorie"], "wort": r["wort"],
+                   "tipp": r["tipp"], "gesperrt": bool(r["gesperrt"]),
+                   "eigenes": r["user_id"] is not None} for r in reihen],
+    })
+
+
+@app.post("/api/spiel-worte")
+@login_required
+def api_spiel_wort_anlegen():
+    """Ein eigenes Wort dazulegen. Es gilt fuer alle."""
+    data = request.get_json(force=True)
+    wort = (data.get("wort") or "").strip()
+    tipp = (data.get("tipp") or "").strip()
+    kategorie = (data.get("kategorie") or "").strip().lower()
+    if not wort:
+        return jsonify({"error": "Das Wort fehlt."}), 400
+    if not tipp:
+        return jsonify({"error": "Ohne Tipp hat der Impostor keine Chance."}), 400
+    if kategorie not in spielworte.KATEGORIEN:
+        return jsonify({"error": "Diese Kategorie gibt es nicht."}), 400
+    conn = db()
+    try:
+        conn.execute(
+            "INSERT INTO spiel_worte (kategorie, wort, tipp, user_id, created_at)"
+            " VALUES (?,?,?,?,?)",
+            (kategorie, wort[:80], tipp[:200], session["uid"], int(time.time())))
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Dieses Wort steht schon in der Liste."}), 400
+    conn.commit()
+    socketio.emit("spielworte_geaendert", {})
+    return jsonify({"ok": True})
+
+
+@app.post("/api/spiel-worte/<int:wort_id>/sperren")
+@login_required
+def api_spiel_wort_sperren(wort_id):
+    """Ein Wort aus dem Spiel nehmen oder wieder zulassen - fuer alle."""
+    conn = db()
+    if conn.execute("SELECT 1 FROM spiel_worte WHERE id=?", (wort_id,)).fetchone() is None:
+        abort(404)
+    gesperrt = 1 if request.get_json(force=True).get("gesperrt", True) else 0
+    conn.execute("UPDATE spiel_worte SET gesperrt=? WHERE id=?", (gesperrt, wort_id))
+    conn.commit()
+    socketio.emit("spielworte_geaendert", {})
+    return jsonify({"ok": True, "gesperrt": bool(gesperrt)})
 
 
 @app.errorhandler(413)

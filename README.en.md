@@ -39,6 +39,12 @@ Raspberry Pi is enough.
   to everyone within a radius of up to 25 km
 * Birthdays of people in your circle, switchable
 
+**Playing**
+* **Impostor**: invite friends, everyone gets the same word — except the
+  impostor, who only gets a hint. The clock runs, the chat draws roles and
+  turn order
+* About 150 (German) words in ten categories, add your own, retire used ones
+
 **Showing what is going on**
 * A live map with shared locations, invitations and recommendations
 * Share your location with one conversation, with all friends, or with

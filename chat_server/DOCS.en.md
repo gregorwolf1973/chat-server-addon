@@ -29,6 +29,7 @@ original and always the more detailed one.
 [Invitations and events](#invitations-and-events) ·
 [Location and maps](#location-and-maps) ·
 [Recommendations and moods](#recommendations-and-moods) ·
+[Games: Impostor](#games-impostor) ·
 [Gallery](#gallery) ·
 [On a phone](#on-a-phone) ·
 [Appearance](#appearance) ·
@@ -261,6 +262,38 @@ circle. They can be filtered by distance from where you are.
 an emoji, a duration and optionally your location. Others tap **Ich mach mit**
 (I'm in). One note per person; a new one replaces the old. A tap on the name
 opens the conversation with that person.
+
+## Games: Impostor
+
+In the **Games** tab you invite friends to a round of **Impostor**. Everyone
+gets the same word — except one. The **impostor** does not know the word but
+gets a hint and has to bluff along. Each player in turn says something about
+the word. If the impostor guesses it before the alarm goes off, the impostor
+wins; otherwise the impostor loses. You play at the table or on a call — the
+chat only hands out the words, draws the turn order and keeps the time.
+
+1. **Invite** at least two people and pick the categories, the number of
+   impostors (1–3), the time on the clock (2, 3, 5 or 10 minutes) and how many
+   guesses the impostor gets.
+2. The others **accept or decline**.
+3. With at least three players including you, press **Start the game**.
+4. Everyone reads their word — or *You are the impostor* with the hint — and
+   presses **Carry on**. The clock starts once everybody has.
+5. Only the impostor gets a field to **guess**. Upper and lower case do not
+   matter, and "fussball" counts for "Fußball".
+6. The **result** shows the word and who the impostor was. Start a **New
+   round** or **End the game**, which removes the invitation and all answers.
+
+The impostor is drawn onto a place in the **back half** of the turn order —
+late enough to pick something up, but not always last, which would give the
+role away after two rounds. Anyone who accepts during a round joins from the
+next one. The word and the roles live only on the server: the impostor never
+receives the word, and the roles appear only in the result.
+
+**Word list.** About 150 words in ten categories come with the chat, each
+with a hint for the impostor. Anyone can retire a word or add their own, and
+the change applies to everyone. Retired words stay listed and can be allowed
+again. The words themselves are German.
 
 ## Gallery
 

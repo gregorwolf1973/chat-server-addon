@@ -40,6 +40,8 @@
           class="reiter-zahl" id="zahl-termine"></span></button>
         <button class="reiter-knopf" data-reiter="tipps">{{ t("Tipps") }}<span
           class="reiter-zahl" id="zahl-tipps"></span></button>
+        <button class="reiter-knopf" data-reiter="spiele">{{ t("Spiele") }}<span
+          class="reiter-zahl" id="zahl-spiele"></span></button>
       </nav>
       <div class="seiten-scroll">
         <section class="abschnitt" data-inhalt="chats">
@@ -67,6 +69,12 @@
           <div class="kf-zeile" id="tipp-filter"></div>
           <div class="kf-zeile" id="tipp-naehe"></div>
           <div id="tipp-liste"></div>
+        </section>
+        <section class="abschnitt" data-inhalt="spiele">
+          <div class="abschnitt-aktion">
+            <button class="mini-btn" id="btn-spiel-neu">{{ t("Zum Spiel einladen") }}</button>
+            <button class="mini-btn" id="btn-spiel-worte">{{ t("Wortliste") }}</button></div>
+          <div id="spiel-liste"></div>
         </section>
       </div>
       <footer>

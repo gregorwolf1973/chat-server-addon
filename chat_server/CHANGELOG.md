@@ -1,5 +1,24 @@
 # Änderungsverlauf
 
+## 0.47.0
+
+- **Neuer Reiter „Spiele" mit dem ersten Spiel: Impostor.** Du lädst Freunde
+  ein, wer zusagt, ist beim Start dabei. Alle bekommen dasselbe Wort, der
+  Impostor nur einen Tipp. Jeder bestätigt mit *Weiter*, dann läuft die Uhr.
+  Errät der Impostor das Wort vor dem Alarm, gewinnt er
+- Einstellbar beim Einladen: **Kategorien**, **Zahl der Impostoren** (1–3),
+  **Spielzeit** (2–10 Minuten) und **Rateversuche**. Groß- und
+  Kleinschreibung spielen beim Raten keine Rolle
+- Der Impostor wird auf einen Platz in der **hinteren Hälfte** gelost –
+  spät genug für eine Chance, aber nicht berechenbar auf dem letzten
+- Wer während einer Runde zusagt, ist ab der **nächsten Runde** dabei.
+  *Spiel beenden* entfernt Einladung und Zusagen
+- **Wortliste** mit rund 150 Wörtern in zehn Kategorien. Jeder kann Wörter
+  sperren oder eigene hinzufügen; das gilt für alle
+- Wort und Rollen kennt nur der Server: der Impostor bekommt das Wort nie zu
+  sehen, und wer Impostor ist, steht erst in der Auswertung
+- Die Uhr läuft auf dem Server und übersteht einen Neustart
+
 ## 0.46.0
 
 - **Die englische Oberfläche war nur halb englisch.** Rund 200 Texte liefen

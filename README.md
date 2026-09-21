@@ -37,6 +37,12 @@ Raspberry Pi.
   Umkreis von bis zu 25 km
 * Geburtstage aus dem eigenen Kreis, abschaltbar
 
+**Spielen**
+* **Impostor**: Freunde einladen, jeder bekommt dasselbe Wort – bis auf den
+  Impostor, der nur einen Tipp hat. Die Uhr läuft, der Chat lost Rollen und
+  Reihenfolge
+* Rund 150 Wörter in zehn Kategorien, eigene dazu, verbrauchte sperren
+
 **Zeigen, wo etwas los ist**
 * Live-Karte mit Standortfreigaben, Einladungen und Empfehlungen
 * Standort teilen an eine Unterhaltung, an alle Freunde oder an alle in der

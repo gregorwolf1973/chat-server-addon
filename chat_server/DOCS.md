@@ -54,6 +54,10 @@ die ersten beiden Abschnitte.
 [Galerie](#galerie-bilder-über-die-unterhaltung-hinaus) ·
 [Medienschau](#durch-bilder-und-videos-wischen)
 
+**Spielen**
+[Impostor](#spiele-impostor) ·
+[Wortliste](#die-wortliste)
+
 **Aussehen und Bedienung**
 [Die Reiter in der Seitenleiste](#die-reiter-in-der-seitenleiste) ·
 [Am Telefon](#am-telefon) ·
@@ -683,7 +687,7 @@ Auch hier gilt: Der Browser gibt den Standort **nur über HTTPS** heraus.
 
 ## Die Reiter in der Seitenleiste
 
-Oben in der Seitenleiste stehen fünf Reiter, wie die Filterknöpfe bei
+Oben in der Seitenleiste stehen sechs Reiter, wie die Filterknöpfe bei
 WhatsApp. Sichtbar ist immer genau einer:
 
 | Reiter | Inhalt | Zahl daneben |
@@ -693,6 +697,11 @@ WhatsApp. Sichtbar ist immer genau einer:
 | **Stimmung** | worauf dein Kreis gerade Lust hat | gültige Meldungen |
 | **Termine** | alles Anstehende aus allen Unterhaltungen | Anzahl |
 | **Tipps** | Empfehlungen aus deinem Kreis | Anzahl |
+| **Spiele** | Einladungen und laufende Runden | was auf dich wartet |
+
+Der Reiter **Spiele** zählt anders als die übrigen: Dort steht nicht, was neu
+ist, sondern **was auf dich wartet** – eine unbeantwortete Einladung, ein
+Wort, das du noch nicht gelesen hast, oder eine Runde, die gerade läuft.
 
 Die Zahl an einem Reiter zeigt, **was seit deinem letzten Blick dazugekommen
 ist** – nicht, wie viel es insgesamt gibt. Eine „12", die sich nie ändert,
@@ -867,6 +876,78 @@ Meldungen verschwinden von selbst.
 Ein Tipp auf den **Namen** öffnet die Unterhaltung mit dieser Person; gibt es
 noch keine, wird sie angelegt. Genau das ist ja meist der nächste Schritt,
 wenn jemand schreibt, worauf er Lust hätte.
+
+## Spiele: Impostor
+
+Im Reiter **Spiele** lädst du Freunde zu einer Runde **Impostor** ein. Alle
+bekommen dasselbe Wort – bis auf einen. Der **Impostor** kennt das Wort nicht,
+bekommt aber einen Tipp und muss so tun, als wüsste er Bescheid. Reihum sagt
+jeder etwas zum Wort. Errät der Impostor es, bevor die Uhr klingelt, gewinnt
+er. Klingelt der Alarm vorher, hat er verloren.
+
+Gespielt wird am Tisch oder im Anruf; der Chat verteilt nur die Wörter,
+lost die Reihenfolge und hält die Zeit.
+
+**So läuft eine Runde:**
+
+1. **Einladen.** *Zum Spiel einladen* öffnet die Auswahl: mindestens zwei
+   Personen, dazu die Kategorien, die Zahl der Impostoren (1–3), die Spielzeit
+   (2, 3, 5 oder 10 Minuten) und wie oft der Impostor raten darf.
+2. **Zusagen.** Die Eingeladenen bekommen eine Benachrichtigung und sagen zu
+   oder ab. Du siehst in der Liste, wer schon geantwortet hat.
+3. **Starten.** Sobald genug zugesagt haben – mindestens drei Leute mit dir –,
+   drückst du *Spiel starten*.
+4. **Wort lesen.** Jeder sieht jetzt sein Wort oder die Nachricht *Du bist der
+   Impostor* mit dem Tipp. Wer es gelesen hat, drückt *Weiter*.
+5. **Die Uhr läuft**, sobald alle *Weiter* gedrückt haben. Die Reihenfolge
+   steht für alle sichtbar darunter.
+6. **Raten.** Nur der Impostor hat ein Eingabefeld. Groß- und Kleinschreibung
+   spielen keine Rolle, und „fussball" gilt auch für „Fußball". Sind seine
+   Versuche aufgebraucht, hat er verloren.
+7. **Auswertung.** Alle sehen das Wort und wer Impostor war. Danach startest du
+   eine *Neue Runde* oder *beendest das Spiel* – dann verschwinden Einladung
+   und Zusagen.
+
+**Reihenfolge.** Der Impostor soll möglichst spät dran sein, damit er von den
+anderen etwas aufschnappen kann. Er wird darum auf einen Platz in der
+**hinteren Hälfte** gelost – aber nicht immer auf den letzten. Stünde er immer
+ganz hinten, wüssten nach zwei Runden alle Bescheid.
+
+**Wer später zusagt**, ist ab der nächsten Runde dabei. Eine laufende Runde
+nimmt niemanden mehr auf, damit niemand ein Wort sieht, das er nicht hätte
+sehen dürfen.
+
+**Mehrere Impostoren.** Bei zwei oder drei Impostoren gewinnen alle, sobald
+einer das Wort errät. Verloren haben sie erst, wenn keiner mehr einen Versuch
+hat oder die Zeit um ist. Es gibt nie mehr Impostoren als die Hälfte der Runde
+minus eins – bei vier Leuten bleibt es also bei einem.
+
+**Was der Server verrät – und was nicht.** Wort und Rollen kennt nur der
+Server. Der Impostor bekommt das Wort nie zu sehen, auch nicht im Quelltext der
+Seite, und wer Impostor ist, steht erst in der Auswertung drin. Die Uhr läuft
+auf dem Server: Wer das Handy weglegt, verpasst nichts, und ein Neustart des
+Add-ons hält sie nicht an.
+
+## Die Wortliste
+
+Der Chat bringt rund 150 Wörter in zehn Kategorien mit: Sport, Musik,
+Weltgeschichte, Essen und Trinken, Tiere, Film und Fernsehen, Technik, Alltag,
+Berufe und Reisen. Jedes Wort hat einen Tipp für den Impostor – er nennt die
+Richtung, nie das Wort selbst.
+
+Über **Wortliste** im Reiter *Spiele* kannst du:
+
+* **Wörter aus dem Spiel nehmen.** *Nicht mehr* sperrt ein Wort. Es bleibt in
+  der Liste sichtbar und lässt sich mit *Wieder zulassen* zurückholen. Nach
+  einer Runde geht das auch direkt über *Dieses Wort nicht mehr verwenden*.
+* **Eigene Wörter hinzufügen** – mit Tipp, sonst hat der Impostor keine Chance.
+
+Die Wortliste gehört **allen**: Wer ein Wort sperrt oder hinzufügt, ändert es
+für jede Runde im Chat. Ein Wort, das einmal verbraucht ist, ist es für alle.
+
+Beim Einladen wählst du die Kategorien für diese Runde. Nichts gewählt heißt:
+alle Wörter. Wird die Auswahl leer, weil alles gesperrt ist, sagt der Chat das
+beim Start und bittet um eine weitere Kategorie.
 
 ## Am Telefon
 

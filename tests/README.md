@@ -28,7 +28,7 @@ kill %1
 
 Danach dasselbe für `tests/test_users.py`, `tests/test_media.py`,
 `tests/test_register.py`, `tests/test_avatars.py`, `tests/test_notify.py`,
-`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py`, `tests/test_anrufe.py`, `tests/test_freunde.py`, `tests/test_tipps.py`, `tests/test_geburtstage.py` und
+`tests/test_login.py`, `tests/test_polls.py`, `tests/test_termine.py`, `tests/test_anrufe.py`, `tests/test_freunde.py`, `tests/test_tipps.py`, `tests/test_geburtstage.py`, `tests/test_spiele.py` und
 `tests/test_toene.py`.
 `test_media.py` prüft zusätzlich die Blobs auf der Platte und braucht
 dafür dasselbe `DATA_DIR` wie der Server.
@@ -99,6 +99,20 @@ das durch Altbestände fehl.
 * Die Liste zeigt nur den eigenen Kreis, nennt den nächsten Termin und das
   Alter, das erreicht wird.
 * Der 29. Februar fällt in Jahren ohne Schalttag auf den 1. März.
+
+`test_spiele.py` (57 Prüfungen) – wartet einmal 32 Sekunden auf den Alarm
+
+* Einladen braucht mindestens drei Leute; ein zweites Spiel nebenher geht
+  nicht. Starten und beenden darf nur der Gastgeber.
+* Dabei ist, wer zugesagt hat; wer später zusagt, kommt in der nächsten Runde.
+* Der Impostor bekommt das Wort nie – weder als eigenes noch über die
+  Auswertung –, und wer Impostor ist, steht während der Runde bei niemandem.
+* Er steht nie auf dem ersten Platz. Die Uhr läuft erst, wenn alle bereit sind.
+* Raten darf nur der Impostor; Groß- und Kleinschreibung sind egal, und die
+  Versuche werden gezählt.
+* Nach Ablauf der Zeit ist die Runde vorbei – festgestellt beim Nachsehen,
+  ohne Wecker im Server.
+* Die Wortliste: sperren gilt für alle, eigene Wörter brauchen einen Tipp.
 
 `test_toene.py` (49 Prüfungen)
 
