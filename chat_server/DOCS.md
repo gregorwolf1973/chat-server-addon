@@ -734,9 +734,11 @@ OpenStreetMap geholt – das ist die einzige Stelle, an der dieser Chat etwas
 von einem fremden Server lädt. Beim Start der App passiert das nicht, und in
 Sprechblasen auch nicht.
 
-Was OpenStreetMap dabei erfährt: deine IP-Adresse und welchen Ausschnitt du
-ansiehst. Der Chat schickt `Referrer-Policy: no-referrer` mit, die Adresse
-deines Servers bleibt also außen vor.
+Was OpenStreetMap dabei erfährt: deine IP-Adresse, welchen Ausschnitt du
+ansiehst und den **Namen deines Chats** (etwa `chat.example.org`), aber keinen
+Pfad – welche Unterhaltung offen ist, bleibt außen vor. Den Namen verlangt
+OpenStreetMap: Anfragen ohne Herkunft sperrt es und liefert statt der Karte
+„Access blocked“. Überall sonst schickt der Chat `Referrer-Policy: no-referrer`.
 
 **Abschalten:** In den Einstellungen unter *Karten* nimmst du den Haken bei
 **Straßenkarte verwenden** weg. Dann bleibt es überall bei den Umrissen und

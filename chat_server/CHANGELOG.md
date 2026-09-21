@@ -1,5 +1,14 @@
 # Änderungsverlauf
 
+## 0.48.1
+
+- **Die Straßenkarte zeigte nur noch „Access blocked“.** OpenStreetMap sperrt
+  Kacheln, wenn der Browser nicht sagt, von welcher Seite die Anfrage kommt –
+  und der Chat hat genau das überall unterdrückt. Für die Kacheln geht jetzt
+  der Name der Seite mit (etwa `chat.example.org`), ohne Pfad: welche
+  Unterhaltung offen ist, erfährt OpenStreetMap weiterhin nicht. Für alles
+  andere bleibt es beim Verschweigen
+
 ## 0.48.0
 
 - **Zweites Spiel: Codenames.** Zwei Teams, 25 Karten, je ein

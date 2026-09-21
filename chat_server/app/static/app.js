@@ -1238,6 +1238,12 @@
   const KACHEL_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
   const KACHEL_DANK = '&copy; <a href="https://www.openstreetmap.org/copyright" '
     + 'target="_blank" rel="noopener noreferrer">OpenStreetMap</a>';
+  // Der Server schickt ueberall "Referrer-Policy: no-referrer". OpenStreetMap
+  // sperrt Kacheln aber, wenn der Browser gar nicht sagt, woher er kommt
+  // ("Access blocked", Kachelrichtlinie). Nur fuer die Kacheln geht darum der
+  // Name der Seite mit - ohne Pfad, also nie, welche Unterhaltung offen ist.
+  const KACHEL_OPTIONEN = {maxZoom: 19, attribution: KACHEL_DANK,
+                           referrerPolicy: "strict-origin"};
 
   const kachelnErlaubt = () => !(state.me && state.me.kacheln === false);
 
@@ -1322,7 +1328,7 @@
       // Karte verschieben - erst ein Tipp auf die Karte gibt sie frei.
       tap: true,
     });
-    L.tileLayer(KACHEL_URL, {maxZoom: 19, attribution: KACHEL_DANK}).addTo(karte);
+    L.tileLayer(KACHEL_URL, KACHEL_OPTIONEN).addTo(karte);
     const marken = punkte.map((p) => {
       const marke = L.marker([p.lat, p.lon], {icon: nadelSymbol(p)}).addTo(karte);
       if (p.event_id) {
@@ -2204,7 +2210,7 @@
     }
     const karte = L.map(box.firstElementChild);
     offeneKarten.push(karte);
-    L.tileLayer(KACHEL_URL, {maxZoom: 19, attribution: KACHEL_DANK}).addTo(karte);
+    L.tileLayer(KACHEL_URL, KACHEL_OPTIONEN).addTo(karte);
     // Ohne bekannten Ort auf Deutschland - von dort ist jeder Ort in ein
     // paar Zoomstufen erreichbar.
     karte.setView(start ? [start.lat, start.lon] : [51.2, 10.4],
